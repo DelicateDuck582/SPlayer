@@ -1,12 +1,14 @@
-import type { ColorScheme, RGB } from "@/types/main";
-import {
+import type {
+  AudioSourceType,
+  ColorScheme,
   QualityType,
-  type SongLevelDataType,
-  type SortField,
-  type SortOrder,
-  type AudioSourceType,
+  RGB,
+  SongLevelDataType,
+  SortField,
+  SortOrder,
+  UpdateInfoType,
 } from "@/types/main";
-import { RepeatModeType, ShuffleModeType } from "@/types/shared";
+import type { RepeatModeType, ShuffleModeType } from "@/types/shared/play-mode";
 import { isDevBuild } from "@/utils/env";
 import { defineStore } from "pinia";
 
@@ -98,6 +100,16 @@ interface StatusState {
   personalFmMode: boolean;
   /** 更新检查 */
   updateCheck: boolean;
+  /** 有可用更新 */
+  updateAvailable: boolean;
+  /** 更新信息 */
+  updateInfo: UpdateInfoType | null;
+  /** 更新已下载完成 */
+  updateDownloaded: boolean;
+  /** 更新下载中 */
+  updateDownloading: boolean;
+  /** 更新下载进度 */
+  updateDownloadProgress: number;
   /** 均衡器是否开启 */
   eqEnabled: boolean;
   /** 均衡器 10 段增益（dB） */
@@ -151,6 +163,10 @@ interface StatusState {
   };
   /** 侧边栏歌单显示模式 */
   playlistMode: "online" | "local";
+  automixFxSeq: number;
+  automixEndedSeq: number;
+  /** 当前歌曲评论数量 */
+  songCommentCount: number;
 }
 
 export const useStatusStore = defineStore("status", {
@@ -191,6 +207,11 @@ export const useStatusStore = defineStore("status", {
     showTaskbarLyric: false,
     showPlayerComment: false,
     updateCheck: false,
+    updateAvailable: false,
+    updateInfo: null,
+    updateDownloaded: false,
+    updateDownloading: false,
+    updateDownloadProgress: 0,
     eqEnabled: false,
     eqBands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     eqPreset: "acoustic",
@@ -227,6 +248,9 @@ export const useStatusStore = defineStore("status", {
       pointB: null,
     },
     playlistMode: "online",
+    automixFxSeq: 0,
+    automixEndedSeq: 0,
+    songCommentCount: 0,
   }),
   getters: {
     // 播放音量图标
@@ -284,9 +308,16 @@ export const useStatusStore = defineStore("status", {
     },
   },
   actions: {
+    triggerAutomixFx() {
+      this.automixFxSeq += 1;
+    },
+    endAutomixFx() {
+      this.automixEndedSeq += 1;
+    },
     /**
      * 获取指定歌曲的偏移
-     * 单位：毫秒
+     * @param songId 歌曲 id
+     * @returns 歌曲的偏移量（单位：毫秒，正值为歌词提前），默认为 0
      */
     getSongOffset(songId?: number): number {
       if (!songId) return 0;
@@ -296,7 +327,7 @@ export const useStatusStore = defineStore("status", {
     /**
      * 设置指定歌曲的偏移
      * @param songId 歌曲 id
-     * @param offset 偏移量（单位：毫秒）
+     * @param offset 偏移量（单位：毫秒，正值为歌词提前）
      */
     setSongOffset(songId?: number, offset: number = 0) {
       if (!songId) return;
@@ -314,7 +345,7 @@ export const useStatusStore = defineStore("status", {
     /**
      * 调整指定歌曲的偏移（增量）
      * @param songId 歌曲 id
-     * @param delta 偏移增量（单位：毫秒，默认 500ms）
+     * @param delta 偏移增量（单位：毫秒，默认 500ms，正值为歌词提前）
      */
     incSongOffset(songId?: number, delta: number = 500) {
       if (!songId) return;

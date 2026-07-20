@@ -469,7 +469,7 @@ export const openSongUnlockManager = async () => {
   });
 };
 
-/** 打开侧边栏隐藏管理弹窗 */
+/** 打开侧边栏显示管理弹窗 */
 export const openSidebarHideManager = async () => {
   const { default: SidebarHideManager } =
     await import("@/components/Modal/Setting/SidebarHideManager.vue");
@@ -478,23 +478,22 @@ export const openSidebarHideManager = async () => {
     transformOrigin: "center",
     autoFocus: false,
     style: { width: "500px" },
-    title: "侧边栏隐藏管理",
+    title: "侧边栏显示管理",
     content: () => {
       return h(SidebarHideManager);
     },
   });
 };
 
-/** 打开封面隐藏配置弹窗 */
+/** 打开封面显示配置弹窗 */
 export const openCoverManager = async () => {
-  const { default: CoverManager } =
-    await import("@/components/Modal/Setting/CoverManager.vue");
+  const { default: CoverManager } = await import("@/components/Modal/Setting/CoverManager.vue");
   window.$modal.create({
     preset: "card",
     transformOrigin: "center",
     autoFocus: false,
     style: { width: "500px" },
-    title: "封面隐藏配置",
+    title: "封面显示配置",
     content: () => {
       return h(CoverManager);
     },
@@ -528,6 +527,24 @@ export const openCopyLyrics = async () => {
     title: "复制歌词",
     content: () => {
       return h(CopyLyrics, {
+        onClose: () => modal.destroy(),
+      });
+    },
+  });
+};
+
+/** 打开歌曲详情复制弹窗 */
+export const openCopySongInfo = async (songId: number) => {
+  const { default: CopySongInfo } = await import("@/components/Modal/CopySongInfo.vue");
+  const modal = window.$modal.create({
+    preset: "card",
+    transformOrigin: "center",
+    autoFocus: false,
+    style: { width: "500px" },
+    title: "歌曲详情复制",
+    content: () => {
+      return h(CopySongInfo, {
+        songId,
         onClose: () => modal.destroy(),
       });
     },

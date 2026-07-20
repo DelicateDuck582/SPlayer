@@ -1,5 +1,7 @@
-import type { LyricLine } from "@applemusic-like-lyrics/lyric";
-import { parseLrc } from "../parseLrc";
+import type { LyricLine, LyricWord } from "@applemusic-like-lyrics/lyric";
+import { cloneDeep } from "lodash-es";
+import { parseLrc } from "./parseLrc";
+import { extractLyricContent } from "./parseQrc";
 
 /**
  * LRC 格式类型
@@ -13,26 +15,30 @@ export enum LrcFormat {
   Enhanced = "enhanced",
 }
 
-/** LyricWord 类型 */
-type LyricWord = { word: string; startTime: number; endTime: number; romanWord: string };
-
 // 预编译正则表达式
 const META_TAG_REGEX = /^\[[a-z]+:/i;
 const TIME_TAG_REGEX = /\[(\d{2}):(\d{2})\.(\d{1,})\]/g;
 const ENHANCED_TIME_TAG_REGEX = /<(\d{2}):(\d{2})\.(\d{1,})>/;
-const WORD_BY_WORD_REGEX = /\[(\d{2}):(\d{2})\.(\d{1,})\]([^[\]]*)/g;
-const ENHANCED_WORD_REGEX = /<(\d{2}):(\d{2})\.(\d{1,})>([^<]*)/g;
+// 移除全局带状态的正则，改为在函数内使用 matchAll 或重新构建
 const LINE_TIME_REGEX = /^\[(\d{2}):(\d{2})\.(\d{1,})\]/;
+
+// QRC 解析相关正则 - 提前编译
+const QRC_LINE_PATTERN = /^\[(\d+),(\d+)\](.*)$/;
+const QRC_WORD_PATTERN = /(.*?)\((\d+),(\d+)\)/g;
+
+const DEFAULT_WORD_DURATION = 1000;
+const ALIGN_TOLERANCE_MS = 300;
 
 /**
  * 解析时间戳为毫秒
+ * 使用字符串补齐处理，避免浮点数计算误差
  */
 const parseTimeToMs = (min: string, sec: string, ms: string): number => {
   const minutes = parseInt(min, 10);
   const seconds = parseInt(sec, 10);
-  // treat ms part as fraction of second
-  const fracStr = "0." + ms;
-  const milliseconds = parseFloat(fracStr) * 1000;
+  // 补齐到 3 位 (例如 "5" -> "500", "05" -> "050", "1234" -> "123")
+  const msNormalized = ms.padEnd(3, "0").slice(0, 3);
+  const milliseconds = parseInt(msNormalized, 10);
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 };
 
@@ -43,7 +49,6 @@ const createWord = (word: string, startTime: number, endTime: number = startTime
   word,
   startTime,
   endTime,
-  romanWord: "",
 });
 
 /**
@@ -58,22 +63,6 @@ const createLine = (words: LyricWord[], startTime: number, endTime: number = 0):
   isBG: false,
   isDuet: false,
 });
-
-/**
- * 修正歌词行的结束时间
- * 每行最后一个字的结束时间 = 下一行的开始时间
- */
-const fixLineEndTimes = (lines: LyricLine[]): void => {
-  const len = lines.length;
-  for (let i = 0; i < len; i++) {
-    const line = lines[i];
-    const lastWord = line.words[line.words.length - 1];
-    const nextLineStart = lines[i + 1]?.startTime;
-    // 如果有下一行，使用下一行的开始时间；否则使用最后一个字开始时间 + 1s
-    lastWord.endTime = nextLineStart ?? lastWord.startTime + 1000;
-    line.endTime = lastWord.endTime;
-  }
-};
 
 /**
  * 检测 LRC 格式类型
@@ -98,9 +87,12 @@ export const detectLrcFormat = (content: string): LrcFormat => {
 
 /**
  * 解析逐字 LRC 格式
+ * 优化：在解析过程中直接计算 endTime，避免二次遍历
  */
 export const parseWordByWordLrc = (content: string): LyricLine[] => {
   const result: LyricLine[] = [];
+  let prevLine: LyricLine | null = null;
+  const WORD_BY_WORD_PATTERN = /\[(\d{2}):(\d{2})\.(\d{1,})\]([^[\]]*)/g;
 
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -108,35 +100,56 @@ export const parseWordByWordLrc = (content: string): LyricLine[] => {
 
     const words: LyricWord[] = [];
     let lineStartTime = Infinity;
-    let match: RegExpExecArray | null;
 
-    // 重置正则状态
-    WORD_BY_WORD_REGEX.lastIndex = 0;
+    let prevWord: LyricWord | null = null;
 
-    while ((match = WORD_BY_WORD_REGEX.exec(line)) !== null) {
+    const matches = line.matchAll(WORD_BY_WORD_PATTERN);
+
+    for (const match of matches) {
       const startTime = parseTimeToMs(match[1], match[2], match[3]);
-      const word = match[4];
+      const wordText = match[4];
 
-      if (!word && words.length === 0) continue;
+      if (!wordText && words.length === 0) continue;
 
       lineStartTime = Math.min(lineStartTime, startTime);
 
-      // 上一个字的结束时间 = 当前字的开始时间
-      if (words.length > 0) {
-        words[words.length - 1].endTime = startTime;
+      // 设置上一个字的结束时间
+      if (prevWord) {
+        prevWord.endTime = startTime;
       }
 
-      if (word) {
-        words.push(createWord(word, startTime));
+      if (wordText) {
+        const newWord = createWord(wordText, startTime);
+        words.push(newWord);
+        prevWord = newWord;
       }
+    }
+
+    // 处理行内最后一个字
+    if (prevWord) {
+      prevWord.endTime = prevWord.startTime + DEFAULT_WORD_DURATION;
     }
 
     if (words.length > 0) {
-      result.push(createLine(words, lineStartTime === Infinity ? 0 : lineStartTime));
+      const lineObj = createLine(words, lineStartTime === Infinity ? 0 : lineStartTime);
+      // 设置行结束时间为最后一个字的结束时间
+      lineObj.endTime = words[words.length - 1].endTime;
+
+      // 修正上一行的结束时间 (Single Pass)
+      if (prevLine) {
+        const prevLastWord = prevLine.words[prevLine.words.length - 1];
+        // 只有当当前行开始时间晚于上一行最后一个字的开始时间时，才进行截断
+        if (lineObj.startTime > prevLastWord.startTime) {
+          prevLastWord.endTime = Math.min(prevLastWord.endTime, lineObj.startTime);
+          prevLine.endTime = prevLastWord.endTime;
+        }
+      }
+
+      result.push(lineObj);
+      prevLine = lineObj;
     }
   }
 
-  fixLineEndTimes(result);
   return result;
 };
 
@@ -145,6 +158,8 @@ export const parseWordByWordLrc = (content: string): LyricLine[] => {
  */
 export const parseEnhancedLrc = (content: string): LyricLine[] => {
   const result: LyricLine[] = [];
+  let prevLine: LyricLine | null = null;
+  const ENHANCED_WORD_PATTERN = /<(\d{2}):(\d{2})\.(\d{1,})>([^<]*)/g;
 
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -160,35 +175,54 @@ export const parseEnhancedLrc = (content: string): LyricLine[] => {
 
     // 检查是否有增强型标记
     if (ENHANCED_TIME_TAG_REGEX.test(contentAfterTime)) {
-      let match: RegExpExecArray | null;
-      ENHANCED_WORD_REGEX.lastIndex = 0;
+      let prevWord: LyricWord | null = null;
 
-      while ((match = ENHANCED_WORD_REGEX.exec(contentAfterTime)) !== null) {
+      const matches = contentAfterTime.matchAll(ENHANCED_WORD_PATTERN);
+
+      for (const match of matches) {
         const startTime = parseTimeToMs(match[1], match[2], match[3]);
-        const word = match[4];
+        const wordText = match[4];
 
-        if (words.length > 0) {
-          words[words.length - 1].endTime = startTime;
+        if (prevWord) {
+          prevWord.endTime = startTime;
         }
 
-        if (word) {
-          words.push(createWord(word, startTime));
+        if (wordText) {
+          const newWord = createWord(wordText, startTime);
+          words.push(newWord);
+          prevWord = newWord;
         }
+      }
+
+      if (prevWord) {
+        prevWord.endTime = prevWord.startTime + DEFAULT_WORD_DURATION; // 默认兜底
       }
     } else {
       // 无增强型标记，作为整行处理
       const text = contentAfterTime.trim();
       if (text) {
-        words.push(createWord(text, lineStartTime));
+        words.push(createWord(text, lineStartTime, lineStartTime + DEFAULT_WORD_DURATION)); // 默认持续1s
       }
     }
 
     if (words.length > 0) {
-      result.push(createLine(words, lineStartTime));
+      const lineObj = createLine(words, lineStartTime);
+      lineObj.endTime = words[words.length - 1].endTime;
+
+      // 修正上一行的结束时间 (Single Pass)
+      if (prevLine) {
+        const prevLastWord = prevLine.words[prevLine.words.length - 1];
+        if (lineObj.startTime > prevLastWord.startTime) {
+          prevLastWord.endTime = Math.min(prevLastWord.endTime, lineObj.startTime);
+          prevLine.endTime = prevLastWord.endTime;
+        }
+      }
+
+      result.push(lineObj);
+      prevLine = lineObj;
     }
   }
 
-  fixLineEndTimes(result);
   return result;
 };
 
@@ -222,27 +256,195 @@ export const isWordLevelFormat = (format: LrcFormat): boolean =>
 
 /**
  * 歌词内容对齐
- * @param lyrics 歌词数据
+ * 使用双指针算法实现 O(N) 复杂度
+ * @param lyrics 歌词数据 (Readonly)
  * @param otherLyrics 其他歌词数据
  * @param key 对齐类型
- * @returns 对齐后的歌词数据
+ * @returns 对齐后的歌词数据 (新副本)
  */
 export const alignLyrics = (
-  lyrics: LyricLine[],
-  otherLyrics: LyricLine[],
+  lyrics: Readonly<LyricLine[]>,
+  otherLyrics: Readonly<LyricLine[]>,
   key: "translatedLyric" | "romanLyric",
 ): LyricLine[] => {
-  const lyricsData = lyrics;
-  if (lyricsData.length && otherLyrics.length) {
-    lyricsData.forEach((v: LyricLine) => {
-      otherLyrics.forEach((x: LyricLine) => {
-        if (v.startTime === x.startTime || Math.abs(v.startTime - x.startTime) < 300) {
-          v[key] = x.words.map((word) => word.word).join("");
-        }
-      });
-    });
+  if (!lyrics.length || !otherLyrics.length) return cloneDeep(lyrics) as LyricLine[];
+
+  const result = cloneDeep(lyrics) as LyricLine[];
+
+  let i = 0;
+  let j = 0;
+
+  while (i < result.length && j < otherLyrics.length) {
+    const line = result[i];
+    const other = otherLyrics[j];
+    const diff = line.startTime - other.startTime;
+
+    if (Math.abs(diff) <= ALIGN_TOLERANCE_MS) {
+      // 匹配成功
+      line[key] = other.words.map((word) => word.word).join("");
+      i++;
+      j++;
+    } else if (diff < 0) {
+      // 当前歌词时间较早，移动当前指针
+      i++;
+    } else {
+      // 目标歌词时间较早，移动目标指针
+      j++;
+    }
   }
-  return lyricsData;
+  return result;
+};
+
+/**
+ * 对齐歌词的翻译和音译
+ * 根据开始时间将同一时间的多行歌词分为一组，第一行作为主句，第二行作为翻译，第三行作为音译
+ * @param lyrics 未设置翻译和音译的歌词数据 (Readonly)
+ * @param endTime 对齐时如何处理附加行的结束时间（忽略、匹配、设为最大值）
+ * @param maxTimeDiff 允许匹配的最大时间差（单位：毫秒），超过该时间差的行将不会被视为同一行
+ * @param skipSort 跳过排序步骤以只对齐相邻行
+ * @returns 对齐后的歌词数据 (新副本)
+ */
+export const alignLyricLines = (
+  lyrics: Readonly<LyricLine[]>,
+  {
+    endTime = "set",
+    maxTimeDiff = 0, // 默认严格匹配
+    skipSort = false,
+  }: Partial<{
+    endTime: "ignore" | "match" | "set";
+    maxTimeDiff: number;
+    skipSort: boolean;
+  }> = {},
+): LyricLine[] => {
+  if (!lyrics.length) return [];
+  // 获取开始时间
+  const toStartTime = (line: LyricLine) =>
+    Number(line?.startTime ?? line?.words?.[0]?.startTime ?? 0);
+  // 获取结束时间
+  const toEndTime = (line: LyricLine) =>
+    Number(line?.endTime ?? line?.words?.[line?.words?.length - 1]?.endTime ?? 0);
+  // 取内容
+  const toText = (line: LyricLine) => String(line?.words?.map((w) => w.word).join("") || "").trim();
+  // 是否匹配
+  const isTimeMatch = (baseLine: LyricLine | undefined, addLine: LyricLine | undefined) => {
+    if (!baseLine || !addLine) return false;
+    const timeDiff = Math.abs(toStartTime(baseLine) - toStartTime(addLine));
+    if (!Number.isFinite(timeDiff)) return false;
+    if (timeDiff > maxTimeDiff) return false;
+    if (endTime === "match") {
+      const endTimeDiff = Math.abs(toEndTime(baseLine) - toEndTime(addLine));
+      if (!Number.isFinite(endTimeDiff)) return false;
+      if (endTimeDiff > maxTimeDiff) return false;
+    }
+    return true;
+  };
+  // 按开始时间分组
+  const sorted = skipSort ? lyrics : [...lyrics].sort((a, b) => toStartTime(a) - toStartTime(b));
+  const groups: LyricLine[][] = [];
+  for (const line of sorted) {
+    const last = groups[groups.length - 1]?.[0];
+    if (isTimeMatch(last, line)) groups[groups.length - 1].push(line);
+    else groups.push([line]);
+  }
+  // 合并附加行
+  const mergeAddLine = (
+    baseLine: LyricLine,
+    addLine: LyricLine | undefined,
+    key: "translatedLyric" | "romanLyric",
+  ) => {
+    if (baseLine[key] || !addLine) return;
+    const addText = toText(addLine);
+    if (!addText) return;
+    baseLine[key] = addText;
+    // 如果需要设置主行的结束时间，则将主行的结束时间设置为主行和附加行结束时间的较大值
+    if (endTime !== "set") return;
+    const oldEndTime = toEndTime(baseLine);
+    const addEndTime = toEndTime(addLine);
+    if (!Number.isFinite(addEndTime) || addEndTime <= oldEndTime) return;
+    baseLine.endTime = addEndTime;
+    // 考虑句中最后一个字的结束时间
+    if (baseLine.words?.length) {
+      const lastWord = baseLine.words[baseLine.words.length - 1];
+      const lastWordEndTime = lastWord.endTime;
+      if (lastWordEndTime === oldEndTime) {
+        lastWord.endTime = addEndTime;
+      }
+    }
+  };
+  // 组装：第 1 行主句；第 2 行翻译；第 3 行音译；其余行舍去
+  const aligned = groups.map((group) => {
+    // 使用 cloneDeep 保证数据不可变性
+    const base = cloneDeep(group[0]) as LyricLine;
+    const tran = group[1];
+    const roma = group[2];
+    mergeAddLine(base, tran, "translatedLyric");
+    mergeAddLine(base, roma, "romanLyric");
+    return base;
+  });
+  return aligned;
+};
+
+/**
+ * 解析 QRC 内容为行数据
+ */
+const parseQRCContent = (
+  rawContent: string,
+): Array<{
+  startTime: number;
+  endTime: number;
+  words: Array<{ word: string; startTime: number; endTime: number }>;
+}> => {
+  // 使用策略模式提取 LyricContent (自动适配 Browser/Node 环境)
+  const content = extractLyricContent(rawContent) || rawContent;
+
+  const result: Array<{
+    startTime: number;
+    endTime: number;
+    words: Array<{ word: string; startTime: number; endTime: number }>;
+  }> = [];
+
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // 跳过元数据标签 [ti:xxx] [ar:xxx] 等
+    if (META_TAG_REGEX.test(line)) continue;
+
+    const lineMatch = QRC_LINE_PATTERN.exec(line);
+    if (!lineMatch) continue;
+
+    const lineStart = parseInt(lineMatch[1], 10);
+    const lineDuration = parseInt(lineMatch[2], 10);
+    const lineContent = lineMatch[3];
+
+    // 解析逐字
+    const words: Array<{ word: string; startTime: number; endTime: number }> = [];
+
+    const matches = lineContent.matchAll(QRC_WORD_PATTERN);
+
+    for (const match of matches) {
+      const wordText = match[1];
+      const wordStart = parseInt(match[2], 10);
+      const wordDuration = parseInt(match[3], 10);
+
+      if (wordText) {
+        words.push({
+          word: wordText,
+          startTime: wordStart,
+          endTime: wordStart + wordDuration,
+        });
+      }
+    }
+
+    if (words.length > 0) {
+      result.push({
+        startTime: lineStart,
+        endTime: lineStart + lineDuration,
+        words,
+      });
+    }
+  }
+  return result;
 };
 
 /**
@@ -253,83 +455,11 @@ export const alignLyrics = (
  * @returns LyricLine 数组
  */
 export const parseQRCLyric = (qrcContent: string, trans?: string, roma?: string): LyricLine[] => {
-  // 行匹配: [开始时间,持续时间]内容
-  const linePattern = /^\[(\d+),(\d+)\](.*)$/;
-  // 逐字匹配: 文字(开始时间,持续时间)
-  const wordPattern = /([^(]*)\((\d+),(\d+)\)/g;
-
-  /**
-   * 解析 QRC 内容为行数据
-   */
-  const parseQRCContent = (
-    rawContent: string,
-  ): Array<{
-    startTime: number;
-    endTime: number;
-    words: Array<{ word: string; startTime: number; endTime: number }>;
-  }> => {
-    // 从 XML 中提取歌词内容
-    const contentMatch = /<Lyric_1[^>]*LyricContent="([^"]*)"[^>]*\/>/.exec(rawContent);
-    const content = contentMatch ? contentMatch[1] : rawContent;
-
-    const result: Array<{
-      startTime: number;
-      endTime: number;
-      words: Array<{ word: string; startTime: number; endTime: number }>;
-    }> = [];
-
-    for (const rawLine of content.split("\n")) {
-      const line = rawLine.trim();
-      if (!line) continue;
-
-      // 跳过元数据标签 [ti:xxx] [ar:xxx] 等
-      if (/^\\[[a-z]+:/i.test(line)) continue;
-
-      const lineMatch = linePattern.exec(line);
-      if (!lineMatch) continue;
-
-      const lineStart = parseInt(lineMatch[1], 10);
-      const lineDuration = parseInt(lineMatch[2], 10);
-      const lineContent = lineMatch[3];
-
-      // 解析逐字
-      const words: Array<{ word: string; startTime: number; endTime: number }> = [];
-      let wordMatch: RegExpExecArray | null;
-      const wordRegex = new RegExp(wordPattern.source, "g");
-
-      while ((wordMatch = wordRegex.exec(lineContent)) !== null) {
-        const wordText = wordMatch[1];
-        const wordStart = parseInt(wordMatch[2], 10);
-        const wordDuration = parseInt(wordMatch[3], 10);
-
-        if (wordText) {
-          words.push({
-            word: wordText,
-            startTime: wordStart,
-            endTime: wordStart + wordDuration,
-          });
-        }
-      }
-
-      if (words.length > 0) {
-        result.push({
-          startTime: lineStart,
-          endTime: lineStart + lineDuration,
-          words,
-        });
-      }
-    }
-    return result;
-  };
-
   // 解析主歌词
   const qrcLines = parseQRCContent(qrcContent);
   let result: LyricLine[] = qrcLines.map((qrcLine) => {
     return {
-      words: qrcLine.words.map((word) => ({
-        ...word,
-        romanWord: "",
-      })),
+      words: qrcLine.words,
       startTime: qrcLine.startTime,
       endTime: qrcLine.endTime,
       translatedLyric: "",
@@ -363,7 +493,6 @@ export const parseQRCLyric = (qrcContent: string, trans?: string, roma?: string)
               startTime: line.startTime,
               endTime: line.endTime,
               word: line.words.map((w) => w.word).join(""),
-              romanWord: "",
             },
           ],
           startTime: line.startTime,
@@ -381,6 +510,59 @@ export const parseQRCLyric = (qrcContent: string, trans?: string, roma?: string)
   return result;
 };
 
+// XML Builder Helper Class
+class XmlNode {
+  name: string;
+  attributes: Record<string, string>;
+  children: (XmlNode | string)[];
+
+  constructor(name: string, attributes: Record<string, string> = {}) {
+    this.name = name;
+    this.attributes = attributes;
+    this.children = [];
+  }
+
+  addChild(child: XmlNode | string) {
+    this.children.push(child);
+    return this;
+  }
+
+  private escape(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
+
+  toString(indent = 0): string {
+    const spaces = " ".repeat(indent);
+    const attrs = Object.entries(this.attributes)
+      .map(([key, val]) => `${key}="${this.escape(String(val))}"`)
+      .join(" ");
+
+    const attrStr = attrs ? " " + attrs : "";
+
+    if (this.children.length === 0) {
+      return `${spaces}<${this.name}${attrStr} />`;
+    }
+
+    const isAllText = this.children.every((c) => typeof c === "string");
+
+    if (isAllText) {
+      const textContent = this.children.map((c) => this.escape(c as string)).join("");
+      return `${spaces}<${this.name}${attrStr}>${textContent}</${this.name}>`;
+    }
+
+    const childrenStr = this.children
+      .map((c) => (typeof c === "string" ? this.escape(c) : c.toString(indent + 2)))
+      .join("\n");
+
+    return `${spaces}<${this.name}${attrStr}>\n${childrenStr}\n${spaces}</${this.name}>`;
+  }
+}
+
 /**
  * 将 LyricLine 数组转换为 TTML 格式
  * @param lines LyricLine 数组
@@ -395,59 +577,51 @@ export const lyricLinesToTTML = (lines: LyricLine[]): string => {
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toFixed(3).padStart(6, "0")}`;
   };
 
-  const escapeXml = (text: string): string => {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
-  };
+  const root = new XmlNode("tt", {
+    xmlns: "http://www.w3.org/ns/ttml",
+    "xmlns:ttm": "http://www.w3.org/ns/ttml#metadata",
+    "xmlns:amll": "http://www.example.com/ns/amll",
+  });
 
-  let ttml = `<?xml version="1.0" encoding="utf-8"?>
-<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:amll="http://www.example.com/ns/amll">
-  <head>
-    <metadata>
-      <ttm:title>Lyrics</ttm:title>
-    </metadata>
-  </head>
-  <body>
-    <div>
-`;
+  const head = new XmlNode("head");
+  const metadata = new XmlNode("metadata");
+  metadata.addChild(new XmlNode("ttm:title").addChild("Lyrics"));
+  head.addChild(metadata);
+  root.addChild(head);
+
+  const body = new XmlNode("body");
+  const div = new XmlNode("div");
 
   for (const line of lines) {
     const lineStart = formatTime(line.startTime);
     const lineEnd = formatTime(line.endTime);
 
-    ttml += `      <p begin="${lineStart}" end="${lineEnd}">\n`;
+    const p = new XmlNode("p", { begin: lineStart, end: lineEnd });
 
-    // 添加逐字歌词
     for (const word of line.words) {
       // 过滤无效的空词（内容为空且时长为0）
-      if (!word.word || word.startTime === word.endTime) {
-        continue;
-      }
+      if (!word.word || word.startTime === word.endTime) continue;
+
       const wordStart = formatTime(word.startTime);
       const wordEnd = formatTime(word.endTime);
-      ttml += `        <span begin="${wordStart}" end="${wordEnd}">${escapeXml(word.word)}</span>\n`;
+      p.addChild(new XmlNode("span", { begin: wordStart, end: wordEnd }).addChild(word.word));
     }
 
-    // 添加翻译
     if (line.translatedLyric) {
-      ttml += `        <span ttm:role="x-translation">${escapeXml(line.translatedLyric)}</span>\n`;
+      p.addChild(
+        new XmlNode("span", { "ttm:role": "x-translation" }).addChild(line.translatedLyric),
+      );
     }
 
-    // 添加音译
     if (line.romanLyric) {
-      ttml += `        <span ttm:role="x-roman">${escapeXml(line.romanLyric)}</span>\n`;
+      p.addChild(new XmlNode("span", { "ttm:role": "x-roman" }).addChild(line.romanLyric));
     }
 
-    ttml += `      </p>\n`;
+    div.addChild(p);
   }
 
-  ttml += `    </div>
-  </body>
-</tt>`;
+  body.addChild(div);
+  root.addChild(body);
 
-  return ttml;
+  return `<?xml version="1.0" encoding="utf-8"?>\n` + root.toString();
 };

@@ -4,7 +4,6 @@ import { isElectron } from "@/utils/env";
 import { openExcludeComment } from "@/utils/modal";
 import { sendRegisterProtocol } from "@/utils/protocol";
 import { SettingConfig } from "@/types/settings";
-import { ref, computed, h } from "vue";
 import { NAlert } from "naive-ui";
 
 export const useGeneralSettings = (): SettingConfig => {
@@ -277,6 +276,7 @@ export const useGeneralSettings = (): SettingConfig => {
           {
             key: "showSearchHistory",
             label: "显示搜索历史",
+            description: "是否在搜索框的默认显示内容中显示当前搜索历史",
             type: "switch",
             value: computed({
               get: () => settingStore.showSearchHistory,
@@ -284,23 +284,40 @@ export const useGeneralSettings = (): SettingConfig => {
             }),
           },
           {
+            key: "showHotSearch",
+            label: "显示热搜榜",
+            type: "switch",
+            show: computed(() => settingStore.useOnlineService),
+            description: "是否在搜索框的默认显示内容中显示热搜榜单",
+            value: computed({
+              get: () => settingStore.showHotSearch,
+              set: (v) => (settingStore.showHotSearch = v),
+            }),
+          },
+          {
             key: "enableSearchKeyword",
             label: "搜索关键词建议",
             type: "switch",
-            description: "是否启用搜索关键词建议",
+            show: computed(() => settingStore.useOnlineService),
+            description: "将搜索框闲置时的默认显示内容替换为搜索关键词建议",
             value: computed({
               get: () => settingStore.enableSearchKeyword,
               set: (v) => (settingStore.enableSearchKeyword = v),
             }),
           },
           {
-            key: "clearSearchOnBlur",
-            label: "失焦自动清空搜索框",
-            type: "switch",
-            description: "搜索框失去焦点后自动清空内容",
+            key: "searchInputBehavior",
+            label: "搜索框行为",
+            type: "select",
+            description: "自定义搜索框的行为模式",
+            options: [
+              { label: "保留搜索词", value: "normal" },
+              { label: "失焦后清空", value: "clear" },
+              { label: "同步搜索词", value: "sync" },
+            ],
             value: computed({
-              get: () => settingStore.clearSearchOnBlur,
-              set: (v) => (settingStore.clearSearchOnBlur = v),
+              get: () => settingStore.searchInputBehavior,
+              set: (v) => (settingStore.searchInputBehavior = v),
             }),
           },
           {
@@ -320,6 +337,25 @@ export const useGeneralSettings = (): SettingConfig => {
             description: "配置排除评论的规则（关键词或正则表达式）",
             buttonLabel: "配置",
             action: openExcludeComment,
+          },
+        ],
+      },
+      {
+        title: "其他设置",
+        items: [
+          {
+            key: "shareUrlFormat",
+            label: "分享链接格式",
+            type: "select",
+            description: "自定义分享链接的生成格式",
+            options: [
+              { label: "网页版", value: "web" },
+              { label: "移动版", value: "mobile" },
+            ],
+            value: computed({
+              get: () => settingStore.shareUrlFormat,
+              set: (v) => (settingStore.shareUrlFormat = v),
+            }),
           },
         ],
       },

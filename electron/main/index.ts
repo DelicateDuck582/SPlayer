@@ -15,7 +15,8 @@ import { trySendCustomProtocol } from "./utils/protocol";
 import { initSingleLock } from "./utils/single-lock";
 import loadWindow from "./windows/load-window";
 import mainWindow from "./windows/main-window";
-import taskbarLyricWindow from "./windows/taskbar-lyric-window";
+import { setAppQuitting } from "./utils/lifecycle";
+import { closeTaskbarLyricWindow } from "./windows/taskbar-lyric-window";
 
 // 屏蔽报错
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
@@ -121,6 +122,11 @@ class MainProcess {
 
     // 应用被激活
     app.on("activate", () => {
+      if (isMac) {
+        mainWindow.showWindow();
+        return;
+      }
+
       const allWindows = BrowserWindow.getAllWindows();
       if (allWindows.length) {
         allWindows[0].focus();
@@ -138,13 +144,14 @@ class MainProcess {
       if (this.isQuit) return;
       event.preventDefault();
       this.isQuit = true;
+      setAppQuitting();
       (async () => {
         // 注销全部快捷键
         unregisterShortcuts();
         // 清理媒体集成资源
         shutdownMedia();
-        // 销毁任务栏歌词窗口
-        taskbarLyricWindow.destroy();
+        // 关闭任务栏歌词窗口（停止原生 watcher / service）
+        closeTaskbarLyricWindow();
         // 停止 MPV 服务
         const mpvService = MpvService.getInstance();
         try {

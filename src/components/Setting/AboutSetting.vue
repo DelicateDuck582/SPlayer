@@ -2,12 +2,23 @@
   <div class="setting-type">
     <div class="set-list">
       <n-h3 prefix="bar"> 关于软件 </n-h3>
+      <n-alert type="warning" style="margin-bottom: 12px">
+        <template #header>本项目已进入维护模式</template>
+        后续仅进行必要的维护与重大问题修复，不再主动开发新功能。新功能及后续版本请移步
+        <n-button
+          text
+          type="primary"
+          @click="openLink('https://github.com/SPlayer-Dev/SPlayer-Next')"
+        >
+          SPlayer-Next
+        </n-button>
+      </n-alert>
       <n-card class="set-item">
         <n-flex align="center" class="about">
           <SvgIcon name="SPlayer" size="26" />
           <n-text class="logo-name">SPlayer</n-text>
           <n-tag v-if="statusStore.isDeveloperMode" size="small" type="warning" round> DEV </n-tag>
-          <n-tag :bordered="false" size="small" type="primary" round @click="openDeveloperMode">
+          <n-tag size="small" type="primary" round @click="openDeveloperMode">
             {{ packageJson.version }}
           </n-tag>
         </n-flex>
@@ -107,12 +118,12 @@
           @click="openLink(item.url)"
         >
           <n-flex align="center">
-            <n-avatar
-              round
+            <s-image
               :size="40"
               :src="item.avatar"
-              fallback-src="/images/avatar.jpg?asset"
-              :img-props="{ crossorigin: 'anonymous' }"
+              crossorigin="anonymous"
+              default-src="/images/avatar.jpg?asset"
+              round
             />
             <n-flex vertical :gap="4">
               <n-text class="name" strong> {{ item.name }} </n-text>
@@ -248,37 +259,30 @@ const getContributors = async () => {
     }
   } catch (error) {
     console.error("Failed to fetch contributors:", error);
-    // Fallback or empty state handling if needed, currently just empty
   }
 };
 
 // 特别鸣谢
 const contributors = [
   {
-    name: "NeteaseCloudMusicApi",
-    url: "https://github.com/neteasecloudmusicapienhanced/api-enhanced",
-    description: "网易云音乐 API",
-  },
-  // https://github.com/neteasecloudmusicapienhanced/api-enhanced
-  {
     name: "NeteaseCloudMusicApiEnhanced",
     url: "https://github.com/neteasecloudmusicapienhanced/api-enhanced",
     description: "网易云音乐 API 备份 + 增强",
   },
   {
-    name: "YesPlayMusic",
-    url: "https://github.com/qier222/YesPlayMusic",
-    description: "高颜值的第三方网易云播放器",
+    name: "applemusic-like-lyrics",
+    url: "https://github.com/Steve-xmh/applemusic-like-lyrics",
+    description: "类 Apple Music 歌词显示组件库",
+  },
+  {
+    name: "NeteaseCloudMusicApi",
+    url: "https://github.com/Binaryify/NeteaseCloudMusicApi",
+    description: "网易云音乐 API",
   },
   {
     name: "UnblockNeteaseMusic",
     url: "https://github.com/UnblockNeteaseMusic/server",
     description: "Revive unavailable songs for Netease Cloud Music",
-  },
-  {
-    name: "applemusic-like-lyrics",
-    url: "https://github.com/Steve-xmh/applemusic-like-lyrics",
-    description: "类 Apple Music 歌词显示组件库",
   },
 ];
 
@@ -304,7 +308,7 @@ const specialContributors = [
     description: "这个人一点都不神秘，虽然写了一点，但就像什么都没有写",
     avatar: "/images/avatar/moyingji.webp",
     buttonText: "GitHub",
-    url: "https://avatars.githubusercontent.com/u/64307394",
+    url: "https://github.com/MoYingJi",
   },
   {
     name: "apoint123",
@@ -317,11 +321,6 @@ const specialContributors = [
 
 // 社区数据
 const communityData = [
-  {
-    name: "加入交流群",
-    url: "https://qm.qq.com/cgi-bin/qm/qr?k=2-cVSf1bE0AvAehCib00qFEFdUvPaJ_k&jump_from=webapi&authKey=1NEhib9+GsmsXVo2rCc0IbRaVHeeRXJJ0gbsyKDcIwDdAzYySOubkFCvkV32+7Cw",
-    icon: "QQ",
-  },
   {
     name: "GitHub",
     url: packageJson.github,
@@ -433,7 +432,6 @@ onMounted(() => {
   cursor: pointer;
   :deep(.n-card__content) {
     display: flex;
-    align-items: center;
     padding: 12px;
   }
   .n-icon {

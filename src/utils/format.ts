@@ -1,8 +1,25 @@
-import { SongType, CoverType, ArtistType, CommentType, MetaData, CatType } from "@/types/main";
-import { msToTime } from "./time";
+import { useDataStore, useMusicStore, useStatusStore } from "@/stores";
+import type { ArtistType, CatType, CommentType, CoverType, MetaData, SongType } from "@/types/main";
 import { flatMap, isArray, uniqBy } from "lodash-es";
 import { handleSongQuality } from "./helper";
-import { useDataStore, useMusicStore, useStatusStore } from "@/stores";
+import { msToTime } from "./time";
+
+/**
+ * 格式化评论数量
+ * @param count 评论数量
+ * @returns 格式化后的评论数量
+ */
+export const formatCommentCount = (count: number): string | number => {
+  if (count >= 10000) {
+    const val = Math.floor(count / 1000) / 10;
+    return `${val % 1 === 0 ? val.toFixed(0) : val}W+`;
+  }
+  if (count >= 1000) {
+    const val = Math.floor(count / 100) / 10;
+    return `${val % 1 === 0 ? val.toFixed(0) : val}K+`;
+  }
+  return count;
+};
 
 /**
  * 移除文本中的括号内容（支持中英文括号）
@@ -57,19 +74,20 @@ export const formatSongsList = (data: any[]): SongType[] => {
         typeof item.album === "string"
           ? item.album
           : {
-            id: (item.album || item.al)?.id,
-            name: (item.album || item.al)?.name,
-            cover: (item.album || item.al)?.picUrl,
-          },
+              id: (item.album || item.al)?.id,
+              name: (item.album || item.al)?.name,
+              cover: (item.album || item.al)?.picUrl,
+            },
       alia: isArray(item.alia || item.alias || item.transNames || item.tns)
         ? item.alia?.[0] || item.alias?.[0] || item.transNames?.[0] || item.tns?.[0]
         : item.alia,
       dj: item.dj
         ? {
-          id: item.mainTrackId || item.id,
-          name: item.dj?.brand,
-          creator: item.dj?.nickname,
-        }
+            id: item.mainTrackId || item.id,
+            radioId: item.radio?.id,
+            name: item.dj?.brand,
+            creator: item.dj?.nickname,
+          }
         : undefined,
       ...getCoverUrl(item),
       duration: Number(item.duration || item.dt || 0),
@@ -187,13 +205,13 @@ export const formatCommentList = (data: any[]): CommentType[] => {
     beReplied:
       item.beReplied?.length > 0
         ? {
-          content: item.beReplied[0]?.content,
-          user: {
-            id: item.beReplied[0]?.user.userId,
-            name: item.beReplied[0]?.user.nickname,
-            avatarUrl: item.beReplied[0]?.user.avatarUrl,
-          },
-        }
+            content: item.beReplied[0]?.content,
+            user: {
+              id: item.beReplied[0]?.user.userId,
+              name: item.beReplied[0]?.user.nickname,
+              avatarUrl: item.beReplied[0]?.user.avatarUrl,
+            },
+          }
         : undefined,
     time: item.time,
     likedCount: item.likedCount,
@@ -209,9 +227,9 @@ export const formatCommentList = (data: any[]): CommentType[] => {
     },
     ip: item?.ip
       ? {
-        ip: item.ip,
-        location: item.location,
-      }
+          ip: item.ip,
+          location: item.location,
+        }
       : undefined,
   }));
 };
@@ -330,7 +348,9 @@ export const getPlayerInfoObj = (
   song?: SongType,
   sep: string = "/",
 ): { name: string; artist: string; album: string } | null => {
-  const playSongData = song || getPlaySongData();
+  const musicStore = useMusicStore();
+  const playSongData = song || getPlaySongData() || musicStore.playSong;
+
   if (!playSongData) return null;
 
   // 标题
@@ -339,7 +359,7 @@ export const getPlayerInfoObj = (
   // 歌手
   const artist =
     playSongData.type === "radio"
-      ? "播客电台"
+      ? playSongData.dj?.creator || "未知播客"
       : Array.isArray(playSongData.artists)
         ? playSongData.artists.map((artists: { name: string }) => artists.name).join(sep)
         : String(playSongData?.artists || "未知歌手");
@@ -347,7 +367,7 @@ export const getPlayerInfoObj = (
   // 专辑
   const album =
     playSongData.type === "radio"
-      ? "播客电台"
+      ? playSongData.dj?.name || "未知播客"
       : typeof playSongData.album === "object"
         ? playSongData.album.name
         : String(playSongData.album || "未知专辑");

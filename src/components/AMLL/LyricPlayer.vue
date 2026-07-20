@@ -7,7 +7,6 @@ import {
   LyricPlayer as CoreLyricPlayer,
   type LyricLine,
   type LyricLineMouseEvent,
-  type LyricPlayerBase,
   type spring,
 } from "@applemusic-like-lyrics/core";
 import type { PropType, Ref, ShallowRef } from "vue";
@@ -119,15 +118,6 @@ const props = defineProps({
     default: 0.5,
   },
   /**
-   * 设置所有歌词行在横坐标上的弹簧属性，包括重量、弹力和阻力。
-   *
-   * @param params 需要设置的弹簧属性，提供的属性将会覆盖原来的属性，未提供的属性将会保持原样
-   */
-  linePosXSpringParams: {
-    type: Object as PropType<Partial<spring.SpringParams>>,
-    required: false,
-  },
-  /**
    * 设置所有歌词行在​纵坐标上的弹簧属性，包括重量、弹力和阻力。
    *
    * @param params 需要设置的弹簧属性，提供的属性将会覆盖原来的属性，未提供的属性将会保持原样
@@ -172,11 +162,15 @@ export interface LyricPlayerRef {
   /**
    * 歌词播放实例
    */
-  lyricPlayer: Ref<LyricPlayerBase | undefined>;
+  lyricPlayer: Ref<CoreLyricPlayer | undefined>;
   /**
    * 将歌词播放实例的元素包裹起来的 DIV 元素实例
    */
   wrapperEl: Readonly<ShallowRef<HTMLDivElement | null>>;
+  /**
+   * 设置当前播放进度
+   */
+  setCurrentTime: (time: number, isSeek?: boolean) => void;
 }
 
 // 模板引用
@@ -293,12 +287,6 @@ watchEffect(() => {
   if (props.wordFadeWidth !== undefined) playerRef.value?.setWordFadeWidth(props.wordFadeWidth);
 });
 
-// X 轴弹簧参数
-watchEffect(() => {
-  if (props.linePosXSpringParams !== undefined)
-    playerRef.value?.setLinePosXSpringParams(props.linePosXSpringParams);
-});
-
 // Y 轴弹簧参数
 watchEffect(() => {
   if (props.linePosYSpringParams !== undefined)
@@ -315,6 +303,10 @@ watchEffect(() => {
 defineExpose<LyricPlayerRef>({
   lyricPlayer: playerRef,
   wrapperEl: wrapperRef,
+
+  setCurrentTime: (time: number, isSeek?: boolean) => {
+    playerRef.value?.setCurrentTime(time, isSeek);
+  },
 });
 </script>
 

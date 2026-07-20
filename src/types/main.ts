@@ -9,6 +9,8 @@ export type MetaData = {
 
 export type DjData = {
   id: number;
+  /** 所属电台 ID */
+  radioId?: number;
   name: string;
   creator?: string;
 };
@@ -43,14 +45,7 @@ export enum QualityType {
 }
 
 /** 音频源类型 */
-export type AudioSourceType =
-  | "official"
-  | "netease"
-  | "kuwo"
-  | "bodian"
-  | "gequbao"
-  | "local"
-  | "streaming";
+export type AudioSourceType = "official" | "netease" | "kuwo" | "bodian" | "local" | "streaming";
 
 export type UserType = {
   id: number;
@@ -98,12 +93,8 @@ export type SongType = {
   pc?: boolean;
   /** 大小 */
   size?: number;
-  /** 是否为自定义下载 */
-  isCustom?: boolean;
-  /** 自定义下载链接 */
-  customUrl?: string;
-  /** 自定义Referer */
-  customReferer?: string;
+  /** 曲目序号 */
+  trackNumber?: number;
   /** 音质 */
   quality?: QualityType;
   /** 创建时间 */
@@ -312,6 +303,8 @@ export type SortField =
   | "title"
   | "artist"
   | "album"
+  | "trackNumber"
+  | "filename"
   | "duration"
   | "size"
   | "createTime"

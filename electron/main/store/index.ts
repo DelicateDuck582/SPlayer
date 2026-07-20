@@ -1,3 +1,4 @@
+import { DEFAULT_TASKBAR_LYRIC_SETTINGS, type TaskbarLyricSettings } from "@shared";
 import { app, screen } from "electron";
 import Store from "electron-store";
 import { join } from "path";
@@ -39,20 +40,13 @@ export interface StoreType {
     /** 配置 */
     config?: LyricConfig;
   };
-  /** 任务栏歌词 */
-  taskbar: {
-    /** 是否启用 */
-    enabled: boolean;
-    /** 最大宽度 */
-    maxWidth?: number;
-    /** 显示封面 */
-    showCover?: boolean;
-    /** 位置 */
-    position?: "automatic" | "left" | "right";
-    /** 暂停时显示 */
-    showWhenPaused?: boolean;
-    /** 自动收缩 */
-    autoShrink?: boolean;
+  /** 任务栏歌词设置 */
+  taskbarLyric: TaskbarLyricSettings;
+  /** 窗口状态（用于启动时恢复） */
+  windowStates: {
+    taskbarLyric: {
+      visible: boolean;
+    };
   };
   /** 代理 */
   proxy: string;
@@ -73,6 +67,14 @@ export interface StoreType {
   downloadThreadCount?: number;
   /** 启用HTTP2下载 */
   enableDownloadHttp2?: boolean;
+  /** macOS 专属设置 */
+  macos: {
+    /** 状态栏歌词 */
+    statusBarLyric: {
+      /** 是否启用 */
+      enabled: boolean;
+    };
+  };
 }
 
 /**
@@ -96,13 +98,14 @@ export const useStore = () => {
         height: 136,
         config: defaultLyricConfig,
       },
-      taskbar: {
-        enabled: false,
-        maxWidth: 30,
-        showCover: true,
-        position: "automatic",
-        showWhenPaused: true,
-        autoShrink: false,
+      taskbarLyric: { ...DEFAULT_TASKBAR_LYRIC_SETTINGS },
+      windowStates: {
+        taskbarLyric: { visible: false },
+      },
+      macos: {
+        statusBarLyric: {
+          enabled: false,
+        },
       },
       proxy: "",
       amllDbServer: defaultAMLLDbServer,

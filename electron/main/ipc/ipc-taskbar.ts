@@ -1,102 +1,86 @@
-import { app, ipcMain, nativeTheme } from "electron";
-import type EventEmitter from "node:events";
+import {
+  DEFAULT_TASKBAR_LYRIC_SETTINGS,
+  TASKBAR_IPC_CHANNELS,
+  type SyncStatePayload,
+  type TaskbarLyricSettings,
+} from "@shared";
+import { ipcMain } from "electron";
 import { useStore } from "../store";
-import { getMainTray } from "../tray";
 import mainWindow from "../windows/main-window";
-import taskbarLyricWindow from "../windows/taskbar-lyric-window";
+import {
+  applyTaskbarLyricLayout,
+  createTaskbarLyricWindow,
+  sendToTaskbarLyric,
+  setTaskbarLyricVisible,
+} from "../windows/taskbar-lyric-window";
+
+/** 读取完整任务栏歌词配置 */
+const getTaskbarConfig = (): TaskbarLyricSettings => {
+  return useStore().get("taskbarLyric");
+};
 
 const initTaskbarIpc = () => {
   const store = useStore();
 
-  const envEnabled = store.get("taskbar.enabled");
-
-  const tray = getMainTray();
-  tray?.setTaskbarLyricShow(envEnabled);
-
-  if (envEnabled) {
-    taskbarLyricWindow.create();
+  // 启动时若上次为开启状态则恢复任务栏歌词窗口
+  if (store.get("windowStates.taskbarLyric.visible")) {
+    createTaskbarLyricWindow();
   }
 
-  ipcMain.on("taskbar:toggle", (_event, show: boolean) => {
-    store.set("taskbar.enabled", show);
-    const tray = getMainTray();
-    tray?.setTaskbarLyricShow(show);
+  // 获取完整配置
+  ipcMain.handle(TASKBAR_IPC_CHANNELS.GET_OPTION, () => getTaskbarConfig());
 
-    if (show) {
-      taskbarLyricWindow.create();
-    } else {
-      taskbarLyricWindow.close();
-    }
+  // 设置配置（增量合并）
+  ipcMain.on(
+    TASKBAR_IPC_CHANNELS.SET_OPTION,
+    (_event, option: Partial<TaskbarLyricSettings>, pushToWindow = true) => {
+      if (!option) return;
+
+      // 安全过滤：仅允许写入 DEFAULT_TASKBAR_LYRIC_SETTINGS 中定义的合法键
+      const allowedKeys = Object.keys(DEFAULT_TASKBAR_LYRIC_SETTINGS);
+      let layoutAffected = false;
+
+      Object.entries(option).forEach(([key, value]) => {
+        if (allowedKeys.includes(key)) {
+          store.set(`taskbarLyric.${key}`, value);
+          if (key === "position" || key === "autoMaxWidth" || key === "maxWidth") {
+            layoutAffected = true;
+          }
+        }
+      });
+
+      // 推送配置变更到任务栏窗口
+      if (pushToWindow) {
+        sendToTaskbarLyric(TASKBAR_IPC_CHANNELS.CONFIG_CHANGE, getTaskbarConfig());
+      }
+
+      // 影响定位的配置变更后重算布局
+      if (layoutAffected) applyTaskbarLyricLayout();
+    },
+  );
+
+  // 设置窗口显隐
+  ipcMain.on(TASKBAR_IPC_CHANNELS.SET_VISIBLE, (_event, visible: boolean) => {
+    setTaskbarLyricVisible(visible);
   });
 
-  ipcMain.on("taskbar:set-max-width", (_event, width: number) => {
-    store.set("taskbar.maxWidth", width);
-    taskbarLyricWindow.updateLayout(true);
+  // 转发播放状态到任务栏窗口
+  ipcMain.on(TASKBAR_IPC_CHANNELS.SYNC_STATE, (_event, payload: SyncStatePayload) => {
+    sendToTaskbarLyric(TASKBAR_IPC_CHANNELS.SYNC_STATE, payload);
   });
 
-  ipcMain.on("taskbar:set-show-cover", (_event, show: boolean) => {
-    store.set("taskbar.showCover", show);
-    taskbarLyricWindow.send("taskbar:update-settings", { showCover: show });
+  // 转发播放进度到任务栏窗口
+  ipcMain.on(TASKBAR_IPC_CHANNELS.SYNC_TICK, (_event, payload) => {
+    sendToTaskbarLyric(TASKBAR_IPC_CHANNELS.SYNC_TICK, payload);
   });
 
-  ipcMain.on("taskbar:set-position", (_event, position: "automatic" | "left" | "right") => {
-    store.set("taskbar.position", position);
-    taskbarLyricWindow.updateLayout(true);
-  });
-
-  ipcMain.on("taskbar:set-show-when-paused", (_event, show: boolean) => {
-    store.set("taskbar.showWhenPaused", show);
-    taskbarLyricWindow.send("taskbar:update-settings", { showWhenPaused: show });
-  });
-
-  ipcMain.on("taskbar:set-auto-shrink", (_event, shrink: boolean) => {
-    store.set("taskbar.autoShrink", shrink);
-    taskbarLyricWindow.updateLayout(true);
-  });
-
-  ipcMain.on("taskbar:broadcast-settings", (_event, settings: unknown) => {
-    taskbarLyricWindow.send("taskbar:update-settings", settings);
-  });
-
-  ipcMain.on("taskbar:update-metadata", (_event, metadata: unknown) => {
-    taskbarLyricWindow.send("taskbar:update-metadata", metadata);
-  });
-
-  ipcMain.on("taskbar:update-lyrics", (_event, lyrics: unknown) => {
-    taskbarLyricWindow.send("taskbar:update-lyrics", lyrics);
-  });
-
-  ipcMain.on("taskbar:update-progress", (_event, progress: unknown) => {
-    taskbarLyricWindow.send("taskbar:update-progress", progress);
-  });
-
-  ipcMain.on("taskbar:update-state", (_event, state: unknown) => {
-    taskbarLyricWindow.send("taskbar:update-state", state);
-  });
-
-  ipcMain.on("taskbar:request-data", () => {
+  // 任务栏窗口请求初始数据：转发给主窗口，由其回推 full-hydration
+  ipcMain.on(TASKBAR_IPC_CHANNELS.REQUEST_DATA, () => {
     const mainWin = mainWindow.getWin();
     if (mainWin && !mainWin.isDestroyed()) {
-      mainWin.webContents.send("taskbar:request-data");
+      mainWin.webContents.send(TASKBAR_IPC_CHANNELS.REQUEST_DATA);
     }
-
-    taskbarLyricWindow.updateLayout();
-
-    const isDark = nativeTheme.shouldUseDarkColors;
-    const themePayload = { isDark };
-    taskbarLyricWindow.send("taskbar:update-theme", themePayload);
-  });
-
-  // 把事件发射到 app 里不太好，但是我觉得也没有必要为了这一个事件创建一个事件总线
-  // TODO: 如果有了事件总线，通过那个事件总线发射这个事件
-  (app as EventEmitter).on("explorer-restarted", () => {
-    const currentEnabled = store.get("taskbar.enabled");
-    if (currentEnabled) {
-      taskbarLyricWindow.close(false);
-      setTimeout(() => {
-        taskbarLyricWindow.create();
-      }, 500);
-    }
+    applyTaskbarLyricLayout();
   });
 };
 
