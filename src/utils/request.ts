@@ -11,8 +11,10 @@ const baseURL: string = String(isDev ? "/api/netease" : import.meta.env["VITE_AP
 // 基础配置
 const server: AxiosInstance = axios.create({
   baseURL,
-  // 允许跨域
-  withCredentials: true,
+  // 登录态通过 params.cookie 显式传递，不依赖浏览器跨域自动携带凭证。
+  // 注意：新版 API 返回 Access-Control-Allow-Origin: *，
+  // 若开启 withCredentials(credentials=include)，浏览器会按 CORS 规范拦截该响应。
+  withCredentials: false,
   // 超时时间
   timeout: 15000,
 });
