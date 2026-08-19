@@ -40,6 +40,11 @@ export const getCacheData = async <T>(
     }
     // 请求数据
     const result = await promiseFunc(...args);
+    // 不缓存 null/undefined 结果，避免接口故障时把空值缓存进 sessionStorage，
+    // 导致后续刷新持续返回旧空值而不发起新请求（例如历史 CORS 拦截期间缓存了 null）。
+    if (result === null || result === undefined) {
+      return result;
+    }
     const expiry = time === -1 ? -1 : new Date().getTime() + time * 60 * 1000;
     // 存储数据
     storageObj.setItem(key, JSON.stringify({ value: result, expiry }));
