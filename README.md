@@ -50,6 +50,21 @@
 
 - 欢迎各位大佬 `Star` 😍
 
+## 📝 更新记录
+
+> 以下为本仓库（个人 fork）针对新版网易云音乐 API 适配所做的本地修改记录。
+
+### 2026-08-19 适配新版网易云音乐 API
+
+- **API 地址切换**（`.env` → `VITE_API_URL`）：网页端使用的网易云 API 服务切换为持续维护的新版项目（[api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)），修复网易云接口改版后部分「收藏」无法同步的问题
+- **CORS 兼容**（`src/utils/request.ts`）：关闭 `withCredentials`。登录态通过 `params.cookie` 显式传递，浏览器无需跨域自动携带凭证，从而兼容新版 API 返回的 `Access-Control-Allow-Origin: *`，避免请求被 CORS 策略拦截
+- **缓存健壮性**（`src/utils/cache.ts`）：`getCacheData` 不再缓存 `null/undefined` 结果，防止接口短暂异常时把空值写入 `sessionStorage` 导致页面持续空白
+
+### 部署提示
+
+- 部署网页端时，请在构建环境（如 Vercel 项目环境变量）中配置 `VITE_API_URL`，指向你自行部署的 API 服务地址（结尾不要带 `/`），或直接修改仓库中的 `.env` 文件
+- API 服务建议使用 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 最新版本；若其部署的 CORS 配置为通配符 `*`，请勿在 API 侧与播放器侧同时开启凭证模式
+
 ## 🧑‍💻 开发
 
 ### 快速开始
