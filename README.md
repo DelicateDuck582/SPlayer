@@ -1,10 +1,9 @@
 > [!CAUTION]
 >
-> # 本项目进入维护模式
+> # 仓库说明
 >
-> 项目已进入维护模式，后续仅进行必要的维护与重大问题修复，不再主动开发新功能
->
-> 新功能及后续版本请移步 [SPlayer-Next](https://github.com/SPlayer-Dev/SPlayer-Next)
+> - 原项目作者已将原仓库归档，后续版本迁移至 [SPlayer-Next](https://github.com/SPlayer-Dev/SPlayer-Next)
+> - 本仓库为个人维护的 fork，不做上游贡献；所有修改更新均集中在 `feat/api-enhanced` 分支，详见下方 [更新记录](#-更新记录)
 
 <div align="center">
 <img alt="logo" height="100" width="100" src="public/icons/favicon.png" />
@@ -82,9 +81,9 @@
 
 ## 👀 Demo
 
-- 在线演示：[SPlayer](https://splayer.20100907.xyz)
+- 在线演示：[SPlayer](https://music.ciallo.sale/)
 
-  > 如打不开，说明已经失效请自行前往 [获取](#️-获取)
+  > 原在线演示链接已失效，此处为本项目自建部署的 Demo
 
 ## 🎉 功能
 
@@ -323,7 +322,3 @@ docker run -d --name SPlayer -p 25884:25884 imsyy/splayer:latest
   4. **免责声明：** 根据 AGPL-3.0，本项目不提供任何明示或暗示的担保。请详细阅读 [GNU Affero General Public License (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html) 以了解完整的免责声明内容
   5. **社区参与：** 欢迎社区的参与和贡献，我们鼓励开发者一同改进和维护本项目
   6. **许可证链接：** 请阅读 [GNU Affero General Public License (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html) 了解更多详情
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=imsyy/SPlayer&type=Date)](https://star-history.com/#imsyy/SPlayer&Date)
