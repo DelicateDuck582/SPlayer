@@ -274,6 +274,8 @@ const pendingSizeText = computed(() => {
     (sum, task) => sum + Math.max(0, task.fileSize - task.uploaded),
     0,
   );
+  // 文件已直传完毕、仅剩「登记云盘信息」的任务不再占用上传流量
+  if (bytes <= 0) return "待登记";
   return bytes >= 1024 * 1024
     ? `${(bytes / 1024 / 1024).toFixed(1)}MB`
     : `${Math.max(1, Math.round(bytes / 1024))}KB`;
@@ -315,6 +317,11 @@ const uploadFiles = async (files: File[], mode: "new" | "resume" = "new") => {
       mode === "resume" ? queue.find((task) => task.key === fileKey(file)) : undefined;
     if (mode === "resume" && !resumeTask) {
       window.$message.warning(`${file.name} 没有对应的未完成任务，已跳过`);
+      continue;
+    }
+    if (file.size <= 0) {
+      failCount++;
+      window.$message.warning(`${file.name} 是空文件，已跳过`);
       continue;
     }
     if (file.size > UPLOAD_MAX_MB * 1024 * 1024) {

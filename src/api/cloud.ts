@@ -1,7 +1,6 @@
-import md5 from "md5";
 import request, { LOCAL_API_BASE } from "@/utils/request";
-import { isLogin } from "@/utils/auth";
 import { isElectron } from "@/utils/env";
+import { hashFileMd5 } from "@/utils/uploadHash";
 import { RESUME_TTL, fileKey, type CloudUploadTask } from "@/utils/uploadQueue";
 
 // 获取云盘数据
@@ -51,8 +50,10 @@ export const matchCloudSong = (uid: number, sid: number, asid: number) => {
  * 1. Electron 端优先走**本机内置 API**（127.0.0.1:25884，由主进程提供）：
  *    请求由用户本机网络发出，可规避在线 API 所在数据中心 IP 被网易云风控
  *    拦截（`-460 检测到您的网络环境存在风险`）的问题。
- * 2. 在线 API 返回 `-460` 且已登录时，携带 `checkToken=v2` 重试一次
- *    （API 侧据此实时换取易盾反作弊 token 并放入 `X-antiCheatToken` 头）。
+ * 2. 本机 API 不可用（未启动 / 内置版本过旧 / 返回非预期结构）时回退在线 API。
+ *
+ * 注：`checkToken=v2`、`randomCNIP`、`realIP` 等参数经实测**无法**绕过 -460
+ * （该限制来自出口 IP 本身），故不做无效重试，避免多余请求与误导性提示。
  *
  * @param url 接口路径
  * @param params 查询参数
@@ -73,21 +74,14 @@ const cloudUploadRequest = async (
         method,
         params: payload,
       });
-      // 本机 API 有响应即以它为准（其出口为用户本机网络，不受数据中心 IP 风控影响）
-      if (local) return local;
+      // 本机 API 正常返回（带数字 code）即以它为准：其出口为用户本机网络，
+      // 不受数据中心 IP 风控影响；非预期结构（如端口被他人占用返回 HTML）则回退
+      if (local && typeof (local as { code?: unknown }).code === "number") return local;
     } catch {
       // 本机 API 不可用（未启动 / 内置版本过旧）→ 回退在线 API
     }
   }
-  const online = await request<Record<string, unknown>>({ url, method, params: payload });
-  if (Number(online?.code) === -460 && isLogin()) {
-    return await request<Record<string, unknown>>({
-      url,
-      method,
-      params: { ...payload, checkToken: "v2" },
-    });
-  }
-  return online;
+  return await request<Record<string, unknown>>({ url, method, params: payload });
 };
 
 /** 云盘上传：换取上传凭据（现代流程第一步） */
@@ -226,12 +220,13 @@ const uploadFileChunks = async (
  *   4. `POST /cloud/upload/complete` 登记云盘信息
  *
  * 刷新页面后浏览器不再持有文件句柄，但已直传字节与凭据已持久化在上传队列
- * （`@/utils/uploadQueue`），用户重新选择**同一文件**即可从断点续传。
+ * （`@/utils/uploadQueue`），用户重新选择**同一文件**即可从断点续传；
+ * 续传前会重新计算 MD5 做身份校验（仅凭 名称/体积/修改时间 无法排除内容不同的文件）。
  *
  * @param file 音频文件
  * @param onProgress 进度回调（percent 0~100）
  * @param options.resume 未完成的上传任务（用于断点续传）
- * @param options.onTask 任务状态变化回调（凭据就绪 / 每个分片完成后触发，用于持久化）
+ * @param options.onTask 任务状态变化回调（凭据就绪 / 每片完成 / 转为待登记，用于持久化）
  * @returns 完成接口响应（`code === 200` 为成功；`data.songId` 为空表示未匹配曲库）
  */
 export const uploadCloudSong = async (
@@ -244,20 +239,28 @@ export const uploadCloudSong = async (
 ) => {
   const key = fileKey(file);
   let task: CloudUploadTask | undefined;
+  /** MD5 只计算一次（续传校验与新任务共用） */
+  let fileMd5 = "";
+  const getMd5 = async () => {
+    if (!fileMd5) fileMd5 = await hashFileMd5(file);
+    return fileMd5;
+  };
 
-  // 1) 复用未完成任务（同一文件且未超期）
+  // 1) 复用未完成任务（同一文件、未超期，且 MD5 一致）
   const resume = options?.resume;
   if (resume && resume.key === key && Date.now() - resume.savedAt < RESUME_TTL && resume.md5) {
-    task = { ...resume, savedAt: Date.now() };
+    // 身份校验：若 MD5 与记录不一致，说明并非同一文件，
+    // 继续按旧断点续传会造成云端对象内容错位 → 放弃续传，走完整流程
+    if ((await getMd5()) === resume.md5) {
+      task = { ...resume, savedAt: Date.now() };
+    }
   }
 
-  // 2) 新建任务：计算 MD5 并换取上传凭据
+  // 2) 新建任务：换取上传凭据（MD5 已在上一步算出时直接复用）
   if (!task) {
-    // 整文件读入内存计算 MD5（上层已按 UPLOAD_MAX_MB 限制体积）
-    const buffer = await file.arrayBuffer();
-    const fileMd5 = md5(new Uint8Array(buffer));
+    const md5Value = await getMd5();
     const tokenResult = await cloudUploadToken({
-      md5: fileMd5,
+      md5: md5Value,
       fileSize: file.size,
       filename: file.name,
     });
@@ -270,7 +273,7 @@ export const uploadCloudSong = async (
       key,
       fileName: file.name,
       fileSize: file.size,
-      md5: fileMd5,
+      md5: md5Value,
       songId: String(tokenData.songId ?? 0),
       resourceId: String(tokenData.resourceId),
       uploadUrl: String(tokenData.uploadUrl),
@@ -282,7 +285,7 @@ export const uploadCloudSong = async (
     options?.onTask?.({ ...task });
   }
 
-  // 3) 分片直传（从断点开始）
+  // 3) 分片直传（从断点开始；直传已完成的任务跳过）
   if (task.uploaded < file.size) {
     await uploadFileChunks(file, task, task.uploaded, onProgress, (uploaded) => {
       // 每片完成后持久化断点，刷新后可续传
@@ -292,7 +295,11 @@ export const uploadCloudSong = async (
   }
   onProgress?.(100, file.size, file.size);
 
-  // 4) 登记云盘信息
+  // 4) 登记云盘信息：先落盘「待登记」状态，
+  //    否则登记失败时任务会因 uploaded === fileSize 被判定为已完成而丢弃（只能整文件重传）
+  task = { ...task, pendingComplete: true, savedAt: Date.now() };
+  options?.onTask?.({ ...task });
+
   return await cloudUploadComplete({
     songId: task.songId,
     resourceId: task.resourceId,

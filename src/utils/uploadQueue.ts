@@ -25,6 +25,11 @@ export interface CloudUploadTask {
   uploadToken: string;
   /** 已直传字节数（断点位置） */
   uploaded: number;
+  /**
+   * 直传已完成、但「登记云盘信息」尚未成功
+   * 用于避免登记失败时任务被丢弃（否则只能整文件重新上传，浪费带宽）
+   */
+  pendingComplete?: boolean;
   /** 最近更新时间（用于过期判断） */
   savedAt: number;
 }
@@ -50,17 +55,28 @@ export const readUploadQueue = (): CloudUploadTask[] => {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
     if (!raw) return [];
-    const list = JSON.parse(raw) as CloudUploadTask[];
-    if (!Array.isArray(list)) return [];
+    const parsed = JSON.parse(raw) as CloudUploadTask[];
+    if (!Array.isArray(parsed)) return [];
     const now = Date.now();
-    return list.filter(
+    const list = parsed.filter(
       (task) =>
         task &&
         typeof task.key === "string" &&
         typeof task.uploaded === "number" &&
-        task.uploaded < task.fileSize &&
+        // 直传未完成，或直传已完成但尚未登记 → 都保留
+        (task.uploaded < task.fileSize || task.pendingComplete === true) &&
         now - task.savedAt < RESUME_TTL,
     );
+    // 安全：过期 / 损坏任务连同其携带的 NOS 上传凭据一并从本地存储清除，
+    // 避免已失效令牌长期驻留（凭据只在队列中短暂存放）
+    if (list.length !== parsed.length) {
+      if (list.length) {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(list));
+      } else {
+        localStorage.removeItem(QUEUE_KEY);
+      }
+    }
+    return list;
   } catch {
     // 数据损坏时视为无任务（避免阻塞上传）
     return [];
