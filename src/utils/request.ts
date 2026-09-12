@@ -29,15 +29,27 @@ axiosRetry(server, {
 const COOKIE_HEADER = "X-Netease-Cookie";
 
 /**
+ * 本机内置 API 服务地址（Electron 主进程提供，走用户本机网络出口）
+ *
+ * 用途：在线 API 部署在数据中心（如 Vercel），其出口 IP 会被网易云风控拦截
+ * 云盘上传类接口（返回 `-460 检测到您的网络环境存在风险`）；
+ * 本机 API 使用用户自己的网络出口，可规避该限制。
+ */
+export const LOCAL_API_BASE = `http://127.0.0.1:${
+  import.meta.env["VITE_SERVER_PORT"] || 25884
+}/api/netease`;
+
+/**
  * 判断请求是否发往网易云 API 服务
  * - 未显式指定 baseURL 时使用本模块的网易云 API 地址
+ * - 本机内置 API 同样属于网易云 API（需携带登录凭据）
  * - 其他服务（Last.fm / GitHub / QQ 音乐 / 解锁服务等）不携带登录凭据
  * @param config 请求配置
  * @returns 是否发往网易云 API
  */
 const isNeteaseApiRequest = (config: AxiosRequestConfig) => {
   const requestBase = config.baseURL ?? "";
-  return !requestBase || requestBase === baseURL;
+  return !requestBase || requestBase === baseURL || requestBase === LOCAL_API_BASE;
 };
 
 /**

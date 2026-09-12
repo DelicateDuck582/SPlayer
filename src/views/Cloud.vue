@@ -91,6 +91,20 @@
         </template>
       </n-input>
     </n-flex>
+    <!-- 未完成上传（刷新/中断后可断点续传） -->
+    <n-alert
+      v-if="pendingTasks.length"
+      class="resume-tip"
+      type="info"
+      closable
+      @close="handleDismissQueue"
+    >
+      有 {{ pendingTasks.length }} 个未完成的上传（剩余 {{ pendingSizeText }}）：
+      重新选择相同文件即可从断点继续
+      <n-button class="resume-btn" size="small" type="primary" ghost @click="resumeUpload">
+        继续上传
+      </n-button>
+    </n-alert>
     <!-- 列表 -->
     <Transition name="fade" mode="out-in">
       <SongList
@@ -120,6 +134,14 @@ import type { DropdownOption } from "naive-ui";
 import { useDataStore } from "@/stores";
 import { uploadCloudSong, userCloud } from "@/api/cloud";
 import { formatSongsList } from "@/utils/format";
+import {
+  clearUploadQueue,
+  fileKey,
+  readUploadQueue,
+  removeUploadTask,
+  saveUploadTask,
+  type CloudUploadTask,
+} from "@/utils/uploadQueue";
 import { fuzzySearch, renderIcon } from "@/utils/helper";
 import { openBatchList } from "@/utils/modal";
 import { usePlayerController } from "@/core/player/PlayerController";
@@ -222,13 +244,45 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const isUploading = ref<boolean>(false);
 /** 当前文件上传进度（0~100） */
 const uploadPercent = ref<number>(0);
-/** 单文件大小上限（仅前端提示；网易云侧仍会按其规则校验） */
-const UPLOAD_MAX_MB = 500;
+/** 是否为续传模式（点击「继续上传」后为 true） */
+const resumeMode = ref<boolean>(false);
+/** 未完成的上传任务（本地队列，刷新后仍在） */
+const pendingTasks = ref<CloudUploadTask[]>([]);
+/**
+ * 单文件大小上限（仅前端提示；网易云侧仍会按其规则校验）
+ * 说明：MD5 需整文件读入内存，500MB 时内存峰值过高，故收敛至 200MB
+ */
+const UPLOAD_MAX_MB = 200;
 
 /** 打开文件选择框 */
 const triggerUpload = () => {
   if (isUploading.value) return;
+  resumeMode.value = false;
   fileInputRef.value?.click();
+};
+
+/** 打开文件选择框（续传模式：仅处理未完成任务） */
+const resumeUpload = () => {
+  if (isUploading.value || !pendingTasks.value.length) return;
+  resumeMode.value = true;
+  fileInputRef.value?.click();
+};
+
+/** 未完成任务剩余体积文案 */
+const pendingSizeText = computed(() => {
+  const bytes = pendingTasks.value.reduce(
+    (sum, task) => sum + Math.max(0, task.fileSize - task.uploaded),
+    0,
+  );
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)}MB`
+    : `${Math.max(1, Math.round(bytes / 1024))}KB`;
+});
+
+/** 放弃未完成任务（清空本地队列） */
+const handleDismissQueue = () => {
+  clearUploadQueue();
+  pendingTasks.value = [];
 };
 
 /** 上传失败码 → 可读文案 */
@@ -236,7 +290,8 @@ const uploadErrorMessage = (result: unknown): string => {
   const data = (result ?? {}) as Record<string, unknown>;
   const code = Number(data.code);
   if (code === -110 || code === -447) return "需要登录或会员权限不足";
-  if (code === -460) return "网易云风控拦截，请稍后重试或更换网络环境";
+  if (code === -460) return "网易云风控（出口 IP 受限），请稍后重试或更换网络";
+  if (code === 301) return "登录状态已失效，请重新登录";
   if (code === 403) return "权限不足";
   if (code === 250) return "云盘空间不足";
   const message = data.message ?? data.msg;
@@ -247,25 +302,44 @@ const uploadErrorMessage = (result: unknown): string => {
 /**
  * 逐个上传所选文件（串行）
  * @param files 待上传文件列表
+ * @param mode 上传模式：new 新上传；resume 断点续传（仅处理队列中已存在的任务）
  */
-const uploadFiles = async (files: File[]) => {
+const uploadFiles = async (files: File[], mode: "new" | "resume" = "new") => {
   if (!files.length || isUploading.value) return;
+  const queue = readUploadQueue();
   isUploading.value = true;
   let okCount = 0;
   let failCount = 0;
   for (const file of files) {
+    const resumeTask =
+      mode === "resume" ? queue.find((task) => task.key === fileKey(file)) : undefined;
+    if (mode === "resume" && !resumeTask) {
+      window.$message.warning(`${file.name} 没有对应的未完成任务，已跳过`);
+      continue;
+    }
     if (file.size > UPLOAD_MAX_MB * 1024 * 1024) {
       failCount++;
       window.$message.warning(`${file.name} 超过 ${UPLOAD_MAX_MB}MB，已跳过`);
       continue;
     }
-    uploadPercent.value = 0;
+    uploadPercent.value = resumeTask?.fileSize
+      ? Math.round((resumeTask.uploaded / resumeTask.fileSize) * 100)
+      : 0;
     try {
-      const result = await uploadCloudSong(file, (percent) => {
-        uploadPercent.value = percent;
-      });
+      const result = await uploadCloudSong(
+        file,
+        (percent) => {
+          uploadPercent.value = percent;
+        },
+        {
+          resume: resumeTask,
+          // 凭据与每片断点即时落盘，刷新后可续传
+          onTask: (task) => saveUploadTask(task),
+        },
+      );
       if (Number(result?.code) === 200) {
         okCount++;
+        removeUploadTask(fileKey(file));
         // complete 接口把 songId 放在 data 中；未匹配曲库时为空
         // （可在云盘内用「云盘歌曲纠正」处理）
         const data = (result?.data ?? {}) as Record<string, unknown>;
@@ -285,6 +359,8 @@ const uploadFiles = async (files: File[]) => {
   }
   isUploading.value = false;
   uploadPercent.value = 0;
+  // 同步本地队列（失败任务保留，供下次断点续传）
+  pendingTasks.value = readUploadQueue();
   // 有成功项才刷新列表（避免无谓的整盘拉取）
   if (okCount > 0) {
     await getAllCloudMusic();
@@ -300,7 +376,9 @@ const handleFileChange = async (event: Event) => {
   const files = Array.from(input.files || []);
   // 清空 value，保证同一文件可被重复选择
   input.value = "";
-  await uploadFiles(files);
+  const mode = resumeMode.value ? "resume" : "new";
+  resumeMode.value = false;
+  await uploadFiles(files, mode);
 };
 
 onActivated(() => {
@@ -309,15 +387,26 @@ onActivated(() => {
   } else {
     getAllCloudMusic();
   }
+  // 同步未完成上传（刷新/切换路由后仍可续传）
+  pendingTasks.value = readUploadQueue();
 });
 
-onMounted(getAllCloudMusic);
+onMounted(() => {
+  getAllCloudMusic();
+  pendingTasks.value = readUploadQueue();
+});
 </script>
 
 <style lang="scss" scoped>
 .cloud {
   display: flex;
   flex-direction: column;
+  .resume-tip {
+    margin-bottom: 12px;
+    .resume-btn {
+      margin-left: 8px;
+    }
+  }
   .title {
     display: flex;
     align-items: flex-end;
