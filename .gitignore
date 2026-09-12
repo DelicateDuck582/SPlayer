@@ -19,6 +19,9 @@ out
 target
 *.node
 
+# TypeScript 构建信息（tsc --build / incremental 产物）
+*.tsbuildinfo
+
 # Editor directories and files
 .vscode/*
 .vscode
