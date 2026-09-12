@@ -13,7 +13,10 @@
     "electron/preload/index.ts",
     "src/assets/data/*",
     "src/types/shared",
-    "scripts/*"
+    "scripts/*",
+    // 安全自检脚本（scripts/security-selfcheck.ts）引用的共享纯函数模块；
+    // 需显式列出，否则 IDE 以 composite 模式检查时会报 TS6307「文件不在项目文件列表中」
+    "src/utils/download-security.ts"
   ],
   "compilerOptions": {
     "composite": true,
