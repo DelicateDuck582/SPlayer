@@ -17,6 +17,20 @@ import "@/style/main.scss";
 import "@/style/animate.scss";
 import "github-markdown-css/github-markdown.css";
 import { isElectron } from "./utils/env";
+import { recoverFromChunkError } from "@/utils/chunkRecovery";
+
+/**
+ * 懒加载资源失败兜底（Vite 事件：`vite:preloadError`）
+ *
+ * 说明：Vite 在动态导入/预加载失败时会派发该事件（部分构建配置下可能不触发），
+ * 因此业务侧的自定义懒加载（如 `@/utils/modal` 的下载弹窗）同时调用
+ * `recoverFromChunkError()` 自行兜底，两条路径共用同一套刷新限流。
+ */
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  if (recoverFromChunkError()) return;
+  window.$message?.error("资源加载失败（可能是版本已更新），请手动刷新页面后重试");
+});
 
 // 挂载
 const app = createApp(App);

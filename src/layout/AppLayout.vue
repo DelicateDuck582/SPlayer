@@ -126,6 +126,7 @@
 <script setup lang="ts">
 import { useMusicStore, useStatusStore, useSettingStore, useDataStore } from "@/stores";
 import { useBlobURLManager } from "@/core/resource/BlobURLManager";
+import { isChunkRecovering } from "@/utils/chunkRecovery";
 import { isElectron } from "@/utils/env";
 import { useMobile } from "@/composables/useMobile";
 import { useInit } from "@/composables/useInit";
@@ -172,9 +173,13 @@ onMounted(() => {
   loadBackgroundImage();
   if (!isElectron) {
     window.addEventListener("beforeunload", (event) => {
-      event.preventDefault();
-      // 释放所有 blob URL
+      // 释放所有 blob URL（blob 不会随页面自动释放，需显式回收）
       blobURLManager.revokeAllBlobURLs();
+      // 1) 资源版本更新触发的自动刷新：不能弹确认框，否则刷新会被浏览器拦截
+      if (isChunkRecovering()) return;
+      // 2) 仅在有下载任务进行中时提示，避免每次关闭/刷新页面都弹出无意义的确认框
+      if (!dataStore.downloadingSongs.length) return;
+      event.preventDefault();
       event.returnValue = "";
     });
   }

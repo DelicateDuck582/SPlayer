@@ -6,9 +6,30 @@ import { isArray, isFunction } from "lodash-es";
 import { useDataStore, useSettingStore } from "@/stores";
 import router from "@/router";
 import type { StreamingServerConfig as StreamingServerConfigType } from "@/types/streaming";
+import { recoverFromChunkError } from "@/utils/chunkRecovery";
 
 // 单例弹窗管理：跟踪已打开的弹窗类型
 const openedModals = new Set<string>();
+
+/**
+ * 加载「下载弹窗」组件（懒加载）
+ *
+ * 兜底：应用发版后，旧页面引用的 chunk 可能已被新部署移除（404），
+ * 此时动态导入会 reject；若不捕获，点击下载会「无任何反应」。
+ * @returns 组件构造器；加载失败时为 null（已提示用户）
+ */
+const loadDownloadModal = async () => {
+  try {
+    const { default: DownloadModal } = await import("@/components/Modal/DownloadModal.vue");
+    return DownloadModal;
+  } catch (error) {
+    console.error("[download] 下载组件加载失败：", error);
+    // 应用发版后旧页面引用的 chunk 可能已被新部署移除（404）→ 自动刷新一次获取新版本
+    if (recoverFromChunkError()) return null;
+    window.$message.error("下载组件加载失败（可能是版本已更新），请刷新页面后重试");
+    return null;
+  }
+};
 
 /**
  * 检查弹窗是否已打开，若已打开则显示提示
@@ -312,7 +333,8 @@ export const openDownloadSong = async (song: SongType) => {
       song.free === 4 ? "该歌曲需购买专辑后才能下载" : "该歌曲为 VIP 歌曲，请开通会员后下载";
     return window.$message.warning(tip);
   }
-  const { default: DownloadModal } = await import("@/components/Modal/DownloadModal.vue");
+  const DownloadModal = await loadDownloadModal();
+  if (!DownloadModal) return;
   const modal = window.$modal.create({
     preset: "card",
     transformOrigin: "center",
@@ -356,7 +378,8 @@ export const openDownloadSongs = async (songs: SongType[]): Promise<void> => {
   if (blockedCount > 0) {
     window.$message.warning(`已过滤 ${blockedCount} 首无下载权限或不可下载的歌曲`);
   }
-  const { default: DownloadModal } = await import("@/components/Modal/DownloadModal.vue");
+  const DownloadModal = await loadDownloadModal();
+  if (!DownloadModal) return;
   const modal = window.$modal.create({
     preset: "card",
     transformOrigin: "center",
