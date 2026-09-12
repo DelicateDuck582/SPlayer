@@ -1,12 +1,35 @@
 import { app, type BrowserWindow, shell } from "electron";
 import { processLog } from "../logger";
 import { useStore } from "../store";
-import { isLinux, isWin, mainWinUrl } from "../utils/config";
+import { isLinux, isWin, mainWinUrl, port } from "../utils/config";
 import { loadNativeModule } from "../utils/native-loader";
 import { createWindow } from "./index";
 
 type toolModule = typeof import("@native/tools");
 const tools: toolModule = loadNativeModule("tools.node", "tools");
+
+/**
+ * 判断 URL 是否属于应用自身（允许导航的源）
+ * 覆盖：dev 渲染服务（ELECTRON_RENDERER_URL）、生产本机服务（http://localhost|127.0.0.1:<port>）与 about:*
+ * @param url 目标地址
+ * @returns 是否为应用内部地址
+ */
+const isAppInternalUrl = (url: string): boolean => {
+  try {
+    const target = new URL(url);
+    if (target.protocol !== "http:" && target.protocol !== "https:") {
+      // 允许 about:blank 等浏览器内部页面，其余协议一律拒绝
+      return target.protocol === "about:";
+    }
+    const allowed = new Set<string>();
+    if (mainWinUrl) allowed.add(new URL(mainWinUrl).origin);
+    allowed.add(`http://localhost:${port}`);
+    allowed.add(`http://127.0.0.1:${port}`);
+    return allowed.has(target.origin);
+  } catch {
+    return false;
+  }
+};
 
 class MainWindow {
   private win: BrowserWindow | null = null;
@@ -63,6 +86,16 @@ class MainWindow {
       if (isImage) {
         event.preventDefault();
         this.win?.webContents.downloadURL(url);
+        return;
+      }
+
+      // 安全：仅允许在应用自身源内导航。
+      // 本窗口启用 nodeIntegration 且关闭同源策略，若可导航到任意外部页面，
+      // 该页面将直接获得 Node 能力（等同远程代码执行）。
+      // 应用内所有外链均通过 window.open("_blank") → setWindowOpenHandler → 系统浏览器打开，不受影响。
+      if (!isAppInternalUrl(url)) {
+        event.preventDefault();
+        processLog.warn(`🚫 Blocked navigation to external url: ${url}`);
       }
     });
 

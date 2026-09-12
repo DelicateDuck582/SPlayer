@@ -409,7 +409,7 @@ export const useSongMenu = () => {
         label: "下载歌曲",
         show:
           settingStore.contextMenuOptions.download &&
-          statusStore.isDeveloperMode &&
+          isLogin() === 1 &&
           !isLocal &&
           type === "song" &&
           !isDownloading,
@@ -419,8 +419,7 @@ export const useSongMenu = () => {
       {
         key: "retry-download",
         label: "重试下载",
-        show:
-          settingStore.contextMenuOptions.download && statusStore.isDeveloperMode && isDownloading,
+        show: settingStore.contextMenuOptions.download && isLogin() === 1 && isDownloading,
         props: { onClick: () => downloadManager.retryDownload(song.id) },
         icon: renderIcon("Refresh"),
       },

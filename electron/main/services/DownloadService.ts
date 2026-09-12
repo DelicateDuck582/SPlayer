@@ -1,7 +1,7 @@
 import type { SongMetadata } from "@native/tools";
 import { app, BrowserWindow } from "electron";
 import { mkdir, access, writeFile, rename, unlink } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { ipcLog } from "../logger";
 import { useStore } from "../store";
 import { loadNativeModule } from "../utils/native-loader";
@@ -9,6 +9,53 @@ import { getArtistNames } from "../utils/format";
 
 type toolModule = typeof import("@native/tools");
 const tools: toolModule = loadNativeModule("tools.node", "tools");
+
+/** 非法文件名字符（路径分隔符 + Windows 保留字符 + 控制字符） */
+const ILLEGAL_NAME_CHARS = /[\\/:*?"<>|\p{Cc}]/gu;
+/** 允许落盘的音频扩展名白名单 */
+const ALLOWED_AUDIO_EXTENSIONS = new Set([
+  "mp3",
+  "flac",
+  "m4a",
+  "mp4",
+  "aac",
+  "wav",
+  "ogg",
+  "opus",
+  "ape",
+  "wma",
+  "dsf",
+  "dff",
+  "aiff",
+]);
+
+/**
+ * 净化下载文件名（主进程侧兜底，防止路径穿越与非法字符）
+ * @param name 渲染进程传入的文件名
+ * @returns 安全文件名；完全非法时返回空字符串
+ */
+const sanitizeDownloadName = (name?: string): string => {
+  return String(name ?? "")
+    .replace(ILLEGAL_NAME_CHARS, "&")
+    .replace(/^\.+/, "") // 去掉首部点号（避免 ../、隐藏文件）
+    .replace(/[.\s]+$/, "") // Windows 不允许以点或空格结尾
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+};
+
+/**
+ * 净化扩展名（仅允许音频白名单，其余回退 mp3）
+ * @param type 渲染进程传入的扩展名
+ * @returns 安全的扩展名
+ */
+const sanitizeDownloadType = (type?: string): string => {
+  const cleaned = String(type ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 6);
+  return ALLOWED_AUDIO_EXTENSIONS.has(cleaned) ? cleaned : "mp3";
+};
 
 export class DownloadService {
   /** 存储活动下载任务：ID -> DownloadTask 实例 */
@@ -51,8 +98,8 @@ export class DownloadService {
       if (!win || !win.webContents) return { status: "error", message: "Window not found" };
       // 获取配置
       const {
-        fileName,
-        fileType,
+        fileName: rawFileName,
+        fileType: rawFileType,
         path,
         lyric,
         albumArtists,
@@ -64,18 +111,37 @@ export class DownloadService {
         skipIfExist,
         referer,
       } = options;
+
+      // 纵深防御：主进程不信任渲染进程传入的参数
+      // 1) 协议白名单：禁止 file:/data:/blob: 等异常协议
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          return { status: "error", message: `不支持的下载协议：${parsed.protocol}` };
+        }
+      } catch {
+        return { status: "error", message: "下载地址无效" };
+      }
+      // 2) 文件名/扩展名净化：去掉路径分隔符、控制字符与首部点号，防止路径穿越
+      const fileName = sanitizeDownloadName(rawFileName);
+      if (!fileName) return { status: "error", message: "文件名无效，已取消下载" };
+      const fileType = sanitizeDownloadType(rawFileType);
       // 规范化路径
       const downloadPath = resolve(path);
+      // 3) 目标文件必须落在下载目录内（防止 ../ 逃逸）
+      const finalFilePath = fileType
+        ? join(downloadPath, `${fileName}.${fileType}`)
+        : join(downloadPath, fileName);
+      const relativePath = relative(downloadPath, finalFilePath);
+      if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+        return { status: "error", message: "目标路径越界，已取消下载" };
+      }
       // 检查文件夹是否存在，不存在则自动递归创建
       try {
         await access(downloadPath);
       } catch {
         await mkdir(downloadPath, { recursive: true });
       }
-      // 规范化文件名
-      const finalFilePath = fileType
-        ? join(downloadPath, `${fileName}.${fileType}`)
-        : join(downloadPath, fileName);
       // 检查文件是否存在
       if (skipIfExist) {
         try {

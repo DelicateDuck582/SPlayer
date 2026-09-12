@@ -11,6 +11,7 @@ import { marked } from "marked";
 import { isElectron } from "./env";
 import SvgIcon from "@/components/Global/SvgIcon.vue";
 import Fuse from "fuse.js";
+import { sanitizeHtml } from "./sanitizeHtml";
 
 type AnyObject = { [key: string]: any };
 
@@ -255,7 +256,8 @@ export const getUpdateLog = async (): Promise<UpdateLogType[]> => {
   const updateLogs = await Promise.all(
     result.map(async (v: any) => ({
       version: v.tag_name,
-      changelog: await marked(v.body),
+      // 远程内容（GitHub Releases 的 body）经 marked 渲染后按白名单净化，避免 HTML 注入
+      changelog: sanitizeHtml(await marked(v.body)),
       time: convertToLocalTime(v.published_at),
       url: v.html_url,
       prerelease: v.prerelease,

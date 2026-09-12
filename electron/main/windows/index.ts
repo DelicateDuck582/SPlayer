@@ -6,6 +6,8 @@ import icon from "../../../public/icons/favicon.png?asset";
 
 export const createWindow = (
   options: BrowserWindowConstructorOptions = {},
+  // 附加选项：加载不可信第三方页面的窗口应显式关闭预加载脚本，避免向页面暴露 IPC 能力
+  extra: { withoutPreload?: boolean } = {},
 ): BrowserWindow | null => {
   try {
     const defaultOptions: BrowserWindowConstructorOptions = {
@@ -40,6 +42,10 @@ export const createWindow = (
       );
     }
     options = Object.assign(defaultOptions, options);
+    // 显式关闭预加载脚本（用于加载第三方页面的窗口）
+    if (extra.withoutPreload && options.webPreferences) {
+      delete (options.webPreferences as Record<string, unknown>).preload;
+    }
     // 创建窗口
     const win = new BrowserWindow(options);
     return win;

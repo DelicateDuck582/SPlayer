@@ -156,8 +156,14 @@ const initWindowsIpc = (): void => {
     app.exit(0);
   });
 
-  // 向主窗口发送事件
+  // 向主窗口发送事件（事件名白名单，避免跨窗口注入任意事件）
   ipcMain.on("send-to-main-win", (_, eventName, ...args) => {
+    // 当前仅桌面歌词窗口需要转发播放控制事件
+    const allowedEvents = new Set(["playPrev", "playOrPause", "playNext"]);
+    if (typeof eventName !== "string" || !allowedEvents.has(eventName)) {
+      processLog.warn(`🚫 Blocked event forwarded to main window: ${String(eventName)}`);
+      return;
+    }
     const mainWin = mainWindow.getWin();
     if (!mainWin) return;
     mainWin.webContents.send(eventName, ...args);

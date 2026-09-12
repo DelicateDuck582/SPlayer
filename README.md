@@ -80,14 +80,20 @@
 - **健壮性**：下载任务 / 已完成记录的空值防护（历史或损坏的持久化数据不再导致启动、重试或渲染报错）；已完成记录上限 500 条
 - **性能优化**：下载进度上报节流（进度变化 ≥1% 且间隔 ≥200ms 才回写，并预计算体积文案）、Blob 构造前释放分块引用、清空下载列表批量化、移除重复的队列恢复调用
 
-### 已知安全风险（架构级，待后续处理）
+### 2026-09-12 安全加固补充（第二轮审计项全部落地）
 
-> 记录以便后续迭代，不影响当前功能使用。
+- **登录窗口隔离**（`electron/main/windows/login-window.ts`）：该窗口加载第三方站点（`music.163.com`），改为 `sandbox: true` + `contextIsolation: true` + `nodeIntegration: false`，恢复正常同源策略与内容安全，并**不注入预加载脚本**（不再向第三方页面暴露任何 IPC 能力）
+- **内容安全策略（CSP）**：Electron 通过 `session.defaultSession.webRequest.onHeadersReceived` 统一附加 `Content-Security-Policy`（含 `object-src 'none'` / `base-uri 'self'` / `frame-ancestors 'none'`），网页端同时在 `index.html` 内联同策略 meta，两端一致生效
+- **本机 API 服务来源校验**（`electron/server/index.ts`）：`/api/*` 请求校验 `Host`（阻断 DNS rebinding）、`Origin`（阻断跨站页面调用）与 `Sec-Fetch-Site: cross-site`；另支持设置环境变量 `SPLAYER_API_TOKEN` 后强制携带 `x-splayer-token` 头或 `?token=`（默认关闭，便于与第三方整合）
+- **IPC 追加加固**：`set-music-metadata` 仅允许写入音频扩展名、`delete-file` 仅允许删除已存在的普通文件并拒绝系统关键目录、`send-to-main-win` 增加事件名白名单（`playPrev` / `playOrPause` / `playNext`）、`register-protocol` 增加协议白名单（仅 `orpheus`）
+- **第三方内容净化**：新增 `src/utils/sanitizeHtml.ts`，更新日志（远程 Markdown → HTML）渲染前按标签/属性白名单净化，链接强制 `noopener`
+- **安全自检脚本**：`pnpm security:selfcheck`（零依赖，43 项用例：协议白名单、内网/保留地址拦截、IPv4-mapped IPv6 绕过、文件名与扩展名净化）
 
-- 所有窗口统一 `sandbox: false` / `webSecurity: false` / `allowRunningInsecureContent: true` / `nodeIntegration: true`：建议至少对加载第三方站点的登录窗口关闭 Node 集成并启用沙箱
-- 项目暂无 CSP（`Content-Security-Policy`）：建议先落地 `object-src 'none'; base-uri 'self'; frame-ancestors 'none'` 等低回归策略
-- 本机 API 服务（`127.0.0.1:25884`）无鉴权与 `Origin` 校验：建议增加随机 token 与来源校验
-- 登录态 Cookie 通过 query 参数传递（新版 API 约定）：建议 API 侧支持 Header 传递，避免凭据进入服务端访问日志
+### 已知限制（架构取舍，记录以便后续迭代）
+
+- 主窗口为兼容远程音频/图片仍保留 `webSecurity: false` / `allowRunningInsecureContent: true` / `nodeIntegration: true`；改为默认安全配置需要较大范围的回归测试，暂以「导航白名单 + CSP + IPC 参数校验」降低风险
+- 登录态 Cookie 通过 query 参数传递给 API 服务（新版 API 约定）：建议 API 侧支持 Header 传递，避免凭据进入服务端访问日志
+- 以域名为形式指向内网的地址（DNS rebinding）无法在前端完全拦截；下载地址与本机 API 已完成可拦截部分的校验
 
 ### 部署提示
 

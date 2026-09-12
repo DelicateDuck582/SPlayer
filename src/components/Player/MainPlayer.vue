@@ -75,6 +75,15 @@
                 toLikeSong(musicStore.playSong, !dataStore.isLikeSong(musicStore.playSong.id))
               "
             />
+            <!-- 下载 -->
+            <SvgIcon
+              v-if="canDownloadSong"
+              :name="isDownloading ? 'DownloadDone' : 'Download'"
+              :size="20"
+              :depth="isDownloading ? 1 : 2"
+              class="download"
+              @click="handleDownloadSong"
+            />
             <!-- 更多操作 -->
             <n-dropdown :options="songMoreOptions" trigger="click" placement="top-start">
               <SvgIcon name="FormatList" :size="20" :depth="2" class="more" />
@@ -247,7 +256,7 @@
 import { usePlayerController } from "@/core/player/PlayerController";
 import { useSongManager } from "@/core/player/SongManager";
 import { useDataStore, useMusicStore, useSettingStore, useStatusStore } from "@/stores";
-import { toLikeSong } from "@/utils/auth";
+import { isLogin, toLikeSong } from "@/utils/auth";
 import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useSwipe } from "@vueuse/core";
 import { copyData, coverLoaded, renderIcon, getShareUrl } from "@/utils/helper";
@@ -289,6 +298,26 @@ const { direction } = useSwipe(playerRef, {
     }
   },
 });
+
+// 是否可下载当前歌曲（需登录且为在线歌曲）
+const canDownloadSong = computed(() => {
+  const song = musicStore.playSong;
+  return isLogin() === 1 && song.type === "song" && !song.path;
+});
+
+// 当前歌曲是否在下载列表中
+const isDownloading = computed(() =>
+  dataStore.downloadingSongs.some((item) => item.song.id === musicStore.playSong.id),
+);
+
+// 下载当前歌曲
+const handleDownloadSong = () => {
+  if (isDownloading.value) {
+    statusStore.downloadListShow = true;
+    return;
+  }
+  openDownloadSong(musicStore.playSong);
+};
 
 // 歌曲更多操作
 const songMoreOptions = computed<DropdownOption[]>(() => {
@@ -540,6 +569,21 @@ const showCreatorTip = () => window.$message.info("暂不支持查看主播主�
           color: var(--primary-hex);
           margin-left: 8px;
           transition: transform 0.3s;
+          cursor: pointer;
+          flex-shrink: 0;
+          &:hover {
+            transform: scale(1.15);
+          }
+          &:active {
+            transform: scale(1);
+          }
+        }
+        .download {
+          color: var(--primary-hex);
+          margin-left: 8px;
+          transition:
+            transform 0.3s,
+            opacity 0.3s;
           cursor: pointer;
           flex-shrink: 0;
           &:hover {

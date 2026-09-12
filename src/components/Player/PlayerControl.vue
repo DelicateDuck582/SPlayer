@@ -19,6 +19,14 @@
               :name="dataStore.isLikeSong(musicStore.playSong.id) ? 'Favorite' : 'FavoriteBorder'"
             />
           </div>
+          <!-- 下载 -->
+          <div
+            class="menu-icon"
+            v-if="canDownloadSong && settingStore.fullscreenPlayerElements.download"
+            @click.stop="handleDownloadSong"
+          >
+            <SvgIcon :name="isDownloading ? 'DownloadDone' : 'Download'" />
+          </div>
           <!-- 添加到歌单 -->
           <div
             v-if="settingStore.fullscreenPlayerElements.addToPlaylist"
@@ -26,18 +34,6 @@
             @click.stop="openPlaylistAdd([musicStore.playSong], !!musicStore.playSong.path)"
           >
             <SvgIcon name="AddList" />
-          </div>
-          <!-- 下载 -->
-          <div
-            class="menu-icon"
-            v-if="
-              !musicStore.playSong.path &&
-              statusStore.isDeveloperMode &&
-              settingStore.fullscreenPlayerElements.download
-            "
-            @click.stop="openDownloadSong(musicStore.playSong)"
-          >
-            <SvgIcon name="Download" />
           </div>
           <!-- 显示评论 -->
           <n-badge
@@ -151,7 +147,7 @@
 import { usePlayerController } from "@/core/player/PlayerController";
 import { useSongManager } from "@/core/player/SongManager";
 import { useDataStore, useMusicStore, useStatusStore, useSettingStore } from "@/stores";
-import { toLikeSong } from "@/utils/auth";
+import { isLogin, toLikeSong } from "@/utils/auth";
 import { useTimeFormat } from "@/composables/useTimeFormat";
 import { openDownloadSong, openPlaylistAdd } from "@/utils/modal";
 import { getComment } from "@/api/comment";
@@ -189,6 +185,26 @@ const showCommentButton = computed(
     !statusStore.pureLyricMode &&
     settingStore.fullscreenPlayerElements.comments,
 );
+
+// 是否可下载当前歌曲（需登录且为在线歌曲）
+const canDownloadSong = computed(() => {
+  const song = musicStore.playSong;
+  return isLogin() === 1 && song.type === "song" && !song.path;
+});
+
+// 当前歌曲是否在下载列表中
+const isDownloading = computed(() =>
+  dataStore.downloadingSongs.some((item) => item.song.id === musicStore.playSong.id),
+);
+
+// 下载当前歌曲
+const handleDownloadSong = () => {
+  if (isDownloading.value) {
+    statusStore.downloadListShow = true;
+    return;
+  }
+  openDownloadSong(musicStore.playSong);
+};
 
 // 歌曲变化时获取评论数量
 watch(

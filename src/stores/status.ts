@@ -29,6 +29,8 @@ interface StatusState {
   playerMetaShow: boolean;
   /** 播放列表状态 */
   playListShow: boolean;
+  /** 下载列表状态 */
+  downloadListShow: boolean;
   /** 播放状态 */
   playStatus: boolean;
   /** 播放加载状态 */
@@ -179,6 +181,7 @@ export const useStatusStore = defineStore("status", {
     playStatus: false,
     playLoading: true,
     playListShow: false,
+    downloadListShow: false,
     showFullPlayer: false,
     playerMetaShow: true,
     currentTime: 0,
@@ -424,6 +427,7 @@ export const useStatusStore = defineStore("status", {
         playStatus: false,
         playLoading: false,
         playListShow: false,
+        downloadListShow: false,
         showFullPlayer: false,
         personalFmMode: false,
         playIndex: -1,

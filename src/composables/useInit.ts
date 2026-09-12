@@ -38,6 +38,8 @@ export const useInit = () => {
     openUserAgreement();
     // 加载数据
     await dataStore.loadData();
+    // 初始化下载管理器（网页端支持浏览器下载）
+    downloadManager.init();
     // 初始化 MediaSession
     mediaSessionManager.init();
     // 初始化播放器
@@ -72,8 +74,6 @@ export const useInit = () => {
     if (isElectron) {
       // 注册全局快捷键
       shortcutStore.registerAllShortcuts();
-      // 初始化下载管理器
-      downloadManager.init();
       // 显示窗口
       window.electron.ipcRenderer.send("win-loaded");
       // 同步任务栏歌词状态

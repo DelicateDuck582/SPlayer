@@ -18,7 +18,7 @@
       <div
         v-if="data?.releaseNotes"
         class="markdown-body"
-        v-html="data.releaseNotes"
+        v-html="safeReleaseNotes"
         @click="handleMarkdownClick"
       />
       <div v-else class="markdown-body">暂无更新日志</div>
@@ -51,12 +51,16 @@
 import type { UpdateInfoType } from "@/types/main";
 import { useStatusStore } from "@/stores";
 import packageJson from "@/../package.json";
+import { sanitizeHtml } from "@/utils/sanitizeHtml";
 
 const props = defineProps<{ data: UpdateInfoType }>();
 
 const emit = defineEmits<{ close: [] }>();
 
 const statusStore = useStatusStore();
+
+// 更新日志来自远程（GitHub Releases），渲染前按白名单净化，避免 HTML 注入
+const safeReleaseNotes = computed(() => sanitizeHtml(props.data?.releaseNotes || ""));
 
 // 检测是否为预发布版本（alpha/beta/rc 等）
 const isPrerelease = computed(() => {

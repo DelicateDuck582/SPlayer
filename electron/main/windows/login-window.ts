@@ -1,6 +1,5 @@
 import { app, BrowserWindow, session } from "electron";
 import { createWindow } from "./index";
-import { join } from "path";
 
 class LoginWindow {
   private win: BrowserWindow | null = null;
@@ -63,25 +62,33 @@ class LoginWindow {
       storages: ["cookies", "localstorage"],
     });
 
-    this.win = createWindow({
-      parent: mainWin,
-      title: "登录网易云音乐（ 若遇到无响应请关闭后重试 ）",
-      width: 1280,
-      height: 800,
-      center: true,
-      frame: true,
-      autoHideMenuBar: true,
-      webPreferences: {
-        preload: join(__dirname, "../preload/index.mjs"),
-        sandbox: false,
-        webSecurity: false,
-        allowRunningInsecureContent: true,
-        spellcheck: false,
-        nodeIntegration: true,
-        nodeIntegrationInWorker: true,
-        session: loginSession,
+    this.win = createWindow(
+      {
+        parent: mainWin,
+        title: "登录网易云音乐（ 若遇到无响应请关闭后重试 ）",
+        width: 1280,
+        height: 800,
+        center: true,
+        frame: true,
+        autoHideMenuBar: true,
+        webPreferences: {
+          // 安全：该窗口加载第三方站点（music.163.com），必须与主窗口隔离
+          // - 关闭 Node 集成与 Worker Node 能力，开启沙箱 + 上下文隔离
+          // - 恢复正常同源策略与内容安全（禁止不安全内容）
+          // 该窗口仅用于登录并轮询 Cookie（读取在主进程完成），无需任何预加载能力
+          sandbox: true,
+          contextIsolation: true,
+          nodeIntegration: false,
+          nodeIntegrationInWorker: false,
+          webSecurity: true,
+          allowRunningInsecureContent: false,
+          spellcheck: false,
+          session: loginSession,
+        },
       },
-    });
+      // 不注入预加载脚本：避免向第三方页面暴露任何 IPC 通道
+      { withoutPreload: true },
+    );
 
     if (!this.win) return null;
     // 加载登录地址

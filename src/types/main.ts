@@ -315,6 +315,22 @@ export type SortOrder = "default" | "asc" | "desc";
 /** 歌曲元素音质类型 */
 export type SongLevelType = keyof typeof songLevelData;
 
+/** 已完成下载记录（网页版浏览器下载） */
+export type DownloadedSongType = {
+  /** 歌曲信息 */
+  song: SongType;
+  /** 音质 */
+  quality: SongLevelType;
+  /** 文件名（不含扩展名） */
+  fileName: string;
+  /** 文件类型（扩展名） */
+  fileType: string;
+  /** 文件大小 */
+  size: string;
+  /** 完成时间 */
+  time: number;
+};
+
 /** 歌曲元素音质数据 */
 export type SongLevelDataType = {
   name: string;

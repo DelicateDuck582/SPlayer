@@ -36,6 +36,25 @@
       <!-- 可拖拽 -->
       <div v-if="isDesktop" class="nav-drag" />
       <n-flex align="center">
+        <!-- 下载列表 -->
+        <n-badge
+          v-if="isLogin() === 1"
+          :value="dataStore.downloadingSongs.length"
+          :show="dataStore.downloadingSongs.length > 0"
+          :max="99"
+        >
+          <n-button
+            :focusable="false"
+            title="下载列表"
+            tertiary
+            circle
+            @click="statusStore.downloadListShow = true"
+          >
+            <template #icon>
+              <SvgIcon name="Download" />
+            </template>
+          </n-button>
+        </n-badge>
         <!-- 用户 -->
         <User v-if="settingStore.useOnlineService" />
         <!-- 设置菜单 -->
@@ -144,13 +163,15 @@
 
 <script setup lang="ts">
 import type { DropdownOption } from "naive-ui";
-import { useSettingStore, useStatusStore } from "@/stores";
+import { useDataStore, useSettingStore, useStatusStore } from "@/stores";
 import { renderIcon } from "@/utils/helper";
 import { openSetting, openThemeConfig, openScalingModal, openUpdateApp } from "@/utils/modal";
 import { isDev, isElectron } from "@/utils/env";
+import { isLogin } from "@/utils/auth";
 import { useMobile } from "@/composables/useMobile";
 
 const router = useRouter();
+const dataStore = useDataStore();
 const settingStore = useSettingStore();
 const statusStore = useStatusStore();
 const { isDesktop, isSmallScreen } = useMobile();

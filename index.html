@@ -2,6 +2,12 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <!-- 内容安全策略（低回归基线，网页端部署同样生效）：阻断插件注入与 base 标签劫持
+         如需收紧 script-src，请同步检查远程音频/图片/字体与 wasm worker 的加载需求 -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob: file: http: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:; style-src 'self' 'unsafe-inline' data: blob: http: https:; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; font-src 'self' data: blob: http: https:; connect-src 'self' data: blob: http: https: ws: wss:; worker-src 'self' data: blob:; frame-src 'self' data: blob: http: https:; object-src 'none'; base-uri 'self'"
+    />
     <link rel="icon" type="image/icon" href="/icons/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="mobile-web-app-capable" content="yes" />

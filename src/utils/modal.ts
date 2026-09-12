@@ -293,11 +293,24 @@ export const openUpdatePlaylist = async (
 // 下载歌曲
 export const openDownloadSong = async (song: SongType) => {
   const dataStore = useDataStore();
-  if (!isLogin()) return openUserLogin();
+  // 下载必须登录
+  if (!isLogin()) {
+    window.$message.warning("请登录后使用下载功能");
+    return openUserLogin();
+  }
+  if (isLogin() !== 1) {
+    return window.$message.warning("当前登录模式暂不支持下载，请使用 Cookie 登录");
+  }
   // 是否可下载
   if (!song) return window.$message.warning("请正确选择歌曲");
-  if (song.free !== 0 && dataStore.userData.vipType === 0 && !song?.pc) {
-    return window.$message.warning("账号会员等级不足，请提升权限");
+  if (song.type !== "song" || song.path) {
+    return window.$message.warning("该歌曲暂不支持下载");
+  }
+  // VIP 音乐检测（接口侧会再次校验账号权限）
+  if (!song.pc && song.free !== 0 && dataStore.userData.vipType === 0) {
+    const tip =
+      song.free === 4 ? "该歌曲需购买专辑后才能下载" : "该歌曲为 VIP 歌曲，请开通会员后下载";
+    return window.$message.warning(tip);
   }
   const { default: DownloadModal } = await import("@/components/Modal/DownloadModal.vue");
   const modal = window.$modal.create({
@@ -314,10 +327,34 @@ export const openDownloadSong = async (song: SongType) => {
 
 // 批量下载歌曲
 export const openDownloadSongs = async (songs: SongType[]): Promise<void> => {
-  if (!isLogin()) return openUserLogin();
+  const dataStore = useDataStore();
+  // 下载必须登录
+  if (!isLogin()) {
+    window.$message.warning("请登录后使用下载功能");
+    return openUserLogin();
+  }
+  if (isLogin() !== 1) {
+    window.$message.warning("当前登录模式暂不支持下载，请使用 Cookie 登录");
+    return;
+  }
   if (!songs || songs.length === 0) {
     window.$message.warning("请选择要下载的歌曲");
     return;
+  }
+  // 过滤本地歌曲与无权限的 VIP 歌曲
+  const canDownloadSongs = songs.filter(
+    (song) =>
+      song.type === "song" &&
+      !song.path &&
+      (song.pc || song.free === 0 || dataStore.userData.vipType > 0),
+  );
+  const blockedCount = songs.length - canDownloadSongs.length;
+  if (canDownloadSongs.length === 0) {
+    window.$message.warning("所选歌曲均无下载权限或暂不支持下载");
+    return;
+  }
+  if (blockedCount > 0) {
+    window.$message.warning(`已过滤 ${blockedCount} 首无下载权限或不可下载的歌曲`);
   }
   const { default: DownloadModal } = await import("@/components/Modal/DownloadModal.vue");
   const modal = window.$modal.create({
@@ -327,7 +364,7 @@ export const openDownloadSongs = async (songs: SongType[]): Promise<void> => {
     style: { width: "600px" },
     title: "批量下载",
     content: () => {
-      return h(DownloadModal, { songs, onClose: () => modal.destroy() });
+      return h(DownloadModal, { songs: canDownloadSongs, onClose: () => modal.destroy() });
     },
   });
 };

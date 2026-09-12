@@ -45,6 +45,10 @@
                   :class="{ liked: dataStore.isLikeSong(musicStore.playSong.id) }"
                 />
               </div>
+              <!-- 下载 -->
+              <div v-if="canDownloadSong" class="action-btn" @click.stop="handleDownloadSong">
+                <SvgIcon :name="isDownloading ? 'DownloadDone' : 'Download'" :size="26" />
+              </div>
               <!-- 添加到歌单 -->
               <div
                 class="action-btn"
@@ -150,6 +154,10 @@
               :class="{ liked: dataStore.isLikeSong(musicStore.playSong.id) }"
             />
           </div>
+          <!-- 下载按钮 -->
+          <div v-if="canDownloadSong" class="action-btn" @click.stop="handleDownloadSong">
+            <SvgIcon :name="isDownloading ? 'DownloadDone' : 'Download'" :size="24" />
+          </div>
         </div>
         <div class="lyric-main">
           <PlayerLyric />
@@ -174,8 +182,8 @@ import { useSwipe } from "@vueuse/core";
 import { useMusicStore, useStatusStore, useDataStore, useSettingStore } from "@/stores";
 import { usePlayerController } from "@/core/player/PlayerController";
 import { useTimeFormat } from "@/composables/useTimeFormat";
-import { toLikeSong } from "@/utils/auth";
-import { openPlaylistAdd } from "@/utils/modal";
+import { isLogin, toLikeSong } from "@/utils/auth";
+import { openDownloadSong, openPlaylistAdd } from "@/utils/modal";
 import { removeBrackets } from "@/utils/format";
 
 const musicStore = useMusicStore();
@@ -184,6 +192,26 @@ const settingStore = useSettingStore();
 const dataStore = useDataStore();
 const player = usePlayerController();
 const { timeDisplay, toggleTimeFormat } = useTimeFormat();
+
+// 是否可下载当前歌曲（需登录且为在线歌曲）
+const canDownloadSong = computed(() => {
+  const song = musicStore.playSong;
+  return isLogin() === 1 && song.type === "song" && !song.path;
+});
+
+// 当前歌曲是否在下载列表中
+const isDownloading = computed(() =>
+  dataStore.downloadingSongs.some((item) => item.song.id === musicStore.playSong.id),
+);
+
+// 下载当前歌曲
+const handleDownloadSong = () => {
+  if (isDownloading.value) {
+    statusStore.downloadListShow = true;
+    return;
+  }
+  openDownloadSong(musicStore.playSong);
+};
 
 const mobileStart = ref<HTMLElement | null>(null);
 const pageIndex = ref(0);

@@ -14,6 +14,10 @@
               : "本软件仅支持从官方途径合法合规的下载歌曲，并用于学习研究用途。本功能将严格按照相应账户的权限来提供基础的下载功能"
           }}
         </n-alert>
+        <!-- 网页版下载说明 -->
+        <n-alert v-if="!isElectron" title="网页版下载" type="default">
+          文件将通过浏览器下载并保存到默认下载目录，可在顶栏的“下载列表”中查看进度
+        </n-alert>
         <!-- 歌曲信息卡片（单个下载时显示） -->
         <SongDataCard v-if="!isBatch && songs[0]" :data="songs[0]" />
       </n-flex>

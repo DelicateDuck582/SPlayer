@@ -73,10 +73,31 @@ class MainProcess {
     app.whenReady().then(async () => {
       processLog.info("🚀 Application Process Startup");
 
+      // 内容安全策略（低回归基线）：阻断插件注入、base 标签劫持与点击劫持
+      // 说明：应用需加载远程音频/图片/字体，且主窗口关闭了同源策略（见 windows/index.ts），
+      // 因此 script/style/connect 仍需保持宽松，先落地不受这些需求影响的部分
+      const contentSecurityPolicy = [
+        "default-src 'self' data: blob: file: http: https:",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:",
+        "style-src 'self' 'unsafe-inline' data: blob: http: https:",
+        "img-src 'self' data: blob: http: https:",
+        "media-src 'self' data: blob: http: https:",
+        "font-src 'self' data: blob: http: https:",
+        "connect-src 'self' data: blob: http: https: ws: wss:",
+        "worker-src 'self' data: blob:",
+        "frame-src 'self' data: blob: http: https:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'none'",
+      ].join("; ");
+
       // 配置 COOP/COEP/CORP 头，FFmpeg 需要
       session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
         const responseHeaders = { ...details.responseHeaders };
         const url = new URL(details.url);
+
+        // 统一附加内容安全策略（含桌面歌词窗口）
+        responseHeaders["Content-Security-Policy"] = [contentSecurityPolicy];
 
         // 桌面歌词窗口需要透明背景，必须排除严格的安全策略
         if (url.searchParams.get("win") === "desktop-lyric") {

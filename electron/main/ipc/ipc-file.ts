@@ -1,6 +1,6 @@
 import { app, dialog, ipcMain, shell } from "electron";
 import { access, mkdir, unlink, writeFile, stat } from "node:fs/promises";
-import { isAbsolute, join, normalize, relative, resolve } from "node:path";
+import { isAbsolute, join, normalize, relative, resolve, extname } from "node:path";
 import { Worker } from "node:worker_threads";
 import { ipcLog } from "../logger";
 import { LocalMusicService } from "../services/LocalMusicService";
@@ -9,6 +9,55 @@ import { MusicMetadataService } from "../services/MusicMetadataService";
 import { useStore } from "../store";
 import { chunkArray } from "../utils/helper";
 import { processMusicList } from "../utils/format";
+
+/** 允许写入元数据的音频扩展名白名单（set-music-metadata 写入侧防护） */
+const WRITABLE_AUDIO_EXTENSIONS = new Set([
+  "mp3",
+  "flac",
+  "m4a",
+  "m4b",
+  "mp4",
+  "aac",
+  "wav",
+  "ogg",
+  "opus",
+  "ape",
+  "wma",
+  "wv",
+  "tak",
+  "mpc",
+  "dsf",
+  "dff",
+  "aiff",
+  "alac",
+]);
+
+/** 禁止删除操作命中的系统关键目录前缀 */
+const PROTECTED_PATH_PREFIXES = [
+  "c:\\windows",
+  "c:\\program files",
+  "c:\\program files (x86)",
+  "c:\\programdata",
+  "/system",
+  "/usr",
+  "/bin",
+  "/sbin",
+  "/etc",
+  "/var",
+  "/library",
+];
+
+/**
+ * 判断路径是否位于受保护的系统目录内
+ * @param filePath 绝对路径
+ * @returns 是否受保护
+ */
+const isProtectedPath = (filePath: string): boolean => {
+  const normalized = resolve(filePath).toLowerCase();
+  return PROTECTED_PATH_PREFIXES.some(
+    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`) || normalized.startsWith(`${prefix}\\`),
+  );
+};
 
 /** 本地音乐服务 */
 const localMusicService = new LocalMusicService();
@@ -201,8 +250,25 @@ const initFileIpc = (): void => {
     ) => {
       try {
         const { targetPath, fileName, ext, content, encoding } = args;
-        const joinedPath = join(targetPath, `${fileName}.${ext}`);
-        await mkdir(targetPath, { recursive: true });
+        // 纵深防御：净化文件名/扩展名，并校验目标路径未越出目录（防 ../../ 逃逸）
+        const safeName = String(fileName ?? "")
+          .replace(/[\\/:*?"<>|\p{Cc}]/gu, "&")
+          .replace(/^\.+/, "")
+          .replace(/[.\s]+$/, "")
+          .trim()
+          .slice(0, 120);
+        if (!safeName) throw new Error("文件名无效，已取消保存");
+        const safeExt = String(ext ?? "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "")
+          .slice(0, 8);
+        const baseDir = resolve(targetPath);
+        const joinedPath = join(baseDir, safeExt ? `${safeName}.${safeExt}` : safeName);
+        const relativePath = relative(baseDir, joinedPath);
+        if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+          throw new Error("目标路径越界，已取消保存");
+        }
+        await mkdir(baseDir, { recursive: true });
         await writeFile(joinedPath, content, { encoding: encoding || "utf-8" });
         return { success: true };
       } catch (err) {
@@ -241,8 +307,13 @@ const initFileIpc = (): void => {
     return musicMetadataService.getMetadata(path);
   });
 
-  // 修改音乐元信息
+  // 修改音乐元信息（写入侧加固：仅允许音频文件，避免该通道被用于写任意文件）
   ipcMain.handle("set-music-metadata", async (_, path: string, metadata) => {
+    const ext = typeof path === "string" ? extname(path).replace(".", "").toLowerCase() : "";
+    if (!WRITABLE_AUDIO_EXTENSIONS.has(ext)) {
+      ipcLog.warn(`🚫 Blocked metadata write for unsupported file: ${String(path)}`);
+      throw new Error("仅支持写入音频文件的元信息");
+    }
     return musicMetadataService.setMetadata(path, metadata);
   });
 
@@ -261,17 +332,18 @@ const initFileIpc = (): void => {
     return musicMetadataService.readLocalLyric(lyricDirs, id);
   });
 
-  // 删除文件
+  // 删除文件（加固：仅允许删除已存在的普通文件，并拒绝系统关键目录）
   ipcMain.handle("delete-file", async (_, path: string) => {
     try {
+      if (typeof path !== "string" || !path.trim()) throw new Error("❌ Invalid path");
       // 规范化路径
       const resolvedPath = resolve(path);
-      // 检查文件是否存在
-      try {
-        await access(resolvedPath);
-      } catch {
-        throw new Error("❌ File not found");
-      }
+      // 拒绝系统关键目录，避免误删或经该通道删除系统文件
+      if (isProtectedPath(resolvedPath)) throw new Error("❌ Protected path");
+      // 检查文件是否存在且为普通文件（避免删除目录/设备文件）
+      const fileStat = await stat(resolvedPath).catch(() => null);
+      if (!fileStat) throw new Error("❌ File not found");
+      if (!fileStat.isFile()) throw new Error("❌ Not a regular file");
       // 删除文件
       await unlink(resolvedPath);
       return true;

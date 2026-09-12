@@ -112,6 +112,8 @@
     </n-layout>
     <!-- 播放列表 -->
     <SongPlayList />
+    <!-- 下载列表 -->
+    <DownloadList />
     <!-- 全局播放器 -->
     <MainPlayer />
     <!-- 全屏播放器 -->
