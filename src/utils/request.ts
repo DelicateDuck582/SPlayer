@@ -36,8 +36,10 @@ server.interceptors.request.use(
       const cookie = `MUSIC_U=${getCookie("MUSIC_U")};os=pc;`;
       request.params.cookie = cookie;
     }
-    // 自定义 realIP
-    if (settingStore.useRealIP) {
+    // 自定义 realIP（调用方显式传入 realIP/randomCNIP 时以其为准，便于取链失败后按需重试）
+    const hasExplicitIpOption =
+      request.params.realIP !== undefined || request.params.randomCNIP !== undefined;
+    if (!hasExplicitIpOption && settingStore.useRealIP) {
       if (settingStore.realIP) {
         request.params.realIP = settingStore.realIP;
       } else {

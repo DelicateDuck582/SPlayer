@@ -213,11 +213,20 @@ class SongManager {
       }
     }
 
-    const res = await songUrl(id, level as any);
+    let res: any = await songUrl(id, level as any);
     console.log(`🌐 ${id} music data:`, res);
 
     // 兼容新旧接口的数据结构
-    const songData = Array.isArray(res.data) ? res.data[0] : res.data?.[0];
+    const pickSongData = (r: any) => (Array.isArray(r?.data) ? r.data[0] : r?.data?.[0]);
+    let songData: any = pickSongData(res);
+
+    // 取链失败（API 服务出口 IP 被网易云风控时常见：url 为空且 code 为 404 / -110）时，
+    // 自动携带 randomCNIP 重试一次；仍失败则交由上层走解锁回退
+    if (!songData?.url) {
+      console.log(`🔁 [${id}] 首次取链未返回地址，携带 randomCNIP 重试`);
+      res = await songUrl(id, level as any, { randomCNIP: true });
+      songData = pickSongData(res);
+    }
 
     // 是否有播放地址
     if (!songData || !songData?.url) return { id, url: undefined };

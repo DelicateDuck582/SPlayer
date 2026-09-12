@@ -25,6 +25,19 @@ export const songQuality = (id: number) => {
   });
 };
 
+/** 取链 IP 选项：API 服务出口 IP 被风控时可用 randomCNIP / realIP 规避 */
+export interface SongUrlIpOptions {
+  randomCNIP?: boolean;
+  realIP?: string;
+}
+
+/** 将 IP 选项转换为请求参数 */
+const toIpParams = (options?: SongUrlIpOptions) => {
+  if (options?.realIP) return { realIP: options.realIP };
+  if (options?.randomCNIP) return { randomCNIP: true };
+  return {};
+};
+
 // 获取歌曲 URL
 export const songUrl = (
   id: number,
@@ -38,7 +51,9 @@ export const songUrl = (
     | "sky"
     | "dolby"
     | "jymaster" = "exhigh",
+  options?: SongUrlIpOptions,
 ) => {
+  const ipParams = toIpParams(options);
   // 杜比全景声使用旧版接口，并传入特殊参数
   if (level === "dolby") {
     return request({
@@ -48,6 +63,7 @@ export const songUrl = (
         br: 999000,
         immerseType: "c51",
         timestamp: Date.now(),
+        ...ipParams,
       },
     });
   }
@@ -58,23 +74,63 @@ export const songUrl = (
       id,
       level,
       timestamp: Date.now(),
+      ...ipParams,
+    },
+  });
+};
+
+/**
+ * 通过 API 服务匹配歌曲直链（api-enhanced 的 `/song/url/match`）
+ * - 由 API 服务端完成匹配/解锁：免费曲目返回官方外链，VIP 曲目可直接返回 CDN 直链
+ * - 不依赖本体自建的 `/api/unblock` 服务，因此网页端同样可用
+ * @param id 歌曲 id
+ * @param options 取链 IP 选项
+ */
+export const songUrlMatch = (id: number, options?: SongUrlIpOptions) => {
+  return request({
+    url: "/song/url/match",
+    params: {
+      id,
+      timestamp: Date.now(),
+      ...toIpParams(options),
     },
   });
 };
 
 // 获取解锁歌曲 URL
-export const unlockSongUrl = (
+export const unlockSongUrl = async (
   id: number,
   keyword: string,
   server: SongUnlockServer,
   songName?: string,
   artist?: string,
 ) => {
-  const params = server === SongUnlockServer.NETEASE ? { id } : { keyword, songName, artist };
+  // NETEASE 源优先走 API 服务的 /song/url/match（网页端与客户端都可用），
+  // 失败时再回退本体自建解锁服务（仅客户端/自建服务可用）
+  if (server === SongUnlockServer.NETEASE) {
+    try {
+      const matched: any = await songUrlMatch(id);
+      const matchedUrl = typeof matched?.data === "string" ? matched.data : "";
+      if (matchedUrl) {
+        return {
+          code: 200,
+          url: matchedUrl,
+          type: matchedUrl.toLowerCase().includes(".flac") ? "flac" : "mp3",
+        };
+      }
+    } catch (error) {
+      console.warn("song/url/match 不可用，回退 /api/unblock/netease", error);
+    }
+    return request({
+      baseURL: "/api/unblock",
+      url: `/${server}`,
+      params: { id, noCookie: true },
+    });
+  }
   return request({
     baseURL: "/api/unblock",
     url: `/${server}`,
-    params: { ...params, noCookie: true },
+    params: { keyword, songName, artist, noCookie: true },
   });
 };
 
@@ -90,41 +146,58 @@ export const songLyric = (id: number) => {
 
 /**
  * 获取歌曲 TTML 歌词
+ * 说明：api-enhanced **未提供** `/lyric/ttml` 路由（远端会返回 404），因此改为：
+ * 1) 优先读取 AMLL TTML DB（网页端与客户端一致）
+ * 2) 客户端再回退本体自建的本机服务 `/api/netease/lyric/ttml`
  * @param id 音乐 id
- * @returns TTML 格式歌词
+ * @returns TTML 格式歌词；均不可用时返回 null
  */
 export const songLyricTTML = async (id: number) => {
-  if (isElectron) {
-    return request({ url: "/lyric/ttml", params: { id, noCookie: true } });
-  } else {
-    const settingStore = useSettingStore();
-    const server = settingStore.amllDbServer || defaultAMLLDbServer;
-    const url = server.replace("%s", String(id));
-    try {
-      const response = await fetch(url);
-      if (response === null || response.status !== 200) {
-        return null;
-      }
+  const settingStore = useSettingStore();
+  const server = settingStore.amllDbServer || defaultAMLLDbServer;
+  const url = server.replace("%s", String(id));
+  try {
+    const response = await fetch(url);
+    if (response && response.status === 200) {
       const data = await response.text();
-      return data;
-    } catch {
-      return null;
+      if (data && data.trim().length > 0) return data;
+    }
+  } catch (error) {
+    console.warn("AMLL TTML DB 获取失败，尝试本机服务", error);
+  }
+  // 客户端回退：本机内嵌服务（SPlayer 自身实现，不依赖远端 API 路由）
+  if (isElectron) {
+    try {
+      const port = import.meta.env["VITE_SERVER_PORT"] || 25884;
+      const response = await fetch(`http://127.0.0.1:${port}/api/netease/lyric/ttml?id=${id}`);
+      if (response.status === 200) {
+        const data = await response.text();
+        if (data && data.trim().length > 0) return data;
+      }
+    } catch (error) {
+      console.warn("本机 TTML 服务不可用", error);
     }
   }
+  return null;
 };
 
 /**
  * 获取歌曲下载链接
  * @param id 音乐 id
  * @param level 播放音质等级, 分为 standard => 标准,higher => 较高, exhigh=>极高, lossless=>无损, hires=>Hi-Res, jyeffect => 高清环绕声, sky => 沉浸环绕声, `dolby` => `杜比全景声`, jymaster => 超清母带
+ * @param options 取链 IP 选项（用于取链失败时重试）
  * @returns
  */
-export const songDownloadUrl = (id: number, level: keyof typeof songLevelData = "h") => {
+export const songDownloadUrl = (
+  id: number,
+  level: keyof typeof songLevelData = "h",
+  options?: SongUrlIpOptions,
+) => {
   // 获取对应音质
   const levelName = songLevelData[level].level;
   return request({
     url: "/song/download/url/v1",
-    params: { id, level: levelName, timestamp: Date.now() },
+    params: { id, level: levelName, timestamp: Date.now(), ...toIpParams(options) },
   });
 };
 

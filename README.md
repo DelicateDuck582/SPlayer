@@ -89,6 +89,13 @@
 - **第三方内容净化**：新增 `src/utils/sanitizeHtml.ts`，更新日志（远程 Markdown → HTML）渲染前按标签/属性白名单净化，链接强制 `noopener`
 - **安全自检脚本**：`pnpm security:selfcheck`（零依赖，43 项用例：协议白名单、内网/保留地址拦截、IPv4-mapped IPv6 绕过、文件名与扩展名净化）
 
+### 2026-09-12 播放/下载容错（API 服务不改动）
+
+- **取链风控自愈**：API 服务出口 IP 被网易云风控时取链会返回 `code: 404 / -110` 且 `url` 为空；本体在**播放**与**下载**取链失败时自动携带 `randomCNIP=true` 重试一次，恢复播放/下载
+- **IP 选项优先级**：调用方显式传入的 `realIP` / `randomCNIP` 优先于设置项，便于按需重试（「设置 → 网络 → 使用真实 IP」保留不变）
+- **TTML 歌词**：api-enhanced 未提供 `/lyric/ttml`（远端返回 404），`songLyricTTML()` 改为优先 AMLL TTML DB、客户端再回退本机内嵌服务 `/api/netease/lyric/ttml`
+- **解锁播放/下载**：NETEASE 解锁源改为优先调用 API 服务的 `/song/url/match`（服务端完成匹配/解锁，**网页端同样可用**），失败再回退自建 `/api/unblock`
+
 ### 已知限制（架构取舍，记录以便后续迭代）
 
 - 主窗口为兼容远程音频/图片仍保留 `webSecurity: false` / `allowRunningInsecureContent: true` / `nodeIntegration: true`；改为默认安全配置需要较大范围的回归测试，暂以「导航白名单 + CSP + IPC 参数校验」降低风险

@@ -280,9 +280,11 @@ class SongDownloadStrategy implements DownloadStrategy {
     // 尝试使用播放链接
     if (usePlayback) {
       try {
-        const result = await songUrl(this.song.id, levelName as Parameters<typeof songUrl>[1]);
+        const result = await this.fetchUrlWithRetry((options) =>
+          songUrl(this.song.id, levelName as Parameters<typeof songUrl>[1], options),
+        );
         const playbackData = result?.data?.[0];
-        if (result.code === 200 && playbackData?.url) {
+        if (playbackData?.url) {
           this.assertDownloadableData(playbackData);
           return {
             url: playbackData.url,
@@ -344,8 +346,10 @@ class SongDownloadStrategy implements DownloadStrategy {
     }
 
     // 标准下载流程
-    const result = await songDownloadUrl(this.song.id, this.quality);
-    if (result.code === 200 && result?.data?.url) {
+    const result = await this.fetchUrlWithRetry((options) =>
+      songDownloadUrl(this.song.id, this.quality, options),
+    );
+    if (result?.data?.url) {
       this.assertDownloadableData(result.data);
       return {
         url: result.data.url,
@@ -355,12 +359,11 @@ class SongDownloadStrategy implements DownloadStrategy {
 
     // 下载接口不可用时，回退使用播放链接
     try {
-      const playbackResult = await songUrl(
-        this.song.id,
-        levelName as Parameters<typeof songUrl>[1],
+      const playbackResult = await this.fetchUrlWithRetry((options) =>
+        songUrl(this.song.id, levelName as Parameters<typeof songUrl>[1], options),
       );
       const playbackData = playbackResult?.data?.[0];
-      if (playbackResult.code === 200 && playbackData?.url) {
+      if (playbackData?.url) {
         this.assertDownloadableData(playbackData);
         return {
           url: playbackData.url,
@@ -416,6 +419,23 @@ class SongDownloadStrategy implements DownloadStrategy {
       return "当前账号无权下载该歌曲，请检查登录状态或会员权限";
     }
     return result?.message || data?.message || "获取下载链接失败";
+  }
+  /**
+   * 取链增强：接口未返回可用地址时（API 服务出口 IP 被网易云风控时常见，url 为空且 code 为 404/-110），
+   * 自动携带 randomCNIP 重试一次
+   * @param fetcher 取链函数，接收 IP 选项
+   * @returns 优先返回含可用地址的响应
+   */
+  private async fetchUrlWithRetry(
+    fetcher: (options: { randomCNIP: boolean }) => Promise<any>,
+  ): Promise<any> {
+    const pickUrl = (r: any): string =>
+      String(r?.data?.url ?? r?.data?.[0]?.url ?? r?.url ?? "");
+    const first = await fetcher({ randomCNIP: false });
+    if (pickUrl(first)) return first;
+    console.warn("[Download] 首次取链未返回地址，携带 randomCNIP 重试一次");
+    const retried = await fetcher({ randomCNIP: true });
+    return pickUrl(retried) ? retried : first;
   }
   /**
    * 获取文件名
