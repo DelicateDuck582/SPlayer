@@ -12,11 +12,17 @@
         <div class="download-header">
           <n-text class="name">下载列表</n-text>
           <n-text class="count" depth="3">
-            {{ dataStore.downloadingSongs.length }} 个任务 · {{ dataStore.downloadedSongs.length }} 首已完成
+            {{ dataStore.downloadingSongs.length }} 个任务 ·
+            {{ dataStore.downloadedSongs.length }} 首已完成
           </n-text>
         </div>
       </template>
-      <n-tabs v-model:value="currentTab" class="download-tabs" type="segment" justify-content="space-evenly">
+      <n-tabs
+        v-model:value="currentTab"
+        class="download-tabs"
+        type="segment"
+        justify-content="space-evenly"
+      >
         <n-tab-pane name="downloading">
           <template #tab>
             <n-badge
@@ -30,11 +36,7 @@
           </template>
           <Transition name="fade" mode="out-in">
             <n-scrollbar v-if="dataStore.downloadingSongs.length > 0" class="list-scrollbar">
-              <div
-                v-for="item in sortedDownloadingSongs"
-                :key="item.song.id"
-                class="download-item"
-              >
+              <div v-for="item in sortedDownloadingSongs" :key="item.song.id" class="download-item">
                 <s-image :src="item.song.coverSize?.s || item.song.cover" class="cover" />
                 <div class="data">
                   <n-text class="name text-hidden">{{ item.song.name || "未知曲目" }}</n-text>
@@ -76,11 +78,7 @@
                   >
                     <SvgIcon name="Refresh" :size="18" />
                   </div>
-                  <div
-                    class="action-icon"
-                    title="移除"
-                    @click="handleRemoveDownload(item.song.id)"
-                  >
+                  <div class="action-icon" title="移除" @click="handleRemoveDownload(item.song.id)">
                     <SvgIcon name="Close" :size="18" />
                   </div>
                 </n-flex>
@@ -102,11 +100,7 @@
           </template>
           <Transition name="fade" mode="out-in">
             <n-scrollbar v-if="dataStore.downloadedSongs.length > 0" class="list-scrollbar">
-              <div
-                v-for="item in downloadedSongList"
-                :key="item.song.id"
-                class="download-item"
-              >
+              <div v-for="item in downloadedSongList" :key="item.song.id" class="download-item">
                 <s-image :src="item.song.coverSize?.s || item.song.cover" class="cover" />
                 <div class="data">
                   <n-text class="name text-hidden">{{ item.song.name || "未知曲目" }}</n-text>
@@ -276,16 +270,19 @@ watch(
 }
 .download-tabs {
   height: 100%;
-  :deep(.n-tabs-pane-wrapper) {
-    height: calc(100% - 48px);
-  }
+  display: flex;
+  flex-direction: column;
   :deep(.n-tab-pane) {
-    height: 100%;
+    // 关键：面板须占满「标签头以外的剩余空间」
+    // 若用 height: 100%，面板会与标签头叠加，导致列表底部超出抽屉而被裁掉
+    flex: 1;
+    min-height: 0;
+    height: auto;
   }
 }
 .list-scrollbar {
   height: 100%;
-  max-height: calc(100vh - 220px);
+  min-height: 0;
   .download-item {
     display: flex;
     align-items: center;
@@ -373,9 +370,12 @@ watch(
   .n-drawer-header {
     height: 70px;
   }
-  .n-scrollbar-content {
-    padding: 0;
-    height: 100%;
+  // 仅外层（抽屉体）滚动容器需要铺满高度，避免影响内层列表容器的内容高度
+  .n-drawer-body {
+    .n-scrollbar-content {
+      padding: 0;
+      height: 100%;
+    }
   }
   .n-drawer-footer {
     height: 72px;
