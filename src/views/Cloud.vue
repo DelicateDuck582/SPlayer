@@ -23,6 +23,30 @@
     </div>
     <n-flex class="menu" justify="space-between">
       <n-flex class="left" align="flex-end">
+        <!-- 上传到云盘 -->
+        <n-button
+          :focusable="false"
+          :disabled="isUploading"
+          :loading="isUploading"
+          type="primary"
+          strong
+          secondary
+          round
+          @click="triggerUpload"
+        >
+          <template #icon>
+            <SvgIcon name="Upload" />
+          </template>
+          {{ isUploading ? `上传中 ${uploadPercent}%` : "上传" }}
+        </n-button>
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="audio/*,.mp3,.flac,.m4a,.wav,.ape,.ogg,.aac,.wma"
+          multiple
+          style="display: none"
+          @change="handleFileChange"
+        />
         <n-button
           :focusable="false"
           :disabled="showLoading || !cloudData?.length"
@@ -94,7 +118,7 @@
 import type { SongType } from "@/types/main";
 import type { DropdownOption } from "naive-ui";
 import { useDataStore } from "@/stores";
-import { userCloud } from "@/api/cloud";
+import { uploadCloudSong, userCloud } from "@/api/cloud";
 import { formatSongsList } from "@/utils/format";
 import { fuzzySearch, renderIcon } from "@/utils/helper";
 import { openBatchList } from "@/utils/modal";
@@ -189,6 +213,94 @@ const handleRemoveSong = (ids: number[]) => {
   // 同步更新store中的数据
   dataStore.setCloudPlayList(updatedCloudData);
   // listVersion.value++;
+};
+
+// ================= 上传到云盘 =================
+/** 文件选择框 */
+const fileInputRef = ref<HTMLInputElement | null>(null);
+/** 是否正在上传（串行上传，避免并发挤占带宽/触发风控） */
+const isUploading = ref<boolean>(false);
+/** 当前文件上传进度（0~100） */
+const uploadPercent = ref<number>(0);
+/** 单文件大小上限（仅前端提示；网易云侧仍会按其规则校验） */
+const UPLOAD_MAX_MB = 500;
+
+/** 打开文件选择框 */
+const triggerUpload = () => {
+  if (isUploading.value) return;
+  fileInputRef.value?.click();
+};
+
+/** 上传失败码 → 可读文案 */
+const uploadErrorMessage = (result: unknown): string => {
+  const data = (result ?? {}) as Record<string, unknown>;
+  const code = Number(data.code);
+  if (code === -110 || code === -447) return "需要登录或会员权限不足";
+  if (code === -460) return "网易云风控拦截，请稍后重试或更换网络环境";
+  if (code === 403) return "权限不足";
+  if (code === 250) return "云盘空间不足";
+  const message = data.message ?? data.msg;
+  if (typeof message === "string" && message) return message;
+  return `错误码 ${Number.isFinite(code) ? code : "未知"}`;
+};
+
+/**
+ * 逐个上传所选文件（串行）
+ * @param files 待上传文件列表
+ */
+const uploadFiles = async (files: File[]) => {
+  if (!files.length || isUploading.value) return;
+  isUploading.value = true;
+  let okCount = 0;
+  let failCount = 0;
+  for (const file of files) {
+    if (file.size > UPLOAD_MAX_MB * 1024 * 1024) {
+      failCount++;
+      window.$message.warning(`${file.name} 超过 ${UPLOAD_MAX_MB}MB，已跳过`);
+      continue;
+    }
+    uploadPercent.value = 0;
+    try {
+      const result = await uploadCloudSong(file, (percent) => {
+        uploadPercent.value = percent;
+      });
+      if (Number(result?.code) === 200) {
+        okCount++;
+        // complete 接口把 songId 放在 data 中；未匹配曲库时为空
+        // （可在云盘内用「云盘歌曲纠正」处理）
+        const data = (result?.data ?? {}) as Record<string, unknown>;
+        const unmatched = !(data.songId ?? result?.songId);
+        window.$message.success(
+          `${file.name} 上传成功${unmatched ? "（未匹配曲库，可在云盘内纠正）" : ""}`,
+        );
+      } else {
+        failCount++;
+        window.$message.error(`${file.name} 上传失败：${uploadErrorMessage(result)}`);
+      }
+    } catch (error: unknown) {
+      failCount++;
+      const message = error instanceof Error ? error.message : "网络错误";
+      window.$message.error(`${file.name} 上传失败：${message}`);
+    }
+  }
+  isUploading.value = false;
+  uploadPercent.value = 0;
+  // 有成功项才刷新列表（避免无谓的整盘拉取）
+  if (okCount > 0) {
+    await getAllCloudMusic();
+  }
+  if (okCount > 0 && failCount > 0) {
+    window.$message.info(`上传完成：成功 ${okCount}，失败 ${failCount}`);
+  }
+};
+
+/** 文件选择回调 */
+const handleFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files || []);
+  // 清空 value，保证同一文件可被重复选择
+  input.value = "";
+  await uploadFiles(files);
 };
 
 onActivated(() => {

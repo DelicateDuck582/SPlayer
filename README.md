@@ -103,6 +103,14 @@
 - **TTML 歌词**：api-enhanced 未提供 `/lyric/ttml`（远端返回 404），`songLyricTTML()` 改为优先 AMLL TTML DB、客户端再回退本机内嵌服务 `/api/netease/lyric/ttml`
 - **解锁播放/下载**：NETEASE 解锁源改为优先调用 API 服务的 `/song/url/match`（服务端完成匹配/解锁，**网页端同样可用**），失败再回退自建 `/api/unblock`
 
+### 2026-09-12 我的云盘支持上传
+
+- **入口**：「我的云盘」页新增「上传」按钮（可多选音频文件），串行上传并实时显示进度（`src/views/Cloud.vue`）
+- **流程**：对齐新版客户端 —— 计算文件 MD5 → `GET /cloud/upload/token` 换取上传凭据 → **直传网易云 NOS**（`x-nos-token` 请求头，带进度）→ `POST /cloud/upload/complete` 登记云盘信息（`src/api/cloud.ts`）
+- **兼容**：`needUpload === false`（云端已有相同 MD5 文件）时跳过直传；上传成功后才刷新云盘列表
+- **错误映射**：`-110 / -447`（未登录或权限不足）、`-460`（网易云风控，建议稍后重试或更换网络）、`250`（云盘空间不足）等已转成可读文案
+- **图标**：新增 `src/assets/icons/Upload.svg`
+
 ### 已知限制（架构取舍，记录以便后续迭代）
 
 - 主窗口为兼容远程音频/图片仍保留 `webSecurity: false` / `allowRunningInsecureContent: true` / `nodeIntegration: true`；改为默认安全配置需要较大范围的回归测试，暂以「导航白名单 + CSP + IPC 参数校验」降低风险
