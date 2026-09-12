@@ -23,11 +23,11 @@ import md5 from "md5";
  */
 const generateSalt = (): string => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let salt = "";
-  for (let i = 0; i < 12; i++) {
-    salt += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return salt;
+  // 安全：Subsonic 的 token = md5(password + salt)，salt 必须使用密码学安全随机源，
+  // 避免 Math.random() 可预测导致的凭据重放/碰撞风险
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => chars[byte % chars.length]).join("");
 };
 
 /**
