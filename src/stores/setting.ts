@@ -294,6 +294,8 @@ export interface SettingState {
   useRealIP: boolean;
   /** 真实 IP 地址 */
   realIP: string;
+  /** 登录 Cookie 是否改用请求头传递（避免凭据出现在 URL 与访问日志） */
+  useHeaderCookie: boolean;
   /** 是否打卡歌曲 */
   scrobbleSong: boolean;
   /** 动态封面 */
@@ -642,6 +644,7 @@ export const useSettingStore = defineStore("setting", {
     proxyPort: 80,
     useRealIP: false,
     realIP: "",
+    useHeaderCookie: true,
     showPlayMeta: true,
     showSongQuality: true,
     showPlayerQuality: true,

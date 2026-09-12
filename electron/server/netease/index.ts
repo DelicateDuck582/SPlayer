@@ -50,10 +50,22 @@ export const initNcmAPI = async (fastify: FastifyInstance) => {
     await ensureNcmConfig();
 
     try {
+      // 登录态：优先使用「X-Netease-Cookie」请求头（客户端默认以请求头传递，避免凭据进入 URL 与访问日志），
+      // 未携带时回退到浏览器 Cookie（保持既有行为）
+      const headerCookie = req.headers["x-netease-cookie"] ?? req.headers["x-splayer-cookie"];
+      const cookieFromHeader =
+        typeof headerCookie === "string" && headerCookie
+          ? headerCookie.split(/;\s*/).reduce<Record<string, string>>((acc, pair) => {
+              const index = pair.indexOf("=");
+              if (index < 1) return acc;
+              acc[pair.slice(0, index).trim()] = pair.slice(index + 1).trim();
+              return acc;
+            }, {})
+          : null;
       const result = await neteaseApi({
         ...(req.query as Record<string, unknown>),
         ...(req.body as Record<string, unknown>),
-        cookie: req.cookies,
+        cookie: cookieFromHeader ?? req.cookies,
       });
       return reply.send(result.body);
     } catch (error: unknown) {

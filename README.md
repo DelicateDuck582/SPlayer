@@ -89,8 +89,15 @@
 - **第三方内容净化**：新增 `src/utils/sanitizeHtml.ts`，更新日志（远程 Markdown → HTML）渲染前按标签/属性白名单净化，链接强制 `noopener`
 - **安全自检脚本**：`pnpm security:selfcheck`（零依赖，43 项用例：协议白名单、内网/保留地址拦截、IPv4-mapped IPv6 绕过、文件名与扩展名净化）
 
-### 2026-09-12 播放/下载容错（API 服务不改动）
+### 2026-09-12 登录凭据改走请求头（安全加固）
 
+- **背景**：此前登录态以查询参数传递（`?cookie=MUSIC_U%3D...`），凭据会进入 URL、API 访问日志、浏览器历史与 Referer
+- **客户端改动**（`src/utils/request.ts`）：默认改为经 **`X-Netease-Cookie` 请求头**传递，且**仅对网易云 API 生效**（不会把凭据附加到 Last.fm / GitHub / QQ 音乐等第三方）；可在「设置 → 网络 → 使用请求头传递登录 Cookie」关闭以回退查询参数
+- **服务端配套**（api-enhanced fork）：支持 `X-Netease-Cookie` / `X-SPlayer-Cookie` 请求头，并加入 CORS 允许头；新增预检缓存 `Access-Control-Max-Age: 600`
+- **客户端内嵌服务**（`electron/server/netease`）：同步支持该请求头，dev 模式行为一致
+- **顺带修复**：`src/utils/cookie.ts` 不再把 Cookie **值**打印到控制台（仅打印名称）
+
+### 2026-09-12 播放/下载容错（API 服务不改动）
 - **取链风控自愈**：API 服务出口 IP 被网易云风控时取链会返回 `code: 404 / -110` 且 `url` 为空；本体在**播放**与**下载**取链失败时自动携带 `randomCNIP=true` 重试一次，恢复播放/下载
 - **IP 选项优先级**：调用方显式传入的 `realIP` / `randomCNIP` 优先于设置项，便于按需重试（「设置 → 网络 → 使用真实 IP」保留不变）
 - **TTML 歌词**：api-enhanced 未提供 `/lyric/ttml`（远端返回 404），`songLyricTTML()` 改为优先 AMLL TTML DB、客户端再回退本机内嵌服务 `/api/netease/lyric/ttml`

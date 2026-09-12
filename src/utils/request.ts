@@ -25,6 +25,38 @@ axiosRetry(server, {
   retries: 3,
 });
 
+/** 登录 Cookie 的请求头名称（需 API 服务支持，配套 api-enhanced fork 已实现） */
+const COOKIE_HEADER = "X-Netease-Cookie";
+
+/**
+ * 判断请求是否发往网易云 API 服务
+ * - 未显式指定 baseURL 时使用本模块的网易云 API 地址
+ * - 其他服务（Last.fm / GitHub / QQ 音乐 / 解锁服务等）不携带登录凭据
+ * @param config 请求配置
+ * @returns 是否发往网易云 API
+ */
+const isNeteaseApiRequest = (config: AxiosRequestConfig) => {
+  const requestBase = config.baseURL ?? "";
+  return !requestBase || requestBase === baseURL;
+};
+
+/**
+ * 设置请求头（兼容 AxiosHeaders 实例与普通对象）
+ * @param config 请求配置
+ * @param key 头名称
+ * @param value 头值
+ */
+const setRequestHeader = (config: AxiosRequestConfig, key: string, value: string) => {
+  const headers = config.headers as
+    | (Record<string, unknown> & { set?: (k: string, v: string) => void })
+    | undefined;
+  if (typeof headers?.set === "function") {
+    headers.set(key, value);
+    return;
+  }
+  config.headers = { ...(config.headers ?? {}), [key]: value } as AxiosRequestConfig["headers"];
+};
+
 // 请求拦截器
 server.interceptors.request.use(
   (request) => {
@@ -34,7 +66,13 @@ server.interceptors.request.use(
     // Cookie
     if (!request.params.noCookie && (isLogin() || getCookie("MUSIC_U") !== null)) {
       const cookie = `MUSIC_U=${getCookie("MUSIC_U")};os=pc;`;
-      request.params.cookie = cookie;
+      // 默认经请求头传递：避免登录凭据出现在 URL、访问日志与浏览器历史中；
+      // 仅对网易云 API 生效，不会把凭据附加到第三方服务
+      if (settingStore.useHeaderCookie && isNeteaseApiRequest(request)) {
+        setRequestHeader(request, COOKIE_HEADER, cookie);
+      } else {
+        request.params.cookie = cookie;
+      }
     }
     // 自定义 realIP（调用方显式传入 realIP/randomCNIP 时以其为准，便于取链失败后按需重试）
     const hasExplicitIpOption =

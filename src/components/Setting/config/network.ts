@@ -333,6 +333,17 @@ export const useNetworkSettings = (): SettingConfig => {
               set: (v) => (settingStore.realIP = v),
             }),
           },
+          {
+            key: "useHeaderCookie",
+            label: "使用请求头传递登录 Cookie",
+            type: "switch",
+            description:
+              "开启后登录凭据经 X-Netease-Cookie 请求头传递，不再出现在 URL 与访问日志；需 API 服务支持（配套 api-enhanced 已支持）",
+            value: computed({
+              get: () => settingStore.useHeaderCookie,
+              set: (v) => (settingStore.useHeaderCookie = v),
+            }),
+          },
         ],
       },
       {
