@@ -104,6 +104,40 @@ export const cloudUploadComplete = (params: {
   bitrate?: number;
 }) => cloudUploadRequest("/cloud/upload/complete", { ...params }, "post");
 
+/**
+ * 重新换取直传凭据（沿用同一 MD5 / 同一对象，仅刷新 uploadUrl / uploadToken / resourceId）
+ *
+ * 场景：断点续传复用的是「上一次」的 NOS 凭据，令牌时效较短，可能已失效；
+ * 失效令牌会被 NOS 以 403 拒绝（其错误响应不带 CORS 头，前端只能看到网络错误），
+ * 此时重新换取凭据即可从原断点继续，无需整文件重传。
+ * @param file 待上传文件
+ * @param task 现有任务（携带断点）
+ * @returns 刷新后的任务；换取失败时返回 undefined（由调用方保留原始错误）
+ */
+const refreshUploadTicket = async (file: File, task: CloudUploadTask) => {
+  try {
+    const result = await cloudUploadToken({
+      md5: task.md5,
+      fileSize: file.size,
+      filename: task.fileName,
+    });
+    const data = (result?.data ?? {}) as Record<string, unknown>;
+    if (Number(result?.code) !== 200 || !data.uploadUrl || !data.uploadToken) return undefined;
+    const refreshed: CloudUploadTask = {
+      ...task,
+      songId: String(data.songId ?? task.songId),
+      resourceId: String(data.resourceId ?? task.resourceId),
+      uploadUrl: String(data.uploadUrl),
+      uploadToken: String(data.uploadToken),
+      savedAt: Date.now(),
+    };
+    return refreshed;
+  } catch {
+    // 凭据接口本身不可用（网络/风控）→ 保留原始直传错误
+    return undefined;
+  }
+};
+
 /** 直传分片大小（8MB）：分片直传可精确记录断点；小文件只会产生 1 个分片 */
 export const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
 
@@ -325,6 +359,8 @@ export const uploadCloudSong = async (
 ) => {
   const key = fileKey(file);
   let task: CloudUploadTask | undefined;
+  /** 本次是否复用了既有断点（凭据可能已失效，失败后可刷新凭据重试一次） */
+  let resumed = false;
   /** MD5 只计算一次（续传校验与新任务共用） */
   let fileMd5 = "";
   const getMd5 = async () => {
@@ -339,6 +375,7 @@ export const uploadCloudSong = async (
     // 继续按旧断点续传会造成云端对象内容错位 → 放弃续传，走完整流程
     if ((await getMd5()) === resume.md5) {
       task = { ...resume, savedAt: Date.now() };
+      resumed = true;
     }
   }
 
@@ -373,11 +410,23 @@ export const uploadCloudSong = async (
 
   // 3) 分片直传（从断点开始；直传已完成的任务跳过）
   if (task.uploaded < file.size) {
-    await uploadFileChunks(file, task, task.uploaded, onProgress, (uploaded) => {
-      // 每片完成后持久化断点，刷新后可续传
+    /** 每片完成后持久化断点，刷新后可续传 */
+    const persistUploaded = (uploaded: number) => {
       task = { ...task!, uploaded, savedAt: Date.now() };
       options?.onTask?.({ ...task });
-    });
+    };
+    try {
+      await uploadFileChunks(file, task, task.uploaded, onProgress, persistUploaded);
+    } catch (error) {
+      // 续传用的凭据来自上一次会话，NOS 令牌时效较短，可能已失效而被拒绝
+      // （拒绝响应无 CORS 头，前端只能看到网络错误）→ 刷新凭据后从原断点重试一次
+      if (!resumed) throw error;
+      const refreshed = await refreshUploadTicket(file, task);
+      if (!refreshed) throw error;
+      task = refreshed;
+      options?.onTask?.({ ...task });
+      await uploadFileChunks(file, task, task.uploaded, onProgress, persistUploaded);
+    }
   }
   onProgress?.(100, file.size, file.size);
 
