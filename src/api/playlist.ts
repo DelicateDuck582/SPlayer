@@ -2,6 +2,14 @@ import request from "@/utils/request";
 
 /**
  * 获取歌单详情
+ *
+ * 注意：这里**不能**加 `noCookie: true`。
+ * 加了之后请求会以匿名身份发出（utils/request.ts 会因此跳过 X-Netease-Cookie），
+ * 导致两类问题：
+ * 1. 自建 / 隐私歌单（privacy=10）直接返回 401，页面报「获取歌单详情失败」并跳回首页；
+ * 2. 响应里不再包含 `privileges`，而下游 views/List/playlist.vue 与 liked.vue
+ *    依赖它走「一次拿全量歌曲」的快捷路径，缺失会退化成分批请求。
+ *
  * @param {number} id - 歌单 id
  */
 export const playlistDetail = (id: number) => {
@@ -10,7 +18,6 @@ export const playlistDetail = (id: number) => {
     params: {
       id,
       s: 0, // 去除返回收藏者
-      noCookie: true, // 去除返回 privileges
       timestamp: Date.now(),
     },
   });
