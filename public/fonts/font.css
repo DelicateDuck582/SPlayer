@@ -3,4 +3,6 @@
   src: url("./logo.woff2") format("woff2");
   font-weight: normal;
   font-style: normal;
+  /* 字体到达前先显示回退字体，避免弱网下文字长时间不可见（日志曾报 fallback font） */
+  font-display: swap;
 }

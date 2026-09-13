@@ -11,7 +11,7 @@ const baseURL: string = String(isDev ? "/api/netease" : import.meta.env["VITE_AP
 // 基础配置
 const server: AxiosInstance = axios.create({
   baseURL,
-  // 登录态通过 params.cookie 显式传递，不依赖浏览器跨域自动携带凭证。
+  // 登录态经 X-Netease-Cookie 请求头显式传递（不经 URL、不依赖浏览器自动携带凭证）。
   // 注意：新版 API 返回 Access-Control-Allow-Origin: *，
   // 若开启 withCredentials(credentials=include)，浏览器会按 CORS 规范拦截该响应。
   withCredentials: false,
@@ -23,6 +23,19 @@ const server: AxiosInstance = axios.create({
 axiosRetry(server, {
   // 重试次数
   retries: 3,
+  // 指数退避，避免失败时形成瞬时请求风暴
+  retryDelay: (retryCount) => axiosRetry.exponentialDelay(retryCount),
+  // 只重试「可恢复」的失败：
+  // - 超时（服务端慢）值得重试；
+  // - 无响应且非超时（CORS 被拦截 / 网络层硬失败）重试必然同样失败，直接放弃，
+  //   避免像 NOS 直读那样把同一请求放大成多次失败（日志中曾出现重复 ERR_FAILED）；
+  // - 4xx 属确定性失败（429 除外）不重试。
+  retryCondition: (error) => {
+    if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) return true;
+    if (!error.response) return false;
+    const status = error.response.status;
+    return status >= 500 || status === 429;
+  },
 });
 
 /** 登录 Cookie 的请求头名称（需 API 服务支持，配套 api-enhanced fork 已实现） */
@@ -75,16 +88,19 @@ server.interceptors.request.use(
     // pinia
     const settingStore = useSettingStore();
     if (!request.params) request.params = {};
-    // Cookie
-    if (!request.params.noCookie && (isLogin() || getCookie("MUSIC_U") !== null)) {
-      const cookie = `MUSIC_U=${getCookie("MUSIC_U")};os=pc;`;
-      // 默认经请求头传递：避免登录凭据出现在 URL、访问日志与浏览器历史中；
-      // 仅对网易云 API 生效，不会把凭据附加到第三方服务
-      if (settingStore.useHeaderCookie && isNeteaseApiRequest(request)) {
-        setRequestHeader(request, COOKIE_HEADER, cookie);
-      } else {
-        request.params.cookie = cookie;
-      }
+    // Cookie：一律经请求头传递，且只发给网易云 API
+    //
+    // 为什么不再走 `params.cookie`：
+    // 1. 查询参数会进入服务端 / 代理 / CDN 访问日志与浏览器历史，等于把 MUSIC_U 明文落盘；
+    // 2. 历史实现在非网易云请求（Last.fm / GitHub / 解锁服务等）上也会写入 params，
+    //    会把登录凭据附带发送给第三方服务；
+    // 3. 线上 API（api-enhanced fork）与 Electron 内置 API 均已支持 X-Netease-Cookie。
+    if (
+      !request.params.noCookie &&
+      isNeteaseApiRequest(request) &&
+      (isLogin() || getCookie("MUSIC_U") !== null)
+    ) {
+      setRequestHeader(request, COOKIE_HEADER, `MUSIC_U=${getCookie("MUSIC_U")};os=pc;`);
     }
     // 自定义 realIP（调用方显式传入 realIP/randomCNIP 时以其为准，便于取链失败后按需重试）
     const hasExplicitIpOption =

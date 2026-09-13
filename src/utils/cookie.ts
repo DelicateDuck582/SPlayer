@@ -43,7 +43,10 @@ export const setCookies = (cookieValue: string) => {
     // 安全：仅打印 Cookie 名称，绝不打印值（值会进入控制台与日志，造成凭据泄漏）
     console.info(`cookie set: ${name}`);
     // 设置 cookie
-    document.cookie = `${name}=${value}; ${expires}; path=/`;
+    // Secure：仅在 HTTPS 页面附加，避免本地 http 调试时写入失败
+    // SameSite=Lax：限制第三方站点携带该凭据发起请求
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${name}=${value}; ${expires}; path=/; SameSite=Lax${secure}`;
     // 保存 cookie
     localStorage.setItem(`cookie-${name}`, value);
   });

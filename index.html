@@ -2,11 +2,16 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <!-- 内容安全策略（低回归基线，网页端部署同样生效）：阻断插件注入与 base 标签劫持
-         如需收紧 script-src，请同步检查远程音频/图片/字体与 wasm worker 的加载需求 -->
+    <!-- 内容安全策略（网页端部署同样生效）：阻断插件注入与 base 标签劫持
+         说明：
+         - script-src 必须保留 'unsafe-eval'：emscripten 版 ffmpeg（src/core/audio-player/
+           ffmpeg-engine）与「自定义 JS」功能（src/composables/useCustomCode.ts）都依赖 new Function；
+           同时补充 'wasm-unsafe-eval' 以允许 WebAssembly 实例化。
+         - 已移除 script-src 中的裸 http:（HTTPS 页面本就不应加载明文脚本源）。
+         - frame-ancestors 无法通过 meta 下发，已改为在 vercel.json 里以 HTTP 头形式返回。 -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' data: blob: file: http: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:; style-src 'self' 'unsafe-inline' data: blob: http: https:; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; font-src 'self' data: blob: http: https:; connect-src 'self' data: blob: http: https: ws: wss:; worker-src 'self' data: blob:; frame-src 'self' data: blob: http: https:; object-src 'none'; base-uri 'self'"
+      content="default-src 'self' data: blob: file: http: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' data: blob: https:; style-src 'self' 'unsafe-inline' data: blob: http: https:; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; font-src 'self' data: blob: http: https:; connect-src 'self' data: blob: http: https: ws: wss:; worker-src 'self' data: blob:; frame-src 'self' data: blob: http: https:; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
     <link rel="icon" type="image/icon" href="/icons/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -14,7 +19,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>SPlayer</title>
-    <!-- font -->
+    <!-- font：logo.woff2 体积仅约 1KB，preload 可消除弱网下的字体回退抖动 -->
+    <link rel="preload" href="/fonts/logo.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/fonts/font.css" />
   </head>
 

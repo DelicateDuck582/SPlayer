@@ -294,7 +294,10 @@ export interface SettingState {
   useRealIP: boolean;
   /** 真实 IP 地址 */
   realIP: string;
-  /** 登录 Cookie 是否改用请求头传递（避免凭据出现在 URL 与访问日志） */
+  /**
+   * @deprecated 已废弃：登录凭据一律经 X-Netease-Cookie 请求头传递（见 utils/request.ts），
+   * 保留该字段仅为兼容历史持久化数据，已不再影响请求行为。
+   */
   useHeaderCookie: boolean;
   /** 是否打卡歌曲 */
   scrobbleSong: boolean;

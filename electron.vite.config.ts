@@ -116,13 +116,36 @@ export default defineConfig(({ mode }) => {
           },
           external: ["external-media-integration.node"],
           output: {
-            manualChunks: {
-              stores: ["src/stores/data.ts", "src/stores/index.ts"],
+            // 拆包：把体积最大的第三方依赖与业务 store 分离，避免单个 chunk 过大
+            // （实测拆分前 stores chunk ≈ 2.1MB）。
+            // 注意：此处只挑明确的大依赖单独成包，其余保持默认分包，
+            // 以免制造跨包循环依赖；改动后需做一次生产构建 + 页面渲染验证。
+            manualChunks: (id: string) => {
+              if (id.includes("node_modules")) {
+                if (
+                  id.includes("naive-ui") ||
+                  id.includes("vueuc") ||
+                  id.includes("@css-render")
+                ) {
+                  return "vendor-ui";
+                }
+                if (id.includes("@applemusic-like-lyrics")) return "vendor-amll";
+                if (id.includes("@vueuse")) return "vendor-vueuse";
+                if (id.includes("lodash-es") || id.includes("axios") || id.includes("dayjs")) {
+                  return "vendor-utils";
+                }
+                return undefined;
+              }
+              if (id.includes("/src/stores/")) return "stores";
+              return undefined;
             },
           },
         },
         terserOptions: {
           compress: {
+            // 生产构建会剥离 console.log（减小产物体积、避免把排查细节带到线上）。
+            // 需要「线上仍可见」的诊断请改用 console.info / console.warn，
+            // 例：云盘直传方式日志（src/api/cloud.ts）使用的就是 console.info。
             pure_funcs: ["console.log"],
           },
         },
