@@ -424,7 +424,7 @@ onMounted(() => {
 }
 .link {
   display: grid !important;
-  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 12px !important;
 }
 .link-item {

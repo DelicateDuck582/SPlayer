@@ -73,10 +73,35 @@
   }
 }
 
+/* 移动端视口高度：100vh 在移动浏览器会被地址栏 / 工具栏遮挡，
+   优先使用动态视口单位 dvh（不支持的浏览器回退到 vh）。
+   全局统一用 var(--vh-full) 代替 100vh。 */
+:root {
+  --vh-full: 100vh;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --vh-full: 100dvh;
+  }
+}
+
 body {
-  width: 100vw;
-  height: 100vh;
+  /* 注意：不要用 100vw —— 它包含纵向滚动条宽度，会引发横向溢出 */
+  width: 100%;
+  height: var(--vh-full);
   overflow: hidden;
+}
+
+/* 移动端适配：naive-ui 弹窗 / 对话框宽度由内联 style 指定（400~700px），
+   窄屏会超出视口导致内容不可见并出现横向滚动；这里统一按视口夹取，
+   桌面端因窗口宽度大于该上限而不受影响。 */
+.n-modal {
+  max-width: calc(100vw - 24px);
+}
+
+.n-dialog {
+  max-width: calc(100vw - 24px);
 }
 
 a,

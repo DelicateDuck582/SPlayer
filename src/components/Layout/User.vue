@@ -378,6 +378,12 @@ onBeforeMount(() => {
           opacity: 1;
         }
       }
+      /* 触屏设备没有 hover：删除按钮需常显，否则手机上无法移除账号 */
+      @media (hover: none) {
+        .delete-btn {
+          opacity: 1;
+        }
+      }
     }
     .add-account {
       border-radius: 8px;

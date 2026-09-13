@@ -471,7 +471,7 @@ const showCreatorTip = () => window.$message.info("暂不支持查看主播主�
   width: 100%;
   background-color: var(--surface-container-hex);
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   transition: bottom 0.3s;
   z-index: 10;
@@ -735,7 +735,7 @@ const showCreatorTip = () => window.$message.info("暂不支持查看主播主�
     }
   }
   @media (max-width: 810px) {
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     .play-control {
       margin: 0 0 0 12px;
       .play-icon {

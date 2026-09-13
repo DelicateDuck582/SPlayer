@@ -242,7 +242,7 @@ onMounted(() => {
 .main-rec {
   .main-rec-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px;
   }
   .date {
@@ -271,11 +271,11 @@ onMounted(() => {
   }
   @media (max-width: 768px) {
     .main-rec-grid {
-      grid-template-columns: repeat(1, 1fr);
+      grid-template-columns: repeat(1, minmax(0, 1fr));
     }
     .rec-list {
       display: grid !important;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 }

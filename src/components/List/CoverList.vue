@@ -259,7 +259,7 @@ const getListData = async (id: number | string): Promise<SongType[]> => {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 20px;
     @media (max-width: 600px) {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
     }
   }
@@ -353,6 +353,11 @@ const getListData = async (id: number | string): Promise<SongType[]> => {
         }
         &:active {
           background-color: #ffffff33;
+        }
+        /* 触屏设备没有 hover：播放按钮常显，否则手机上无法播放歌单/专辑 */
+        @media (hover: none) {
+          opacity: 1;
+          transform: translateY(0);
         }
       }
       .n-skeleton {

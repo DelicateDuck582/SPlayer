@@ -370,7 +370,7 @@ onBeforeUnmount(() => {
   position: fixed;
   left: 0;
   top: 0;
-  height: 100vh;
+  height: var(--vh-full);
   width: 60vw;
   z-index: 0;
   mask-image: linear-gradient(to right, #000 var(--gradient-percent), transparent 100%);

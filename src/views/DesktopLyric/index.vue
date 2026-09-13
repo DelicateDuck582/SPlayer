@@ -831,7 +831,7 @@ onBeforeUnmount(() => {
     cursor: default;
     // 子内容三等分grid
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
     grid-gap: 12px;
     > * {
       min-width: 0;

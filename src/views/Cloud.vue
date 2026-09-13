@@ -461,6 +461,13 @@ onMounted(() => {
             transform: translateX(0);
           }
         }
+        /* 触屏设备没有 hover：容量数字是信息而非操作，需常显 */
+        @media (hover: none) {
+          .space {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
       }
     }
   }

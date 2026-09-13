@@ -56,7 +56,9 @@
         id="main-sider"
         :style="{
           height:
-            musicStore.isHasPlayer && statusStore.showPlayBar ? 'calc(100vh - 80px)' : '100vh',
+            musicStore.isHasPlayer && statusStore.showPlayBar
+              ? 'calc(var(--vh-full) - 80px)'
+              : 'var(--vh-full)',
         }"
         :content-style="{
           overflow: 'hidden',
@@ -87,6 +89,11 @@
           }"
           :content-style="{
             display: 'grid',
+            // 关键修复：显式给出「可收缩」的列。
+            // 只写 display:grid 时，隐式列宽按 max-content 计算，
+            // 宽内容（发现页长简介、标签栏等）会把列撑破视口，
+            // 手机端被 overflow 裁剪后内容不可见（实测发现页容器 404px > 可用 345px）。
+            gridTemplateColumns: 'minmax(0, 1fr)',
             gridTemplateRows: '1fr',
             minHeight: '100%',
             padding: isMobile ? '0 16px' : '0 24px',
@@ -193,6 +200,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   position: relative;
+  /* 安全区适配（配合 index.html 的 viewport-fit=cover）：
+     避开刘海 / 灵动岛（上）与 Home 指示条（下），避免底部播放条被系统手势区遮挡；
+     桌面端与不支持 env() 的浏览器取值为 0，不影响原布局。 */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 .background-container {
@@ -200,7 +214,7 @@ onMounted(() => {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: var(--vh-full);
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
@@ -241,6 +255,8 @@ onMounted(() => {
     .router-view {
       position: relative;
       height: 100%;
+      /* 网格 / 弹性子项默认 min-width: auto，会阻止收缩并导致横向溢出 */
+      min-width: 0;
       &.n-result {
         display: flex;
         flex-direction: column;

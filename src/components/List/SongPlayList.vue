@@ -25,8 +25,8 @@
           :default-scroll-index="statusStore.playIndex"
           class="playlist-list"
           :class="{ 'is-dragging-global': isDragging }"
-          style="max-height: calc(100vh - 142px)"
-          :height="`calc(100vh - 142px)`"
+          style="max-height: calc(var(--vh-full) - 142px)"
+          :height="`calc(var(--vh-full) - 142px)`"
         >
           <template #default="{ item: songData, index }">
             <div class="song-node">

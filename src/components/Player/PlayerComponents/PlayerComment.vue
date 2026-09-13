@@ -280,7 +280,7 @@ onMounted(() => {
   width: 60%;
   flex: 1;
   width: 100%;
-  height: calc(100vh - 160px);
+  height: calc(var(--vh-full) - 160px);
   overflow: hidden;
   :deep(.n-text),
   :deep(.n-icon),
@@ -326,11 +326,11 @@ onMounted(() => {
 
   &.no-song-data {
     :deep(.comment-scroll) {
-      height: calc(100vh - 160px);
+      height: calc(var(--vh-full) - 160px);
     }
   }
   :deep(.comment-scroll) {
-    height: calc(100vh - 262px);
+    height: calc(var(--vh-full) - 262px);
     filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.2));
     mask: linear-gradient(
       180deg,

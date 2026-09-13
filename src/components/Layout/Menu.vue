@@ -609,5 +609,12 @@ watch(
       pointer-events: auto;
     }
   }
+  /* 触屏设备没有 hover：常显并可点击，否则该按钮在手机上永远无法使用 */
+  @media (hover: none) {
+    .n-button {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
 }
 </style>

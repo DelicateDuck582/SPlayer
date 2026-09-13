@@ -6,7 +6,7 @@
  */
 export const getFontSize = (size: number, mode: string) => {
   if (mode === "adaptive") {
-    return `calc(${size} / 1080 * 100vh)`;
+    return `calc(${size} / 1080 * var(--vh-full))`;
   }
   return `${size}px`;
 };

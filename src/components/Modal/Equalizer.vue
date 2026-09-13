@@ -129,7 +129,7 @@ watch(enabled, () => applyEq());
 .equalizer {
   .eq-sliders {
     display: grid;
-    grid-template-columns: repeat(10, 1fr);
+    grid-template-columns: repeat(10, minmax(0, 1fr));
     gap: 12px;
     margin-top: 20px;
     .eq-col {
