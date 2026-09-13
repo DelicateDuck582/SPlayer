@@ -1,12 +1,12 @@
 /**
- * 文件 MD5 计算 Worker
+ * 内容 MD5 计算 Worker
  *
- * 入参：`{ file: File }`；出参：`{ md5 }` 或 `{ error }`
- * 放在 Worker 中执行可避免大文件哈希阻塞渲染主线程。
+ * 入参：`{ file: Blob }`（文件或分片）；出参：`{ md5 }` 或 `{ error }`
+ * 放在 Worker 中执行可避免大文件/大分片哈希阻塞渲染主线程。
  */
 import md5 from "md5";
 
-type HashRequest = { file: File };
+type HashRequest = { file: Blob };
 type HashResponse = { md5?: string; error?: string };
 
 /** Worker 作用域（避免依赖 WebWorker lib 的类型声明） */

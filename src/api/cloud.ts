@@ -1,6 +1,6 @@
 import request, { LOCAL_API_BASE } from "@/utils/request";
 import { isElectron } from "@/utils/env";
-import { hashFileMd5 } from "@/utils/uploadHash";
+import { hashFileMd5, md5HexOfBlob } from "@/utils/uploadHash";
 import { RESUME_TTL, fileKey, type CloudUploadTask } from "@/utils/uploadQueue";
 
 // 获取云盘数据
@@ -131,6 +131,33 @@ export const buildChunkUrl = (uploadUrl: string, offset: number, complete: boole
     .replace(/([?&])offset=\d+/, `$1offset=${offset}`)
     .replace(/([?&])complete=(?:true|false)/, `$1complete=${complete}`);
 
+/** NOS 直传的请求方式组合（用于兼容鉴权协议差异） */
+interface ChunkVariant {
+  /** 名称（日志 / 报错提示用） */
+  label: string;
+  /** HTTP 方法 */
+  method: "POST" | "PUT";
+  /** 是否携带 Content-MD5 请求头 */
+  contentMd5: boolean;
+}
+
+/**
+ * 直传方式的尝试顺序
+ *
+ * 参考实现（配套 api-enhanced 的 `public/cloud.html` 「客户端直传」）为
+ * `POST uploadUrl` + `x-nos-token` + `Content-MD5` + `Content-Type`。
+ * 早期实现使用 `PUT` 且缺少 `Content-MD5`：NOS 会判定鉴权失败并返回 403，
+ * 而该错误响应**不带 CORS 头**，浏览器读取不到状态码，只报
+ * 「blocked by CORS policy: No 'Access-Control-Allow-Origin' header」，
+ * 表面上像跨域问题，实际是直传被 NOS 拒绝（上传失败）。
+ * 后两项为协议/账号差异下的兜底，仅在首个分片失败时依次尝试。
+ */
+const CHUNK_VARIANTS: ChunkVariant[] = [
+  { label: "POST + Content-MD5", method: "POST", contentMd5: true },
+  { label: "PUT + Content-MD5", method: "PUT", contentMd5: true },
+  { label: "POST", method: "POST", contentMd5: false },
+];
+
 /**
  * 直传单个分片到 NOS
  * @param url 分片直传地址
@@ -139,23 +166,31 @@ export const buildChunkUrl = (uploadUrl: string, offset: number, complete: boole
  * @param fileType 文件 MIME
  * @param offset 本片起始偏移
  * @param total 文件总大小
+ * @param variant 请求方式
  * @param onProgress 进度回调（percent 0~100）
  */
-const putChunk = (
+const sendChunk = async (
   url: string,
   token: string,
   blob: Blob,
   fileType: string,
   offset: number,
   total: number,
+  variant: ChunkVariant,
   onProgress?: (percent: number, loaded: number, total: number) => void,
-) =>
-  new Promise<void>((resolve, reject) => {
+) => {
+  const headers: Record<string, string> = {
+    "Content-Type": fileType || "audio/mpeg",
+  };
+  // NOS 直传靠 x-nos-token 鉴权，不携带本站 Cookie（无需 withCredentials）
+  if (token) headers["x-nos-token"] = token;
+  // Content-MD5 按「请求体」计算：分片直传即当前分片的 MD5
+  if (variant.contentMd5) headers["Content-MD5"] = await md5HexOfBlob(blob);
+
+  await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url, true);
-    // NOS 直传靠 x-nos-token 鉴权，不携带本站 Cookie（无需 withCredentials）
-    xhr.setRequestHeader("x-nos-token", token);
-    xhr.setRequestHeader("Content-Type", fileType || "audio/mpeg");
+    xhr.open(variant.method, url, true);
+    Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
     xhr.upload.onprogress = (event) => {
       const loaded = offset + (event.loaded || 0);
       const size = total || 0;
@@ -168,12 +203,45 @@ const putChunk = (
       }
       reject(new Error(`文件直传失败（HTTP ${xhr.status}）`));
     };
-    xhr.onerror = () => reject(new Error("文件直传失败（网络错误或被跨域策略拦截）"));
+    // NOS 拒绝请求（令牌无效 / 风控 / 权限不足 / 协议不符）时返回的错误响应不带 CORS 头，
+    // 浏览器只能落到 onerror，故此处提示需同时涵盖「被 NOS 拒绝」与「跨域拦截」两种可能
+    xhr.onerror = () => reject(new Error("文件直传失败（被 NOS 拒绝或跨域策略拦截）"));
     xhr.send(blob);
   });
+};
+
+/**
+ * 依次尝试直传方式，返回首个成功的方式（仅用于首个分片）
+ * @returns 成功的方式
+ */
+const pickChunkVariant = async (
+  url: string,
+  token: string,
+  blob: Blob,
+  fileType: string,
+  offset: number,
+  total: number,
+  onProgress?: (percent: number, loaded: number, total: number) => void,
+): Promise<ChunkVariant> => {
+  let firstError: unknown;
+  for (const variant of CHUNK_VARIANTS) {
+    try {
+      await sendChunk(url, token, blob, fileType, offset, total, variant, onProgress);
+      console.info(`[CloudUpload] NOS 直传方式：${variant.label}`);
+      return variant;
+    } catch (error) {
+      // 失败请求不会写入任何数据（鉴权/协议校验先于写入），可直接换方式重试
+      if (firstError === undefined) firstError = error;
+    }
+  }
+  throw firstError instanceof Error ? firstError : new Error("文件直传失败");
+};
 
 /**
  * 分片直传文件（支持从 startOffset 断点续传）
+ *
+ * 首个分片会依次尝试 {@link CHUNK_VARIANTS} 中的请求方式并固定成功者，
+ * 后续分片直接复用，避免重复试错。
  * @param file 待上传文件
  * @param target 直传凭据（uploadUrl / uploadToken）
  * @param startOffset 起始偏移（已直传字节数）
@@ -191,19 +259,36 @@ const uploadFileChunks = async (
   const url = toSecureUploadUrl(target.uploadUrl);
   const fileType = file.type || "audio/mpeg";
   let offset = Math.max(0, Math.min(startOffset, file.size));
+  /** 已确认可用的直传方式（首个分片成功后固定） */
+  let variant: ChunkVariant | undefined;
   onProgress?.(file.size ? Math.round((offset / file.size) * 100) : 0, offset, file.size);
   while (offset < file.size) {
     const end = Math.min(offset + UPLOAD_CHUNK_SIZE, file.size);
     const isLast = end >= file.size;
-    await putChunk(
-      buildChunkUrl(url, offset, isLast),
-      target.uploadToken,
-      file.slice(offset, end),
-      fileType,
-      offset,
-      file.size,
-      onProgress,
-    );
+    const chunkUrl = buildChunkUrl(url, offset, isLast);
+    const chunk = file.slice(offset, end);
+    if (variant) {
+      await sendChunk(
+        chunkUrl,
+        target.uploadToken,
+        chunk,
+        fileType,
+        offset,
+        file.size,
+        variant,
+        onProgress,
+      );
+    } else {
+      variant = await pickChunkVariant(
+        chunkUrl,
+        target.uploadToken,
+        chunk,
+        fileType,
+        offset,
+        file.size,
+        onProgress,
+      );
+    }
     offset = end;
     onUploaded?.(offset);
   }
@@ -216,7 +301,8 @@ const uploadFileChunks = async (
  * 流程（对齐新版客户端 / api-enhanced 现有接口）：
  *   1. 计算文件 MD5（用于秒传判断与云端登记）
  *   2. `GET /cloud/upload/token` 换取 `uploadUrl` / `uploadToken` / `resourceId` / `songId`
- *   3. **分片直传 NOS**（8MB/片，最后一片 `complete=true`；`needUpload === false` 时跳过）
+ *   3. **分片直传 NOS**（8MB/片，`POST` + `x-nos-token` + `Content-MD5`，最后一片 `complete=true`；
+ *      `needUpload === false` 时跳过）
  *   4. `POST /cloud/upload/complete` 登记云盘信息
  *
  * 刷新页面后浏览器不再持有文件句柄，但已直传字节与凭据已持久化在上传队列
