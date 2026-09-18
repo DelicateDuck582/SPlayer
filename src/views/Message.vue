@@ -39,15 +39,38 @@
           <n-alert v-if="errorText" type="warning" :bordered="false" class="alert">
             {{ errorText }}
           </n-alert>
-          <n-list v-if="lists[tab.name]?.length" hoverable>
-            <n-list-item v-for="(item, index) in lists[tab.name]" :key="item.id ?? index">
-              <n-flex vertical>
-                <n-text class="notice-title">{{ item.title || "通知" }}</n-text>
-                <n-text depth="3" class="notice-content">{{ item.lastMessage || "" }}</n-text>
-                <n-text depth="3" class="time">{{ item.time || "" }}</n-text>
-              </n-flex>
-            </n-list-item>
-          </n-list>
+          <div v-if="lists[tab.name]?.length" class="notice-list">
+            <div
+              v-for="(item, index) in lists[tab.name]"
+              :key="item.id ?? index"
+              class="notice-item"
+              :class="{ clickable: !!item.resource }"
+              @click="openResource(item)"
+            >
+              <n-avatar round :size="38" :src="item.avatarUrl" />
+              <div class="notice-main">
+                <n-flex align="center" justify="space-between" :wrap="false">
+                  <n-text class="notice-title">{{ item.title || "通知" }}</n-text>
+                  <n-text depth="3" class="time">{{ item.time || "" }}</n-text>
+                </n-flex>
+                <n-text class="notice-content">{{ item.text || "" }}</n-text>
+                <!-- 结构化资源卡片：专辑 / 歌曲 / 歌单 / MV / 视频 / 电台节目 -->
+                <div v-if="item.resource" class="resource-card">
+                  <img class="resource-cover" :src="item.resource.cover" loading="lazy" alt="" />
+                  <div class="resource-info">
+                    <n-text class="resource-name" :title="item.resource.name">
+                      {{ item.resource.name }}
+                    </n-text>
+                    <n-text depth="3" class="resource-sub">{{ item.resource.sub }}</n-text>
+                  </div>
+                  <n-tag :bordered="false" round size="tiny" type="info">
+                    {{ resourceLabel(item.resource.type) }}
+                  </n-tag>
+                  <SvgIcon class="resource-arrow" name="Right" />
+                </div>
+              </div>
+            </div>
+          </div>
           <n-empty v-else description="暂无内容" size="small" />
         </n-spin>
       </n-tab-pane>
@@ -58,21 +81,23 @@
       <n-drawer-content :title="currentSession?.nickname || '私信'" closable>
         <n-spin :show="sessionLoading">
           <div ref="historyRef" class="history">
-            <div
-              v-for="(msg, index) in history"
-              :key="index"
-              class="msg"
-              :class="{ self: msg.self, pending: msg.pending, failed: msg.failed }"
-            >
-              <n-avatar v-if="!msg.self" round :size="30" :src="msg.avatarUrl" />
-              <div class="bubble">
+            <template v-for="(msg, index) in history" :key="index">
+              <!-- 时间分隔（微信式：相隔超过 5 分钟显示一次） -->
+              <n-text v-if="showTimeAt(index)" class="time-divider" depth="3">
+                {{ msg.time }}
+              </n-text>
+              <div
+                class="msg"
+                :class="{ self: msg.self, pending: msg.pending, failed: msg.failed }"
+              >
+                <n-avatar v-if="!msg.self" round :size="32" :src="msg.avatarUrl" />
                 <n-text class="msg-text">{{ msg.text }}</n-text>
-                <n-text v-if="msg.time || msg.pending || msg.failed" class="msg-time" depth="3">
-                  {{ msg.failed ? "发送失败" : msg.pending ? "发送中…" : msg.time }}
-                </n-text>
+                <n-avatar v-if="msg.self" round :size="32" :src="myAvatar" />
               </div>
-              <n-avatar v-if="msg.self" round :size="30" :src="myAvatar" />
-            </div>
+              <n-text v-if="msg.pending || msg.failed" class="send-state" depth="3">
+                {{ msg.failed ? "发送失败，内容已回填到输入框" : "发送中…" }}
+              </n-text>
+            </template>
             <n-empty
               v-if="!history.length && !sessionLoading"
               description="暂无消息"
@@ -82,24 +107,52 @@
           </div>
         </n-spin>
         <template #footer>
-          <div class="send-bar">
-            <n-input
-              v-model:value="sendContent"
-              type="textarea"
-              placeholder="输入私信内容（Enter 发送，Shift + Enter 换行）"
-              :autosize="{ minRows: 1, maxRows: 4 }"
-              :maxlength="200"
-              :disabled="sending"
-              @keydown="handleKeydown"
-            />
+          <!-- 微信式输入条：表情 · 自适应输入框 · 发送 -->
+          <div class="composer">
+            <n-popover trigger="click" placement="top-start" :show-arrow="false">
+              <template #trigger>
+                <n-button class="tool" quaternary circle :focusable="false" :disabled="sending">
+                  <template #icon>
+                    <SvgIcon name="Chat" />
+                  </template>
+                </n-button>
+              </template>
+              <n-flex class="emoji-list" :size="4">
+                <n-button
+                  v-for="emoji in EMOJIS"
+                  :key="emoji"
+                  quaternary
+                  size="small"
+                  @click="insertEmoji(emoji)"
+                >
+                  {{ emoji }}
+                </n-button>
+              </n-flex>
+            </n-popover>
+            <div class="composer-input">
+              <n-input
+                ref="inputRef"
+                v-model:value="sendContent"
+                type="textarea"
+                class="composer-textarea"
+                placeholder="发消息…"
+                :autosize="{ minRows: 1, maxRows: 5 }"
+                :maxlength="500"
+                :disabled="sending"
+                @keydown="handleKeydown"
+              />
+              <n-text v-if="sendContent.length > 380" class="counter" depth="3">
+                {{ sendContent.length }}/500
+              </n-text>
+            </div>
             <n-button
+              class="send"
               :focusable="false"
-              type="primary"
-              strong
-              secondary
               round
+              strong
+              :type="canSend ? 'primary' : 'default'"
+              :disabled="!canSend"
               :loading="sending"
-              :disabled="!sendContent.trim() || !currentSession?.id"
               @click="sendMessage"
             >
               发送
@@ -123,19 +176,48 @@ import {
 } from "@/api/netease";
 import { formatTimestamp } from "@/utils/time";
 import { useDataStore } from "@/stores";
+import { songDetail } from "@/api/song";
+import { formatSongsList } from "@/utils/format";
+import { usePlayerController } from "@/core/player/PlayerController";
 
+const router = useRouter();
 const dataStore = useDataStore();
+const player = usePlayerController();
+
+/** 通知 / 评论 / @我 中的结构化资源（专辑 / 歌曲 / 歌单 / MV 等） */
+interface NoticeResource {
+  type: "album" | "song" | "playlist" | "mv" | "video" | "program" | "dj";
+  /** 资源 id（视频 vid 为十六进制字符串，故允许 string） */
+  id: string | number;
+  name: string;
+  cover: string;
+  sub: string;
+}
+
+/** 通知类条目 */
+interface NoticeItem {
+  id?: number;
+  title: string;
+  text: string;
+  time: string;
+  ts: number;
+  avatarUrl?: string;
+  nickname?: string;
+  resource?: NoticeResource;
+}
 
 const loading = ref<boolean>(false);
 const activeTab = ref<string>("private");
 /** 私信会话 */
 const sessions = ref<NeteaseMessageItem[]>([]);
 /** 通知类列表 */
-const lists = ref<Record<string, NeteaseMessageItem[]>>({
+const lists = ref<Record<string, NoticeItem[]>>({
   comments: [],
   forwards: [],
   notices: [],
 });
+/** 快捷表情（插入到输入框） */
+const EMOJIS = ["😀", "😂", "🥰", "👍", "🎵", "🎧", "❤️", "🙏", "🎉", "😭"];
 /** 后端错误提示（例如 301 需要登录），避免页面"一片空白" */
 const errorText = ref<string>("");
 
@@ -158,6 +240,8 @@ const history = ref<
     avatarUrl?: string;
     nickname?: string;
     time?: string;
+    /** 原始时间戳（用于气泡时间分隔） */
+    ts?: number;
     self?: boolean;
     pending?: boolean;
     failed?: boolean;
@@ -165,6 +249,12 @@ const history = ref<
 >([]);
 const sendContent = ref<string>("");
 const sending = ref<boolean>(false);
+/** 输入框实例（发送后保持焦点 / 表情插入后聚焦） */
+const inputRef = ref<any>(null);
+/** 是否可发送 */
+const canSend = computed<boolean>(
+  () => !!sendContent.value.trim() && !sending.value && !!currentSession.value?.id,
+);
 /** 我的头像与 uid（用于消息左右对齐） */
 const myAvatar = computed<string>(() => String(dataStore.userData?.avatarUrl ?? ""));
 const myUid = computed<number>(() => Number(dataStore.userData?.userId ?? 0));
@@ -187,6 +277,58 @@ const handleKeydown = (event: KeyboardEvent) => {
   if (event.isComposing || event.keyCode === 229) return;
   event.preventDefault();
   sendMessage();
+};
+
+/** 插入表情并保持焦点 */
+const insertEmoji = (emoji: string) => {
+  sendContent.value += emoji;
+  nextTick(() => inputRef.value?.focus?.());
+};
+
+/** 是否在指定消息前显示时间分隔（与上一条相隔超过 5 分钟） */
+const showTimeAt = (index: number) => {
+  const current = history.value[index];
+  if (!current?.ts) return false;
+  const prev = history.value[index - 1];
+  if (!prev?.ts) return true;
+  return current.ts - prev.ts > 5 * 60 * 1000;
+};
+
+/** 资源类型文案 */
+const resourceLabel = (type: NoticeResource["type"]) =>
+  ({
+    album: "专辑",
+    song: "歌曲",
+    playlist: "歌单",
+    mv: "MV",
+    video: "视频",
+    program: "节目",
+    dj: "电台",
+  })[type] ?? "内容";
+
+/** 打开通知里的结构化资源 */
+const openResource = async (item: NoticeItem) => {
+  const resource = item.resource;
+  if (!resource) return;
+  if (resource.type === "song") {
+    // 歌曲：直接加入播放（先取详情补全元数据；歌曲 id 必为数字）
+    const detail: any = await songDetail(Number(resource.id));
+    const song = detail?.songs?.[0];
+    if (song) {
+      player.updatePlayList(formatSongsList([song]));
+      return;
+    }
+  }
+  const routeName = {
+    album: "album",
+    playlist: "playlist",
+    mv: "mv",
+    video: "video",
+    program: "radio",
+    dj: "radio",
+    song: "album",
+  }[resource.type] as string;
+  router.push({ name: routeName, query: { id: resource.id } });
 };
 
 /** 上游时间字段可能是时间戳或字符串 */
@@ -221,6 +363,57 @@ const getSessions = async () => {
     .filter((item) => item.id > 0);
 };
 
+/** 从通知条目里提取结构化资源（专辑 / 歌曲 / 歌单 / MV / 视频 / 电台节目） */
+const pickResource = (item: any): NoticeResource | undefined => {
+  const candidates: Array<{ key: string; type: NoticeResource["type"] }> = [
+    { key: "album", type: "album" },
+    { key: "song", type: "song" },
+    { key: "playlist", type: "playlist" },
+    { key: "mv", type: "mv" },
+    { key: "video", type: "video" },
+    { key: "program", type: "program" },
+    { key: "djRadio", type: "dj" },
+    { key: "radio", type: "dj" },
+  ];
+  for (const { key, type } of candidates) {
+    const raw = item?.[key];
+    const target = Array.isArray(raw) ? raw[0] : raw;
+    if (!target || typeof target !== "object") continue;
+    // 视频 vid 是十六进制字符串，不能强制转数字
+    const id = target.id ?? target.albumId ?? target.playlistId ?? target.vid ?? 0;
+    if (!id || id === 0) continue;
+    const cover =
+      target.picUrl ??
+      target.coverUrl ??
+      target.coverImgUrl ??
+      target.blurPicUrl ??
+      target.cover ??
+      "";
+    const name = String(target.name ?? target.title ?? target.albumName ?? "未知内容");
+    // 副标题：多歌手优先，其次作者 / 电台名
+    const artists = Array.isArray(target.artists)
+      ? target.artists.map((artist: any) => artist?.name).filter(Boolean)
+      : [];
+    const sub = String(
+      (artists.length ? artists.join(" / ") : "") ||
+        target.artistName ||
+        target.artist?.name ||
+        target.creator?.nickname ||
+        target.dj?.nickname ||
+        target.radio?.name ||
+        "",
+    );
+    return {
+      type,
+      id,
+      name,
+      cover: String(cover).replace(/^http:/, "https:"),
+      sub,
+    };
+  }
+  return undefined;
+};
+
 /** 拉取通知类数据 */
 const getNotices = async () => {
   const [commentsResult, forwardsResult, noticesResult] = await Promise.allSettled([
@@ -228,7 +421,7 @@ const getNotices = async () => {
     msgForwards(),
     msgNotices(),
   ]);
-  const pick = (result: PromiseSettledResult<any>, key: string) => {
+  const pick = (result: PromiseSettledResult<any>, key: string): NoticeItem[] => {
     if (result.status !== "fulfilled") return [];
     const value: any = result.value;
     if (value?.code !== undefined && value.code !== 200) {
@@ -238,27 +431,34 @@ const getNotices = async () => {
       return [];
     }
     const raw: any[] = value?.[key] ?? value?.data?.[key] ?? value?.data ?? [];
-    return (Array.isArray(raw) ? raw : []).map((item) => ({
-      id: item?.id,
-      title: String(
-        (item?.title ??
-          item?.notice?.title ??
-          item?.comment?.content?.slice(0, 16) ??
-          key === "forwards")
-          ? "有人提到了我"
-          : "通知",
-      ),
-      lastMessage: String(
-        item?.lastMessage ??
-          item?.comment?.content ??
-          item?.notice?.content ??
-          item?.content ??
+    return (Array.isArray(raw) ? raw : []).map((item: any) => {
+      const ts = Number(item?.time ?? item?.createTime ?? 0);
+      const nickname =
+        item?.user?.nickname ?? item?.fromUser?.nickname ?? item?.comment?.user?.nickname;
+      const avatarUrl =
+        item?.user?.avatarUrl ?? item?.fromUser?.avatarUrl ?? item?.comment?.user?.avatarUrl;
+      return {
+        id: item?.id,
+        title: String(
+          item?.title ??
+            item?.notice?.title ??
+            (nickname ? nickname : key === "forwards" ? "有人提到了我" : "通知"),
+        ),
+        text: String(
           item?.msg ??
-          item?.lastForward?.content ??
-          "",
-      ),
-      time: formatTime(item?.time ?? item?.createTime),
-    }));
+            item?.comment?.content ??
+            item?.notice?.content ??
+            item?.content ??
+            item?.lastForward?.content ??
+            "",
+        ),
+        time: formatTime(ts),
+        ts,
+        avatarUrl,
+        nickname,
+        resource: pickResource(item),
+      };
+    });
   };
   lists.value = {
     comments: pick(commentsResult, "comments"),
@@ -290,6 +490,7 @@ const openSession = async (item: NeteaseMessageItem) => {
           avatarUrl: fromUser?.avatarUrl ?? msg?.avatarUrl,
           nickname: fromUser?.nickname,
           time: formatTime(msg?.time ?? msg?.createTime ?? msg?.sendTime),
+          ts: Number(msg?.time ?? msg?.createTime ?? msg?.sendTime ?? 0),
           self: myUid.value > 0 && fromUid === myUid.value,
         };
       })
@@ -313,6 +514,7 @@ const sendMessage = async () => {
     pending: true,
     failed: false,
     time: formatTime(Date.now()),
+    ts: Date.now(),
   };
   history.value.push(draft);
   sendContent.value = "";
@@ -337,6 +539,7 @@ const sendMessage = async () => {
   } finally {
     sending.value = false;
     scrollToBottom();
+    nextTick(() => inputRef.value?.focus?.());
   }
 };
 
@@ -395,66 +598,167 @@ onMounted(getMessageData);
     font-weight: bold;
   }
   .notice-content {
+    display: block;
     font-size: 13px;
+    line-height: 1.6;
     margin-top: 4px;
+    word-break: break-word;
   }
   .time {
+    flex-shrink: 0;
     font-size: 12px;
   }
   .alert {
     margin-bottom: 10px;
     border-radius: 10px;
   }
-  .send-bar {
+  /* 通知 / 评论 / @我：微信式卡片列表 */
+  .notice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    .notice-item {
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--n-action-color);
+      &.clickable {
+        cursor: pointer;
+        transition: transform 0.2s var(--n-bezier);
+        &:hover {
+          transform: translateY(-1px);
+        }
+      }
+      .notice-main {
+        flex: 1;
+        min-width: 0;
+      }
+      /* 结构化资源卡片（专辑 / 歌曲 / 歌单 / MV …） */
+      .resource-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: var(--n-color-modal, rgba(128, 128, 128, 0.08));
+        .resource-cover {
+          flex-shrink: 0;
+          width: 46px;
+          height: 46px;
+          border-radius: 8px;
+          object-fit: cover;
+          background: var(--n-border-color);
+        }
+        .resource-info {
+          flex: 1;
+          min-width: 0;
+          .resource-name {
+            display: block;
+            font-size: 14px;
+            font-weight: bold;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+          }
+          .resource-sub {
+            display: block;
+            font-size: 12px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+          }
+        }
+        .resource-arrow {
+          font-size: 16px;
+          opacity: 0.5;
+        }
+      }
+    }
+  }
+  /* 微信式输入条 */
+  .composer {
     display: flex;
     align-items: flex-end;
     gap: 8px;
     width: 100%;
+    .tool {
+      flex-shrink: 0;
+    }
+    .composer-input {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      .counter {
+        position: absolute;
+        right: 10px;
+        bottom: 2px;
+        font-size: 11px;
+      }
+      :deep(.n-input) {
+        border-radius: 16px;
+      }
+      :deep(.n-input__textarea-el) {
+        padding-right: 46px;
+      }
+    }
+    .send {
+      flex-shrink: 0;
+      height: 36px;
+      min-width: 64px;
+    }
   }
+  /* 会话消息区（微信式气泡） */
   .history {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    max-height: calc(100vh - 180px);
+    gap: 8px;
+    max-height: calc(100vh - 190px);
     overflow-y: auto;
     padding-right: 4px;
+    .time-divider {
+      align-self: center;
+      margin: 6px 0;
+      padding: 1px 8px;
+      border-radius: 8px;
+      font-size: 11px;
+      background: var(--n-action-color);
+    }
     .msg {
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      // 对方消息靠左，自己消息靠右
+      max-width: 100%;
+      .msg-text {
+        max-width: 76%;
+        padding: 8px 12px;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: var(--n-action-color);
+      }
+      // 自己的消息靠右，并使用主题色气泡
       &.self {
         flex-direction: row;
         justify-content: flex-end;
-        .bubble {
-          align-items: flex-end;
-        }
-      }
-      .bubble {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        max-width: 76%;
         .msg-text {
-          background: var(--n-action-color);
-          border-radius: 10px;
-          padding: 6px 10px;
-          font-size: 13px;
-          line-height: 1.6;
-          white-space: pre-wrap;
-          word-break: break-word;
-        }
-        .msg-time {
-          margin-top: 2px;
-          font-size: 11px;
+          background: var(--n-primary-color-suppl, var(--n-action-color));
         }
       }
       &.pending .msg-text {
-        opacity: 0.6;
+        opacity: 0.65;
       }
       &.failed .msg-text {
         outline: 1px solid var(--n-error-color, #d03050);
       }
+    }
+    .send-state {
+      align-self: flex-end;
+      margin: -4px 42px 0 0;
+      font-size: 11px;
     }
   }
 }
