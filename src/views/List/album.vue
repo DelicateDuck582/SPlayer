@@ -76,6 +76,7 @@ import { useListScroll } from "@/composables/List/useListScroll";
 import { useListActions } from "@/composables/List/useListActions";
 import { useListDataCache, type ListCacheData } from "@/composables/List/useListDataCache";
 import ListComment from "@/components/List/ListComment.vue";
+import { debugLog } from "@/utils/log";
 
 const router = useRouter();
 const dataStore = useDataStore();
@@ -228,7 +229,7 @@ const backgroundCheck = async (id: number, cached: ListCacheData) => {
     if (currentRequestId.value !== id) return;
     const latestDetail = formatCoverList(detail.album)[0];
     if (checkNeedsUpdate(cached, latestDetail)) {
-      console.log("Album cache expired, refreshing...");
+      debugLog("Album cache expired, refreshing...");
       getAlbumDetail(id, true);
     }
   } catch (e) {

@@ -20,6 +20,7 @@
  */
 
 import type { LyricLine } from "@applemusic-like-lyrics/lyric";
+import { debugLog } from "@/utils/log";
 
 const STRICT_MATCH_SEPARATORS = [
   ":",
@@ -250,7 +251,7 @@ function findHeaderCutoff(
     if (strict) status = "✅ STRICT";
     else if (weak) status = "⚠️ WEAK";
 
-    console.log(`Line [${i}]: "${text}" | Result: ${status}`);
+    debugLog(`Line [${i}]: "${text}" | Result: ${status}`);
 
     if (!strict && !weak) {
       break;
@@ -297,7 +298,7 @@ function findFooterCutoff(
     if (strict) status = "✅ STRICT";
     else if (weak) status = "⚠️ WEAK";
 
-    console.log(`Line [${i}]: "${text}" | Result: ${status}`);
+    debugLog(`Line [${i}]: "${text}" | Result: ${status}`);
 
     if (!strict && !weak) {
       break;
@@ -338,7 +339,7 @@ export function stripLyricMetadata(
         const hasAnyArtist = artists.some((artist) => lowerText.includes(artist.toLowerCase()));
 
         if (hasAnyArtist) {
-          console.log(
+          debugLog(
             `[LyricStripper] 在第一行匹配到歌曲元数据: "${firstLineText}" (Title: ${title}, Artists: ${artists.join(", ")})`,
           );
           scanStartIndex = 1;
@@ -405,7 +406,7 @@ export function stripLyricMetadata(
   }
 
   const newLength = endIdx - startIdx;
-  console.log(`[LyricStripper] 清理完成，总行数从 ${totalLines} 变为 ${newLength}`);
+  debugLog(`[LyricStripper] 清理完成，总行数从 ${totalLines} 变为 ${newLength}`);
 
   return lines.slice(startIdx, endIdx);
 }

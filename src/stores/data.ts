@@ -16,6 +16,7 @@ import { cloneDeep, isEmpty } from "lodash-es";
 import { isLogin } from "@/utils/auth";
 import { formatCategoryList } from "@/utils/format";
 import localforage from "localforage";
+import { debugLog } from "@/utils/log";
 
 interface ListState {
   playList: SongType[];
@@ -148,7 +149,7 @@ export const useDataStore = defineStore("data", {
       try {
         // 获取 music-data
         const musicDataKeys = await musicDB.keys();
-        if (import.meta.env.DEV) console.log(musicDataKeys);
+        debugLog(musicDataKeys);
         await Promise.all(
           musicDataKeys.map(async (key) => {
             const data = await musicDB.getItem(key);
@@ -391,12 +392,12 @@ export const useDataStore = defineStore("data", {
       try {
         if (name) {
           await localforage.dropInstance({ name });
-          if (import.meta.env.DEV) console.log(`Dropped ${name} database`);
+          debugLog(`Dropped ${name} database`);
           return;
         }
         await musicDB.clear();
         await userDB.clear();
-        if (import.meta.env.DEV) console.log("All databases cleared");
+        debugLog("All databases cleared");
       } catch (error) {
         console.error("Error deleting database:", error);
         throw error;
@@ -411,7 +412,7 @@ export const useDataStore = defineStore("data", {
       // 获取歌单分类
       try {
         const [catsRes, hqCatsRes] = await Promise.all([playlistCatlist(), playlistCatlist(true)]);
-        if (import.meta.env.DEV) console.log(catsRes, hqCatsRes);
+        debugLog(catsRes, hqCatsRes);
         this.catData = {
           type: catsRes.categories,
           cats: formatCategoryList(catsRes.sub),

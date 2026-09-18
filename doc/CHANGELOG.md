@@ -46,8 +46,9 @@
 
 **日志与隐私治理**
 
-- 将 **52 处**诊断日志收敛到 `import.meta.env.DEV`（仅在开发环境输出），涉及：`auth.ts`（用户 id）、`data.ts`、`liked.vue`、`useListDataCache.ts`、`SongInfoEditor.vue`（本地路径与元数据）、`LyricManager.ts`、`PlayerController.ts`（**签名音频直链**）、`SongManager.ts`（接口原始响应）
-- 播放失败日志由 `console.log` 改为 `console.error`（`CoverList.vue`）
+- 新增 `debugLog()`（`src/utils/log.ts`）：**默认完全静默**（生产与开发都不打印），需要排查时用 `?debug=1`（或 `localStorage["splayer:debug"]="1"`）开启，`?debug=0` 关闭；`src/` 下共 **90 处**诊断日志（含 `auth.ts` 用户 id、`PlayerController` **签名音频直链**、`SongManager` 接口原始响应、`SongInfoEditor` 本地路径与元数据、`lyricStripper`、`AudioManager`、`useListDataCache` 等）统一切换到该方法
+- 控制台横幅（`printVersion`）改为仅在开启调试日志时打印，并**移除外部链接**（只保留版本号与产品名）
+- 播放失败日志由 `console.log` 改为 `console.error`（`CoverList.vue`）——错误仍会正常显示
 
 **密钥审查（结论）**
 
@@ -71,6 +72,7 @@
 | 端点清单 `--check` | 通过 |
 | 隔离冒烟（`#/style`（对照）、`#/history`、`#/digital-album`） | 控制台错误数均为 3，与**未改动**对照路由一致 → 未引入新错误 |
 | 3 条残留错误的定性 | 均为本地 web dev 环境 `window.api` / `window.electron` 未注入所致（生产 web 构建此前审计无此类报错）；另有 1 条 `VM2801 ... 'startTime'` 来自浏览器扩展注入脚本，与项目无关 |
+| 控制台默认静默实测 | 无头浏览器访问 `/`（首页）与 `/style`：**项目自身诊断日志命中 0 条**（含 `music data:`、`最终播放信息`、`Fetched ... for user`、`[LyricStripper]` 等全部消失），错误数仍为既有基线 3 条 |
 | 资源卡片提取逻辑（用实测样例） | 用「新专辑通知」真实样例 + 歌单 / MV / 视频 / 纯文本共 5 例逐例校验：**全部符合预期**，其中发现并修复「视频 `vid` 为十六进制字符串被 `Number()` 过滤」的问题；封面统一 `http → https` |
 
 **影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）。

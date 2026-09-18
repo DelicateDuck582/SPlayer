@@ -11,6 +11,7 @@ import { sendTaskbarCoverColor } from "./color";
 import { isElectron, isMac } from "./env";
 import { getPlayerInfoObj } from "./format";
 import { openSetting, openUpdateApp } from "./modal";
+import { debugLog } from "./log";
 
 // 关闭更新状态
 const closeUpdateStatus = () => {
@@ -198,7 +199,7 @@ const initIpc = () => {
     });
     // 协议数据
     window.electron.ipcRenderer.on("protocol-url", (_, url) => {
-      console.log("📡 Received protocol url:", url);
+      debugLog("📡 Received protocol url:", url);
       handleProtocolUrl(url);
     });
     // 请求播放信息
@@ -231,7 +232,7 @@ const initIpc = () => {
       );
     });
   } catch (error) {
-    console.log(error);
+    debugLog(error);
   }
 };
 

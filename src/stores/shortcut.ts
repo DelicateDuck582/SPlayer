@@ -1,5 +1,6 @@
 import { cloneDeep } from "lodash-es";
 import { defineStore } from "pinia";
+import { debugLog } from "@/utils/log";
 
 type ShortcutType = {
   name: string;
@@ -106,7 +107,7 @@ export const useShortcutStore = defineStore("shortcut", {
         "register-all-shortcut",
         cloneDeep(this.shortcutList),
       );
-      console.log(result);
+      debugLog(result);
       return result;
     },
   },

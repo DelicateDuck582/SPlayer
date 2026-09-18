@@ -75,6 +75,7 @@ import { useListActions } from "@/composables/List/useListActions";
 import { toSubRadio } from "@/utils/auth";
 import { useListDataCache, type ListCacheData } from "@/composables/List/useListDataCache";
 import ListComment from "@/components/List/ListComment.vue";
+import { debugLog } from "@/utils/log";
 
 const router = useRouter();
 const dataStore = useDataStore();
@@ -231,7 +232,7 @@ const backgroundCheck = async (id: number, cached: ListCacheData) => {
     const latestDetail = formatCoverList(detail.data)[0];
 
     if (checkNeedsUpdate(cached, latestDetail)) {
-      console.log("Radio cache expired, refreshing...");
+      debugLog("Radio cache expired, refreshing...");
       getRadioDetail(id, true);
     }
   } catch (e) {

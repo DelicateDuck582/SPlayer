@@ -28,6 +28,7 @@
 import type { SongType } from "@/types/main";
 import { searchResult } from "@/api/search";
 import { formatSongsList } from "@/utils/format";
+import { debugLog } from "@/utils/log";
 
 const props = defineProps<{
   keyword: string;
@@ -58,7 +59,7 @@ const getSearchResult = async () => {
 // 列表触底
 const reachBottom = () => {
   if (hasMore.value) {
-    console.log("加载");
+    debugLog("加载");
     searchOffset.value += 50;
     getSearchResult();
   } else {

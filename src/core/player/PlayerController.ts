@@ -22,6 +22,7 @@ import { mediaSessionManager } from "./MediaSessionManager";
 import * as playerIpc from "./PlayerIpc";
 import { PlayModeManager } from "./PlayModeManager";
 import { useSongManager } from "./SongManager";
+import { debugLog } from "@/utils/log";
 
 /**
  * 播放器核心类
@@ -112,7 +113,7 @@ class PlayerController {
       }
     }
     if (import.meta.env.DEV)
-      console.log(
+      debugLog(
         `🔊 [ReplayGain] Applied: ${targetGain.toFixed(4)} (Mode: ${settingStore.replayGainMode})`,
       );
     if (apply) audioManager.setReplayGain(targetGain);
@@ -281,7 +282,7 @@ class PlayerController {
     }
     // Fuck DJ Mode
     if (this.shouldSkipSong(playSongData)) {
-      if (import.meta.env.DEV) console.log(`[Fuck DJ] Skipping: ${playSongData.name}`);
+      debugLog(`[Fuck DJ] Skipping: ${playSongData.name}`);
       window.$message.warning(`已跳过 DJ/抖音 歌曲: ${playSongData.name}`);
       this.nextOrPrev("next");
       return;
@@ -322,7 +323,7 @@ class PlayerController {
       }
       if (requestToken !== this.currentRequestToken) return;
       // 更新音质和音源信息
-      if (import.meta.env.DEV) console.log(`🎧 [${playSongData.id}] 最终播放信息:`, audioSource);
+      debugLog(`🎧 [${playSongData.id}] 最终播放信息:`, audioSource);
       statusStore.songQuality = audioSource.quality;
       statusStore.audioSource = audioSource.source;
       // 执行底层播放
@@ -369,7 +370,7 @@ class PlayerController {
         statusStore.playLoading = false;
         return;
       }
-      if (import.meta.env.DEV) console.log(`🔄 [${playSongData.id}] 切换音质:`, audioSource);
+      debugLog(`🔄 [${playSongData.id}] 切换音质:`, audioSource);
       // 更新音质和解锁状态
       statusStore.songQuality = audioSource.quality;
       statusStore.audioSource = audioSource.source;
@@ -407,7 +408,7 @@ class PlayerController {
         statusStore.playLoading = false;
         return;
       }
-      if (import.meta.env.DEV) console.log(`🔄 [${playSongData.id}] 切换音频源:`, audioSource);
+      debugLog(`🔄 [${playSongData.id}] 切换音频源:`, audioSource);
       // 更新状态
       statusStore.songQuality = audioSource.quality;
       statusStore.audioSource = audioSource.source;
@@ -624,7 +625,7 @@ class PlayerController {
       }
       // 获取封面数据
       if (!oldCover || oldCover === "/images/song.jpg?asset") {
-        if (import.meta.env.DEV) console.log("获取封面数据");
+        debugLog("获取封面数据");
         const coverData = await window.electron.ipcRenderer.invoke("get-music-cover", path);
         if (coverData) {
           const blobURL = blobURLManager.createBlobURL(coverData.data, coverData.format, path);
@@ -708,7 +709,7 @@ class PlayerController {
       playerIpc.sendTaskbarState({ isPlaying: true });
       playerIpc.sendTaskbarMode("normal");
       playerIpc.sendTaskbarProgress(statusStore.progress);
-      if (import.meta.env.DEV) console.log(`▶️ [${musicStore.playSong?.id}] 歌曲播放:`, name);
+      debugLog(`▶️ [${musicStore.playSong?.id}] 歌曲播放:`, name);
     });
     // 暂停
     audioManager.addEventListener("pause", () => {
@@ -722,7 +723,7 @@ class PlayerController {
       playerIpc.sendTaskbarMode("paused");
       playerIpc.sendTaskbarProgress(statusStore.progress);
       lastfmScrobbler.pause();
-      if (import.meta.env.DEV) console.log(`⏸️ [${musicStore.playSong?.id}] 歌曲暂停`);
+      debugLog(`⏸️ [${musicStore.playSong?.id}] 歌曲暂停`);
     });
     // 拖动进度条
     audioManager.addEventListener("seeking", () => {
@@ -732,7 +733,7 @@ class PlayerController {
     audioManager.addEventListener("ended", () => {
       if (this.isTransitioning) return;
       useAutomixManager().resetAutomixScheduling("IDLE");
-      if (import.meta.env.DEV) console.log(`⏹️ [${musicStore.playSong?.id}] 歌曲结束`);
+      debugLog(`⏹️ [${musicStore.playSong?.id}] 歌曲结束`);
       lastfmScrobbler.stop();
       // 检查定时关闭
       if (this.checkAutoClose()) return;
@@ -1421,7 +1422,7 @@ class PlayerController {
     const statusStore = useStatusStore();
     const { enable, waitSongEnd, remainTime } = statusStore.autoClose;
     if (enable && waitSongEnd && remainTime <= 0) {
-      if (import.meta.env.DEV) console.log("🔄 执行自动关闭");
+      debugLog("🔄 执行自动关闭");
       this.pause();
       statusStore.autoClose.enable = false;
       // 重置时间
@@ -1577,7 +1578,7 @@ export const usePlayerController = (): PlayerController => {
   const win = window as Window & { [PLAYER_CONTROLLER_KEY]?: PlayerController };
   if (!win[PLAYER_CONTROLLER_KEY]) {
     win[PLAYER_CONTROLLER_KEY] = new PlayerController();
-    if (import.meta.env.DEV) console.log("[PlayerController] 创建新实例");
+    debugLog("[PlayerController] 创建新实例");
   }
   return win[PLAYER_CONTROLLER_KEY];
 };

@@ -2,6 +2,7 @@ import type { LyricLine, LyricWord } from "@applemusic-like-lyrics/lyric";
 import { cloneDeep } from "lodash-es";
 import { parseLrc } from "./parseLrc";
 import { extractLyricContent } from "./parseQrc";
+import { debugLog } from "@/utils/log";
 
 /**
  * LRC 格式类型
@@ -244,7 +245,7 @@ export const parseSmartLrc = (content: string): { format: LrcFormat; lines: Lyri
       lines = parseLrc(content) || [];
   }
 
-  console.log(`[LyricParser] 检测到歌词格式: ${format}, 共 ${lines.length} 行`);
+  debugLog(`[LyricParser] 检测到歌词格式: ${format}, 共 ${lines.length} 行`);
   return { format, lines };
 };
 

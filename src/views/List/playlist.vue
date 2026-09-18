@@ -100,6 +100,7 @@ import { useListSearch } from "@/composables/List/useListSearch";
 import { useListScroll } from "@/composables/List/useListScroll";
 import { useListActions } from "@/composables/List/useListActions";
 import { useListDataCache, type ListCacheData } from "@/composables/List/useListDataCache";
+import { debugLog } from "@/utils/log";
 
 const router = useRouter();
 const dataStore = useDataStore();
@@ -386,7 +387,7 @@ const backgroundCheck = async (id: number, cached: ListCacheData) => {
     const latestDetail = formatCoverList(detail.playlist)[0];
 
     if (checkNeedsUpdate(cached, latestDetail)) {
-      console.log("Cache expired, refreshing...");
+      debugLog("Cache expired, refreshing...");
       handleOnlinePlaylist(id, true, true);
     }
   } catch (e) {

@@ -24,6 +24,7 @@ import { likeArtist } from "@/api/artist";
 import { likeAlbum } from "@/api/album";
 import { radioSub } from "@/api/radio";
 import router from "@/router";
+import { debugLog } from "./log";
 
 /**
  * 用户是否登录
@@ -481,7 +482,7 @@ const setUserLikeDataLoop = async <T>(
     await dataStore.setUserLikeData(key, allData as CoverType[]);
   }
 
-  if (import.meta.env.DEV) console.log(`✅ Fetched ${allData.length} ${key} for user ${userId}`);
+  debugLog(`✅ Fetched ${allData.length} ${key} for user ${userId}`);
   return allData;
 };
 

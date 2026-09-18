@@ -9,6 +9,7 @@ import { openUserAgreement } from "@/utils/modal";
 import { useEventListener } from "@vueuse/core";
 import { debounce } from "lodash-es";
 import { onMounted, watch } from "vue";
+import { debugLog } from "@/utils/log";
 
 /** 最终聚焦主窗口的延迟时间（毫秒） */
 const FINAL_FOCUS_DELAY_MS = 500;
@@ -151,7 +152,7 @@ const keyDownEvent = debounce((event: KeyboardEvent) => {
     );
     if (mainKey !== key) match = false;
     if (match && shortcutKey) {
-      console.log(shortcutKey, `快捷键触发: ${shortcut.name}`);
+      debugLog(shortcutKey, `快捷键触发: ${shortcut.name}`);
       switch (shortcutKey) {
         case "playOrPause":
           player.playOrPause();

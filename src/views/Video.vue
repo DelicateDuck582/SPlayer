@@ -144,6 +144,7 @@ import { usePlayerController } from "@/core/player/PlayerController";
 import Plyr from "plyr";
 import "plyr/dist/plyr.css";
 import { formatTimestamp } from "@/utils/time";
+import { debugLog } from "@/utils/log";
 
 const router = useRouter();
 const player = usePlayerController();
@@ -339,7 +340,7 @@ onDeactivated(() => {
 });
 
 onMounted(() => {
-  console.log(11);
+  debugLog(11);
 
   closeMusic();
   // 初始化播放器

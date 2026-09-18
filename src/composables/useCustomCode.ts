@@ -1,6 +1,7 @@
 import { useStyleTag } from "@vueuse/core";
 import { useSettingStore } from "@/stores";
 import { storeToRefs } from "pinia";
+import { debugLog } from "@/utils/log";
 
 /**
  * 自定义代码注入
@@ -28,7 +29,7 @@ export const useCustomCode = () => {
     try {
       const customFn = new Function(settingStore.customJs);
       customFn();
-      console.log("[CustomCode] 自定义 JavaScript 已执行");
+      debugLog("[CustomCode] 自定义 JavaScript 已执行");
     } catch (error) {
       console.error("[CustomCode] 自定义 JavaScript 执行失败:", error);
     }

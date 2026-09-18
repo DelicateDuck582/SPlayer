@@ -16,6 +16,7 @@ import type { SongType } from "@/types/main";
 import { isElectron } from "@/utils/env";
 import { msToTime } from "@/utils/time";
 import { toFileUrl } from "@/utils/fileUrl";
+import { debugLog } from "@/utils/log";
 
 /**
  * 自动混音（Automix）管理器
@@ -244,7 +245,7 @@ export class AutomixManager {
       if (analysis.fade_in_pos && startSeek === 0) {
         const cutIn = analysis.cut_in_pos ?? analysis.fade_in_pos;
         startSeek = Math.max(startSeek, cutIn * 1000);
-        console.log(`✨ [Automix] Smart Cut Start: ${msToTime(cutIn * 1000)}`);
+        debugLog(`✨ [Automix] Smart Cut Start: ${msToTime(cutIn * 1000)}`);
       }
       if (options.crossfade && lastAnalysis && lastAnalysis.bpm && analysis.bpm) {
         const bpmA = lastAnalysis.bpm;
@@ -256,7 +257,7 @@ export class AutomixManager {
           const ratio = bpmA / bpmB;
           if (ratio >= 0.97 && ratio <= 1.03) {
             initialRate = ratio;
-            console.log(
+            debugLog(
               `✨ [Automix] BPM Align: ${bpmA.toFixed(1)} -> ${bpmB.toFixed(1)} (Rate: ${ratio.toFixed(4)})`,
             );
           }
@@ -1002,7 +1003,7 @@ export class AutomixManager {
         // Limit gain to avoiding extreme changes (+/- 9dB)
         const safeGainDb = Math.max(-9, Math.min(gainDb, 9));
         this.automixGain = Math.pow(10, safeGainDb / 20);
-        console.log(
+        debugLog(
           `🔊 [Automix] Loudness Match: ${currentLoudness.toFixed(2)} -> ${nextLoudness.toFixed(2)} LUFS (Gain: ${safeGainDb.toFixed(2)}dB)`,
         );
       } else {
@@ -1033,7 +1034,7 @@ export class AutomixManager {
           replayGain,
           deferStateSync: true,
           onSwitch: () => {
-            console.log("🔀 [Automix] Switching UI to new song");
+            debugLog("🔀 [Automix] Switching UI to new song");
             playerController.isTransitioning = false;
             this.automixState = "MONITORING";
             // 提交状态切换
@@ -1048,7 +1049,7 @@ export class AutomixManager {
     } catch (e: unknown) {
       if (e instanceof Error && e.message === "EXPIRED") {
         // Token 过期意味着有新的播放请求已接管，静默忽略
-        console.log("[Automix] Transition cancelled (new request)");
+        debugLog("[Automix] Transition cancelled (new request)");
         return;
       }
       console.error("Automix failed, fallback to normal play", e);

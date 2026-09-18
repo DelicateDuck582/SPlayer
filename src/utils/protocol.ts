@@ -1,6 +1,7 @@
 import { songDetail } from "@/api/song";
 import { formatSongsList } from "@/utils/format";
 import { usePlayerController } from "@/core/player/PlayerController";
+import { debugLog } from "./log";
 
 class OrpheusData {
   constructor(type: string, id: number, cmd: string) {
@@ -40,7 +41,7 @@ export const handleProtocolUrl = (url: string) => {
 export const handleOpenOrpheus = async (url: string) => {
   const data = parseOrpheus(url);
   if (!data) return;
-  console.log("🚀 Open Orpheus:", data);
+  debugLog("🚀 Open Orpheus:", data);
 
   if (data.cmd === "play" && data.type === "song") {
     const player = usePlayerController();
@@ -48,7 +49,7 @@ export const handleOpenOrpheus = async (url: string) => {
     const song = formatSongsList(result.songs)[0];
     player.addNextSong(song, true);
   } else {
-    console.log("❌ Unsupported Command or Type:", data);
+    debugLog("❌ Unsupported Command or Type:", data);
   }
 };
 

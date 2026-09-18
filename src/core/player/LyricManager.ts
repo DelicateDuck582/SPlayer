@@ -21,6 +21,7 @@ import { getConverter } from "@/utils/opencc";
 import { type LyricLine, parseTTML, parseYrc } from "@applemusic-like-lyrics/lyric";
 import { cloneDeep, isEmpty } from "lodash-es";
 import { attachTtmlBgLines, cleanTTMLTranslations } from "@/utils/lyric/parseTTML";
+import { debugLog } from "@/utils/log";
 
 interface LyricFetchResult {
   data: SongLyric;
@@ -494,7 +495,7 @@ class LyricManager {
           const { format: lrcFormat, lines } = parseSmartLrc(lrcContent);
           lrcIsWordLevel = isWordLevelFormat(lrcFormat);
           lrcLines = lines;
-          if (import.meta.env.DEV) console.log("检测到本地歌词覆盖", lrcFormat, lrcLines);
+          debugLog("检测到本地歌词覆盖", lrcFormat, lrcLines);
         }
       } catch (err) {
         console.error("parseLrc 本地解析失败:", err);
@@ -509,7 +510,7 @@ class LyricManager {
           const cleaned = cleanTTMLTranslations(ttmlContent);
           const raw = parseTTML(cleaned).lines || [];
           ttmlLines = raw;
-          if (import.meta.env.DEV) console.log("检测到本地TTML歌词覆盖", ttmlLines);
+          debugLog("检测到本地TTML歌词覆盖", ttmlLines);
         }
       } catch (err) {
         console.error("parseTTML 本地解析失败:", err);
@@ -794,7 +795,7 @@ class LyricManager {
 
     // 检查预加载缓存
     if (this.prefetchedLyric && this.prefetchedLyric.id === song.id) {
-      if (import.meta.env.DEV) console.log(`🚀 [${song.id}] 使用预加载歌词`);
+      debugLog(`🚀 [${song.id}] 使用预加载歌词`);
       const { data, meta } = this.prefetchedLyric.result;
       this.prefetchedLyric = null; // 消费后清除
 
@@ -878,14 +879,14 @@ class LyricManager {
   public async prefetchLyric(song: SongType) {
     if (!song) return;
     try {
-      if (import.meta.env.DEV) console.log(`Lyrics prefetching started: [${song.id}] ${song.name}`);
+      debugLog(`Lyrics prefetching started: [${song.id}] ${song.name}`);
       const result = await this.fetchLyric(song);
       // 存储预加载结果
       this.prefetchedLyric = {
         id: song.id,
         result,
       };
-      if (import.meta.env.DEV) console.log(`Lyrics prefetch completed: [${song.id}]`);
+      debugLog(`Lyrics prefetch completed: [${song.id}]`);
     } catch (e) {
       console.warn(`Lyrics prefetch failed: [${song.id}]`, e);
     }

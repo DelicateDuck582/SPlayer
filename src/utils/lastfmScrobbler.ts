@@ -5,6 +5,7 @@
 
 import { updateNowPlaying, scrobbleTrack } from "@/api/lastfm";
 import { useSettingStore } from "@/stores";
+import { debugLog } from "./log";
 
 interface ScrobbleTrack {
   name: string;
@@ -51,7 +52,7 @@ class LastfmScrobbler {
     this.playStartTime = Date.now();
     this.hasScrobbled = false;
 
-    console.log("Last.fm: 开始播放", this.currentTrack);
+    debugLog("Last.fm: 开始播放", this.currentTrack);
 
     // 更新正在播放状态
     if (settingStore.lastfm.nowPlayingEnabled) {
@@ -131,7 +132,7 @@ class LastfmScrobbler {
         this.currentTrack.album,
         this.currentTrack.duration,
       );
-      console.log("Last.fm: 正在播放状态已更新");
+      debugLog("Last.fm: 正在播放状态已更新");
     } catch (error) {
       console.error("Last.fm: 更新正在播放状态失败", error);
     }
@@ -155,7 +156,7 @@ class LastfmScrobbler {
     const playedTime = (Date.now() - this.playStartTime) / 1000;
     const remainingTime = Math.max(0, scrobbleTime - playedTime);
 
-    console.log(`Last.fm: 将在 ${remainingTime.toFixed(1)} 秒后 scrobble`);
+    debugLog(`Last.fm: 将在 ${remainingTime.toFixed(1)} 秒后 scrobble`);
 
     this.scrobbleTimer = setTimeout(() => {
       this.scrobble();
@@ -180,7 +181,7 @@ class LastfmScrobbler {
         this.currentTrack.duration,
       );
       this.hasScrobbled = true;
-      console.log("Last.fm: Scrobble 成功", this.currentTrack);
+      debugLog("Last.fm: Scrobble 成功", this.currentTrack);
     } catch (error) {
       console.error("Last.fm: Scrobble 失败", error);
     }

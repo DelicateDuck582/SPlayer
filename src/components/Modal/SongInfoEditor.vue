@@ -172,6 +172,7 @@ import { matchSong, songLyric } from "@/api/song";
 import { debounce, isArray, isEmpty, isObject } from "lodash-es";
 import { useBlobURLManager } from "@/core/resource/BlobURLManager";
 import { formatSongsList } from "@/utils/format";
+import { debugLog } from "@/utils/log";
 
 const props = defineProps<{
   song: SongType;
@@ -356,7 +357,7 @@ const saveSongInfo = debounce(async (song: SongType) => {
             ? coverData.value.replace(/^file:\/\//, "")
             : coverData.value,
     };
-    if (import.meta.env.DEV) console.log(song.path, metadata);
+    debugLog(song.path, metadata);
     await window.electron.ipcRenderer.invoke("set-music-metadata", song.path, metadata);
     window.$message.success("歌曲信息修改成功");
     // 修改音乐信息

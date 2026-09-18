@@ -6,6 +6,7 @@ import { defineStore } from "pinia";
 import { CURRENT_SETTING_SCHEMA_VERSION, settingMigrations } from "./migrations/settingMigrations";
 import { ThemeColorType } from "@/types/color";
 import type { LyricPriority } from "@/types/lyric";
+import { debugLog } from "@/utils/log";
 
 export interface SettingState {
   /** Schema 版本号 */
@@ -794,7 +795,7 @@ export const useSettingStore = defineStore("setting", {
       const targetVersion = CURRENT_SETTING_SCHEMA_VERSION;
 
       if (currentVersion !== targetVersion) {
-        console.log(`[Setting Migration] 检测到版本差异: ${currentVersion} -> ${targetVersion}`);
+        debugLog(`[Setting Migration] 检测到版本差异: ${currentVersion} -> ${targetVersion}`);
         // 保存当前完整状态
         const currentState = { ...this.$state } as Partial<SettingState>;
         // 计算需要更新的字段（迁移返回的更新）
@@ -811,7 +812,7 @@ export const useSettingStore = defineStore("setting", {
         this.$patch(updates);
         // 统一设置版本号
         this.schemaVersion = targetVersion;
-        console.log(`[Setting Migration] 迁移完成，已更新到版本 ${targetVersion}`);
+        debugLog(`[Setting Migration] 迁移完成，已更新到版本 ${targetVersion}`);
       }
     },
     // 更换明暗模式

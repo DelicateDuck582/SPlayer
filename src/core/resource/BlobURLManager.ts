@@ -1,3 +1,5 @@
+import { debugLog } from "@/utils/log";
+
 type BlobInputData = Buffer | Uint8Array | ArrayBuffer;
 
 class BlobURLManager {
@@ -99,7 +101,7 @@ class BlobURLManager {
         URL.revokeObjectURL(blobURL);
       }
       this.blobURLs.clear();
-      console.log("🧹 All Blob URLs revoked.");
+      debugLog("🧹 All Blob URLs revoked.");
     } catch (error) {
       console.error("❌ Error revoking all Blob URLs:", error);
     }

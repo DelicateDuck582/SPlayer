@@ -16,6 +16,7 @@ import { toFileUrl } from "@/utils/fileUrl";
 import { AI_AUDIO_LEVELS } from "@/utils/meta";
 import { handleSongQuality } from "@/utils/helper";
 import { openUserLogin } from "@/utils/modal";
+import { debugLog } from "@/utils/log";
 
 /**
  * 歌曲解锁服务器
@@ -153,7 +154,7 @@ class SongManager {
           md5,
         );
         if (cachePath) {
-          if (import.meta.env.DEV) console.log(`🚀 [${id}] 由本地音乐缓存提供`);
+          debugLog(`🚀 [${id}] 由本地音乐缓存提供`);
           return toFileUrl(cachePath);
         }
       } catch (e) {
@@ -197,7 +198,7 @@ class SongManager {
         const hasDb = qualityRes.data?.db && Number(qualityRes.data.db.br) > 0;
         // 如果不支持杜比，降级到最高可用音质
         if (!hasDb) {
-          if (import.meta.env.DEV) console.log(`🔽 [${id}] 歌曲不支持杜比音质，自动降级`);
+          debugLog(`🔽 [${id}] 歌曲不支持杜比音质，自动降级`);
           // 按优先级降级：hires -> lossless -> exhigh
           if (qualityRes.data?.hr && Number(qualityRes.data.hr.br) > 0) {
             level = "hires";
@@ -214,7 +215,7 @@ class SongManager {
     }
 
     let res: any = await songUrl(id, level as any);
-    if (import.meta.env.DEV) console.log(`🌐 ${id} music data:`, res);
+    debugLog(`🌐 ${id} music data:`, res);
 
     // 兼容新旧接口的数据结构
     const pickSongData = (r: any) => (Array.isArray(r?.data) ? r.data[0] : r?.data?.[0]);
@@ -223,7 +224,7 @@ class SongManager {
     // 取链失败（API 服务出口 IP 被网易云风控时常见：url 为空且 code 为 404 / -110）时，
     // 自动携带 randomCNIP 重试一次；仍失败则交由上层走解锁回退
     if (!songData?.url) {
-      if (import.meta.env.DEV) console.log(`🔁 [${id}] 首次取链未返回地址，携带 randomCNIP 重试`);
+      debugLog(`🔁 [${id}] 首次取链未返回地址，携带 randomCNIP 重试`);
       res = await songUrl(id, level as any, { randomCNIP: true });
       songData = pickSongData(res);
     }
@@ -341,7 +342,7 @@ class SongManager {
         if (unlockUrl && (unlockUrl.includes(".flac") || unlockUrl.includes(".wav"))) {
           quality = QualityType.SQ;
         }
-        if (import.meta.env.DEV) console.log(`最终音质判断：详细输出：`, { unlockUrl, quality });
+        debugLog(`最终音质判断：详细输出：`, { unlockUrl, quality });
         return {
           id: songId,
           url: unlockUrl,
@@ -480,7 +481,7 @@ class SongManager {
    */
   public clearPrefetch() {
     this.nextPrefetch = undefined;
-    if (import.meta.env.DEV) console.log("🧹 已清除歌曲 URL 缓存");
+    debugLog("🧹 已清除歌曲 URL 缓存");
   }
 
   /**
@@ -509,7 +510,7 @@ class SongManager {
     if (song.type === "streaming" && song.streamUrl) {
       const streamingStore = useStreamingStore();
       const finalUrl = streamingStore.getSongUrl(song);
-      if (import.meta.env.DEV) console.log(`🔄 [${song.id}] Stream URL:`, finalUrl);
+      debugLog(`🔄 [${song.id}] Stream URL:`, finalUrl);
       return {
         id: song.id,
         url: finalUrl,
@@ -530,7 +531,7 @@ class SongManager {
       this.nextPrefetch.id === songId &&
       settingStore.useNextPrefetch
     ) {
-      if (import.meta.env.DEV) console.log(`🚀 [${songId}] 使用预加载缓存播放`);
+      debugLog(`🚀 [${songId}] 使用预加载缓存播放`);
       const cachedSource = this.nextPrefetch;
       this.nextPrefetch = undefined;
       return cachedSource;
@@ -550,7 +551,7 @@ class SongManager {
         const unlockUrl = await this.getUnlockSongUrl(song, forceSource);
         if (unlockUrl.url) {
           if (import.meta.env.DEV)
-            console.log(`🔓 [${songId}] 指定源解锁成功: ${forceSource}`, unlockUrl);
+            debugLog(`🔓 [${songId}] 指定源解锁成功: ${forceSource}`, unlockUrl);
           return unlockUrl;
         } else {
           // 指定源失败，不回退
@@ -570,7 +571,7 @@ class SongManager {
       if ((!forceSource || forceSource === "auto") && canUnlock) {
         const unlockUrl = await this.getUnlockSongUrl(song);
         if (unlockUrl.url) {
-          if (import.meta.env.DEV) console.log(`🔓 [${songId}] 解锁成功`, unlockUrl);
+          debugLog(`🔓 [${songId}] 解锁成功`, unlockUrl);
           return unlockUrl;
         }
       }
@@ -579,7 +580,7 @@ class SongManager {
         const fallbackUrl = await this.checkLocalCache(songId);
         if (fallbackUrl) {
           if (import.meta.env.DEV)
-            console.log(`🚀 [${songId}] 网络请求失败，使用本地缓存兜底`, fallbackUrl);
+            debugLog(`🚀 [${songId}] 网络请求失败，使用本地缓存兜底`, fallbackUrl);
           return {
             id: songId,
             url: fallbackUrl,
@@ -597,7 +598,7 @@ class SongManager {
       if (!forceSource || forceSource === "auto") {
         const fallbackUrl = await this.checkLocalCache(songId);
         if (fallbackUrl) {
-          if (import.meta.env.DEV) console.log(`🚀 [${songId}] 获取异常，使用本地缓存兜底`);
+          debugLog(`🚀 [${songId}] 获取异常，使用本地缓存兜底`);
           return {
             id: songId,
             url: fallbackUrl,

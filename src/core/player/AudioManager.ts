@@ -13,6 +13,7 @@ import type {
 } from "../audio-player/IPlaybackEngine";
 import { MpvPlayer, useMpvPlayer } from "../audio-player/MpvPlayer";
 import { getSharedAudioContext } from "../automix/SharedAudioContext";
+import { debugLog } from "@/utils/log";
 
 /**
  * 音频管理器
@@ -158,7 +159,7 @@ class AudioManager extends TypedEventTarget<AudioEventMap> implements IPlaybackE
       });
       return;
     }
-    console.log(
+    debugLog(
       `🔀 [AudioManager] Starting Crossfade (duration: ${options.duration}s, type: ${options.mixType})`,
     );
     // 清理之前的 pending
@@ -243,7 +244,7 @@ class AudioManager extends TypedEventTarget<AudioEventMap> implements IPlaybackE
       keepContextRunning: true,
     });
     const commitSwitch = () => {
-      console.log("🔀 [AudioManager] Committing Crossfade Switch");
+      debugLog("🔀 [AudioManager] Committing Crossfade Switch");
       if (this.cleanupListeners) {
         this.cleanupListeners();
         this.cleanupListeners = null;
@@ -523,7 +524,7 @@ export const useAudioManager = (): AudioManager => {
       { immediate: true }, // 立即执行一次以应用初始值
     );
 
-    console.log(`[AudioManager] 创建新实例, engine: ${win[AUDIO_MANAGER_KEY].engineType}`);
+    debugLog(`[AudioManager] 创建新实例, engine: ${win[AUDIO_MANAGER_KEY].engineType}`);
   }
   return win[AUDIO_MANAGER_KEY];
 };

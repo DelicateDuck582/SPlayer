@@ -17,6 +17,7 @@ import {
   sanitizeFileName,
   sanitizeFileType,
 } from "@/utils/download-security";
+import { debugLog } from "@/utils/log";
 
 const albumArtistCache = new Map<number, string[] | Promise<string[]>>();
 const MAX_ALBUM_ARTIST_CACHE_SIZE = 100;
@@ -217,7 +218,7 @@ class SongDownloadStrategy implements DownloadStrategy {
    * @param downloadedFilePath 下载文件路径
    */
   async postProcess(downloadedFilePath: string): Promise<void> {
-    console.log(`Post-processing file: ${downloadedFilePath}`);
+    debugLog(`Post-processing file: ${downloadedFilePath}`);
     // 使用存储的文件名和路径
     const fileName = this.getFileName();
     const targetPath = this.getDownloadPath();
@@ -429,8 +430,7 @@ class SongDownloadStrategy implements DownloadStrategy {
   private async fetchUrlWithRetry(
     fetcher: (options: { randomCNIP: boolean }) => Promise<any>,
   ): Promise<any> {
-    const pickUrl = (r: any): string =>
-      String(r?.data?.url ?? r?.data?.[0]?.url ?? r?.url ?? "");
+    const pickUrl = (r: any): string => String(r?.data?.url ?? r?.data?.[0]?.url ?? r?.url ?? "");
     const first = await fetcher({ randomCNIP: false });
     if (pickUrl(first)) return first;
     console.warn("[Download] 首次取链未返回地址，携带 randomCNIP 重试一次");
@@ -512,7 +512,7 @@ class DownloadManager {
     if (isLogin() === 1) {
       this.resumeWaitingTasks();
     } else {
-      console.log("[DownloadManager] 当前未使用 Cookie 登录，跳过恢复下载队列");
+      debugLog("[DownloadManager] 当前未使用 Cookie 登录，跳过恢复下载队列");
     }
   }
   /**
@@ -713,7 +713,7 @@ class DownloadManager {
       await strategy.prepare();
       // 解析下载地址期间可能已被用户取消，此处必须再次确认
       if (controller.signal.aborted || !this.activeDownloads.has(strategy.id)) {
-        console.log(`Download cancelled before start: ${strategy.name} (ID: ${strategy.id})`);
+        debugLog(`Download cancelled before start: ${strategy.name} (ID: ${strategy.id})`);
         return;
       }
       const config = strategy.getDownloadConfig();
@@ -746,7 +746,7 @@ class DownloadManager {
     } catch (error: any) {
       // 用户主动取消时不提示失败
       if (error?.name === "AbortError") {
-        console.log(`Download cancelled: ${strategy.name} (ID: ${strategy.id})`);
+        debugLog(`Download cancelled: ${strategy.name} (ID: ${strategy.id})`);
       } else {
         console.error(`Error processing task ${strategy.name} (ID: ${strategy.id}):`, error);
         if (error?.message) console.error("Error message:", error.message);
@@ -845,7 +845,7 @@ class DownloadManager {
 
       // 下载过程中被取消或任务已从列表移除时不再保存
       if (controller.signal.aborted || !this.activeDownloads.has(strategy.id)) {
-        console.log(`Download cancelled: ${strategy.name} (ID: ${strategy.id})`);
+        debugLog(`Download cancelled: ${strategy.name} (ID: ${strategy.id})`);
         return;
       }
 

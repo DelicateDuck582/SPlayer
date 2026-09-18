@@ -105,8 +105,47 @@ export const picture = (url: string, scale = 1) => {
   img.src = url;
 };
 
-// 版本输出
+/** 调试日志开关的存储键 */
+const DEBUG_KEY = "splayer:debug";
+/** 开关缓存（避免每次都读 localStorage） */
+let debugEnabledCache: boolean | null = null;
+
+/**
+ * 解析调试日志开关（默认关闭）
+ * - 临时开启：地址栏加 `?debug=1`（会写入 localStorage）
+ * - 永久开启：localStorage["splayer:debug"] = "1"
+ * - 关闭：`?debug=0` 或移除该键
+ */
+const resolveDebugEnabled = (): boolean => {
+  if (debugEnabledCache !== null) return debugEnabledCache;
+  try {
+    const search = new URLSearchParams(globalThis.location?.search ?? "");
+    const query = search.get("debug");
+    if (query === "1") localStorage.setItem(DEBUG_KEY, "1");
+    if (query === "0") localStorage.removeItem(DEBUG_KEY);
+    debugEnabledCache = localStorage.getItem(DEBUG_KEY) === "1";
+  } catch {
+    debugEnabledCache = false;
+  }
+  return debugEnabledCache;
+};
+
+/** 调试日志是否开启（仅开发构建 + 显式开启） */
+export const isDebugLogEnabled = (): boolean => import.meta.env.DEV && resolveDebugEnabled();
+
+/**
+ * 调试日志（默认**静默**）
+ *
+ * 需要排查问题时开启：`?debug=1` 或 `localStorage.setItem("splayer:debug", "1")` 后刷新。
+ * 生产构建始终静默（避免日志中带出用户 id / 签名直链等信息）。
+ */
+export const debugLog = (...args: unknown[]) => {
+  if (isDebugLogEnabled()) console.log(...args);
+};
+
+// 版本输出（仅在开启调试日志时打印，且不包含外部链接）
 export const printVersion = async () => {
+  if (!isDebugLogEnabled()) return;
   success(`🚀 ${packageJson.version}`, packageJson.productName);
-  info(`👤 ${packageJson.author}`, packageJson.github);
+  info(`ℹ️ ${packageJson.productName}`, packageJson.description);
 };

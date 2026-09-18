@@ -1,3 +1,5 @@
+import { debugLog } from "./log";
+
 type StorageType = "localStorage" | "sessionStorage";
 
 interface CacheOptions {
@@ -34,7 +36,7 @@ export const getCacheData = async <T>(
       // 判断缓存是否过期
       const { value, expiry } = JSON.parse(cachedData);
       if (expiry === 0 || new Date().getTime() < expiry) {
-        console.log(`✅ Cached data found for key: ${key}`, value);
+        debugLog(`✅ Cached data found for key: ${key}`, value);
         return value;
       }
     }
