@@ -378,11 +378,16 @@ audio {
 .radio-list {
   display: flex;
   flex-direction: column;
+  /* 详情头（.detail）为绝对定位，歌曲列表需按头部高度预留空间（padding-top）。
+     必须与 ListDetail.vue 的 .detail 高度、useListDetail.getSongListHeight 保持一致，
+     否则会出现首行歌曲被头部盖住，或列表可视高度被压到无法滑动。 */
+  --list-header-height: 240px;
+  --list-header-height-small: 120px;
   .song-list,
   .list-comment,
   .loading,
   .n-empty {
-    padding-top: 240px;
+    padding-top: var(--list-header-height);
     transition:
       padding 0.3s,
       opacity 0.3s;
@@ -392,23 +397,22 @@ audio {
     & ~ .list-comment,
     & ~ .loading,
     & ~ .n-empty {
-      padding-top: 120px;
+      padding-top: var(--list-header-height-small);
     }
   }
   @media (max-width: 768px) {
-    .song-list,
-    .list-comment,
-    .loading,
-    .n-empty {
-      padding-top: 180px;
-    }
-    .list-detail.small {
-      & ~ .song-list,
-      & ~ .list-comment,
-      & ~ .loading,
-      & ~ .n-empty {
-        padding-top: 100px;
-      }
-    }
+    --list-header-height: 180px;
+    /* 压缩态头部实际高度为 120px（旧值 100px 会让首行歌曲被底部操作按钮盖住） */
+    --list-header-height-small: 120px;
+  }
+  /* ≤512px：头部改为「信息行 + 独立全宽操作行」，需要更多纵向空间 */
+  @media (max-width: 512px) {
+    --list-header-height: 210px;
+    --list-header-height-small: 128px;
+  }
+  /* 矮视口（横屏手机）：头部压缩，把高度让给歌曲列表；须放在最后以优先生效 */
+  @media (max-height: 600px) and (orientation: landscape) {
+    --list-header-height: 120px;
+    --list-header-height-small: 96px;
   }
 }

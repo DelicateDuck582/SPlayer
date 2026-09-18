@@ -469,6 +469,17 @@ const albumName = computed(() => {
       width: 80px;
     }
   }
+  /* ≤512px：信息列极窄（320px 实测仅 74px），标签与歌手名挤在同一行
+     （.desc 为 n-flex :wrap="false"，flex-wrap 是内联样式）会把歌手名压到 1px、
+     几乎看不见；允许换行，并给歌手名一个最小宽度以强制换到下一行。 */
+  @media (max-width: 512px) {
+    .info .desc {
+      flex-wrap: wrap !important;
+      .artists {
+        min-width: 50%;
+      }
+    }
+  }
   &.header {
     border: none;
     background-color: transparent;

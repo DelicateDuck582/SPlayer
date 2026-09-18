@@ -553,7 +553,7 @@ const handleTabChange = (value: "songs" | "comments") => {
       }
     }
     @media (max-width: 768px) {
-      height: 180px;
+      height: var(--list-header-height, 180px);
       .cover {
         margin-right: 12px;
       }
@@ -576,10 +576,74 @@ const handleTabChange = (value: "songs" | "comments") => {
         }
       }
     }
+    /* ≤512px：改为「信息行 + 独立全宽操作行」。
+       原先操作按钮挤在封面右侧的窄列里，n-flex 默认换行使按钮叠成两行，
+       而 .menu 是 bottom: 0 的绝对定位，会向上撑高压住简介与创建者/时间
+       （实测 390px 重叠 5103px²、360px 重叠 9063px²）。 */
+    @media (max-width: 512px) {
+      /* 高度 = 12(上内边距) + 封面(高 - 24 - 46) + 12(间距) + 34(操作行) + 12(下内边距) */
+      height: var(--list-header-height, 210px);
+      padding: 12px 0;
+      .cover {
+        margin-right: 12px;
+        /* 让出底部操作行：34px 按钮 + 12px 间距 */
+        height: calc(100% - 46px);
+      }
+      .data {
+        /* 取消定位，使 .menu 以 .detail 为参照横向铺满 */
+        position: static;
+        padding-right: 0;
+        /* 信息区只占「信息行」高度并裁掉多余内容，保证不会压到底部操作行
+           （专辑 / 电台页元信息更多，320px 下会换行变高） */
+        height: calc(100% - 46px);
+        overflow: hidden;
+        .collapse {
+          position: static;
+        }
+        /* .meta 为 n-flex（默认 flex-wrap: wrap 为内联样式）：窄列里多项会各自换行，
+           这里只做横向裁切，纵向由 .data 的 overflow 兜底 */
+        .meta {
+          overflow: hidden;
+          .item {
+            min-width: 0;
+          }
+        }
+        .menu {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 12px;
+        }
+      }
+    }
+    /* 矮视口（横屏手机 / 低矮横向窗口）：头部压成一行并收起简介。
+       原先横屏 844x390 仍是 240px 头部 + 240px 列表预留，
+       主内容高度仅 258px → 列表 18px、n-scrollbar 可视高度 0px，歌单完全滑不动。
+       限定 orientation: landscape，避免误伤 360x640 这类竖屏小屏手机。 */
+    @media (max-height: 600px) and (orientation: landscape) {
+      height: var(--list-header-height, 120px);
+      padding: 8px 0;
+      .cover {
+        margin-right: 12px;
+      }
+      .data {
+        padding-right: 12px;
+        .name {
+          font-size: 22px;
+          margin-bottom: 8px;
+        }
+        .collapse {
+          top: 42px;
+          .description {
+            display: none;
+          }
+        }
+      }
+    }
   }
   &.small {
     .detail {
-      height: 120px;
+      height: var(--list-header-height-small, 120px);
       .cover {
         margin-right: 12px;
         .cover-mask,
@@ -603,6 +667,12 @@ const handleTabChange = (value: "songs" | "comments") => {
             --n-tab-padding: 2px 0;
           }
         }
+      }
+    }
+    /* 矮视口下压缩态头部同步缩小（与 main.scss 的 --list-header-height-small 一致） */
+    @media (max-height: 600px) and (orientation: landscape) {
+      .detail {
+        height: var(--list-header-height-small, 96px);
       }
     }
   }
