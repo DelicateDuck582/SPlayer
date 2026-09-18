@@ -86,9 +86,31 @@ const getStyleList = async () => {
   styleGroups.value = (result?.data ?? []).filter((item) => item?.childrenTags?.length);
 };
 
+/** 已加载过的曲风内容缓存（避免来回切换时重复请求 4 个接口） */
+const styleCache = new Map<
+  string,
+  {
+    detail: NeteaseStyleDetail | null;
+    songs: SongType[];
+    playlists: CoverType[];
+    artists: ArtistType[];
+  }
+>();
+
 /** 加载某曲风的详情与内容 */
 const getStyleContent = async (tagId: number | string) => {
   if (!tagId) return;
+  const cacheKey = String(tagId);
+  // 命中缓存：直接使用，不再请求
+  const cached = styleCache.get(cacheKey);
+  if (cached) {
+    currentTagId.value = tagId;
+    detail.value = cached.detail;
+    songs.value = cached.songs;
+    playlists.value = cached.playlists;
+    artists.value = cached.artists;
+    return;
+  }
   loading.value = true;
   try {
     currentTagId.value = tagId;
@@ -114,6 +136,12 @@ const getStyleContent = async (tagId: number | string) => {
       artistResult.status === "fulfilled"
         ? formatArtistsList(artistResult.value?.data?.artists ?? artistResult.value?.artists ?? [])
         : [];
+    styleCache.set(cacheKey, {
+      detail: detail.value,
+      songs: songs.value,
+      playlists: playlists.value,
+      artists: artists.value,
+    });
   } finally {
     loading.value = false;
   }

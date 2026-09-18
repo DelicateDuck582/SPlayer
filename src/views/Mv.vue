@@ -113,6 +113,12 @@ const subed = ref<boolean>(false);
 /** 当前 MV id（为空时进入「MV 广场」列表模式） */
 const currentId = computed<number | string>(() => (route.query?.id as string) || "");
 
+/** 仅接受 http(s) 播放地址（上游返回 http 时升级为 https，避免混合内容） */
+const toSafeUrl = (url: unknown): string => {
+  const value = String(url ?? "").replace(/^http:/, "https:");
+  return /^https?:\/\//i.test(value) ? value : "";
+};
+
 /** 拉取 MV 广场列表 */
 const getMvList = async () => {
   loading.value = true;
@@ -156,7 +162,7 @@ const getMvData = async () => {
         }
       }
     }
-    url.value = playUrl;
+    url.value = playUrl ? toSafeUrl(playUrl) : "";
     similar.value = simiResult.status === "fulfilled" ? (simiResult.value?.mvs ?? []) : [];
   } finally {
     loading.value = false;

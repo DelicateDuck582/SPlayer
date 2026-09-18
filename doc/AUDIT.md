@@ -84,3 +84,43 @@
 
 
 
+
+---
+
+# 审计报告（2026-09-19 · `NEWAPI` 分支增量）
+
+> **对象**：`NEWAPI` 分支新增内容 —— 网易云 API 能力补齐（`src/api/netease`、`scripts/gen-netease-endpoints.ts`）与 10 个新页面（曲风 / MV 广场与详情 / 音乐日历 / 听歌足迹 / 消息中心 / 用户主页 / 会员中心 / 视频广场 / 数字专辑 / 电台榜单）+ `History.vue` 多 Tab 扩展。
+> **方法**：代码核对 + 本地只读实测（本地 npm 版 API 适配器 `http://127.0.0.1:3210`、无头浏览器真实页面、逐路由隔离对照）+ 构建期静态检查（`vue-tsc` / ESLint / Prettier）。不含任何真实凭据。
+> **结论速览**：安全 4 项（3 项已修复 / 1 项通过）、性能 4 项（全部已修复）、观察项 1 项（既有问题，非本分支引入，已留证）。
+
+## 安全
+
+| 编号 | 问题 | 证据 | 状态 |
+| --- | --- | --- | --- |
+| N-S1 | **私信内容经 URL 传输**：`/send/text`（以及 `/send/song`、`/send/playlist`）原以查询参数发送，内容会进入 API 服务访问日志、浏览器历史与 `Referer` 风险面 | 代码核对：封装为 `neteaseApi("/send/text", { params: { userIds, msg } })` → GET URL 携带明文私信 | **已修复**：改为 `method: "post"` + `data`（上游服务端同时读取 `req.query` 与 `req.body`，语义不变），并关闭 `timestamp` |
+| N-S2 | **播放地址未校验协议**：MV / 视频播放地址直接绑定到 `<video :src>`，仅做了 `http→https` 字符串替换 | 代码核对：`Mv.vue`、`VideoSquare.vue` 的取链结果未做协议白名单 | **已修复**：统一 `toSafeUrl()`（`http`→`https` 升级 + 仅接受 `http(s)://`，其余置空并提示"暂无播放地址"） |
+| N-S3 | **写操作缺少登录态即时校验**：会员中心的每日签到 / 云贝签到 / 领取成长值 / 完成云贝任务仅有路由级 `meta.needLogin`，登录态中途失效会得到上游 `301` 且提示不明确 | 代码核对 + 设计评审（路由守卫只在进入页面时校验收） | **已修复**：新增 `requireLogin()`，四类写操作前置校验，失效时提示并拉起登录弹窗 |
+| N-S4 | **注入面核查**（结论项）：新增页面全部使用 Vue 文本插值，无 `v-html`、无 `innerHTML`、无动态 `<script>` 注入；生成的端点清单为静态字面量；未引入第三方二进制（听歌识曲的第三方 WASM 指纹**刻意未纳入**） | `git grep -n "v-html\|innerHTML\|new Function"` 在新增文件中无命中；`src/api/netease/endpoints.ts` 由本地脚本生成 | **通过**（无新增注入面） |
+
+## 性能
+
+| 编号 | 问题 | 证据 / 量化 | 状态 |
+| --- | --- | --- | --- |
+| N-P1 | **浏览类接口穿透服务端缓存**：`neteaseApi` 默认附加 `timestamp`，而 API 服务的响应缓存以完整 URL 为键（上游 `apicache` 默认 2 分钟）→ 每次都命中不到缓存 | 设计核对：曲风 / MV / 视频 / 电台 / 专辑等只读接口均带 `timestamp` | **已修复**：新增 `neteaseBrowse()`（强制 `timestamp: false`）并应用于 30+ 个只读封装（曲风、相似内容、MV、视频、电台榜单、专辑/新碟、播客、`/check/music` 等）；个性化接口（消息、用户、会员、云贝、听歌足迹、最近播放）保持带时间戳 |
+| N-P2 | **曲风页重复请求**：切换曲风后再切回会重新请求 4 个接口（详情 / 歌曲 / 歌单 / 歌手） | 代码核对 + 冒烟：每次切换产生 4 个请求 | **已修复**：按 `tagId` 增加内存缓存（命中即复用，不再请求） |
+| N-P3 | **视频时间线重复条目**：分页 `offset` 递增时上游可能返回重复 `vid`，导致列表出现重复卡片并持续增长 | 代码核对（原实现 `concat` 不去重、无上限） | **已修复**：按 `vid` 去重 + 列表上限 200 条 |
+| N-P4 | **377 条端点联合类型的类型检查开销** | 实测：`vue-tsc --noEmit -p tsconfig.web.json` 全量 8.6s（与未引入清单时同量级） | **通过**（无需优化） |
+
+## 观察项（既有问题，非本分支引入）
+
+| 编号 | 现象 | 证据 | 建议 |
+| --- | --- | --- | --- |
+| N-O1 | 本地 web dev 模式控制台出现 3 条错误：`Cannot read properties of undefined (reading 'ipcRenderer')`、`(reading 'store')`、以及对应的 Vue `mounted hook` 致命错误 | 逐路由隔离测试：新页面 `/video-square`、`/digital-album`、`/radio-board`、`/history` 错误数均为 **3**；使用**未改动**的对照路由 `/style` 复测同样为 **3** → 与本次改动无关。候选位置为 `window.api.store` / `window.electron.ipcRenderer` 的调用点（`src/components/Setting/config/*`、`src/components/Setting/components/CacheSizeLimit.vue`、`src/views/DesktopLyric/index.vue` 等，`Nav.vue` 已有 `isElectron` 守卫） | 统一封装 `isElectron` 守卫或可选链（`window.api?.store?.get`），并在 web 模式提供 no-op 实现；属于独立小改动，建议单独提交与回归 |
+
+## 复审建议
+
+1. **接口层面**：新增页面涉及的所有写操作（`/send/*`、`/daily_signin`、`/yunbei/sign`、`/vip/growthpoint/get`、`/mv/sub`、`/follow`）建议统一收敛到「带登录校验 + 统一错误提示」的封装层，避免每页各写一遍。
+2. **缓存层面**：`neteaseBrowse` 已覆盖只读浏览接口；后续若接入个性化推荐流（推荐视频、推荐电台），应继续使用带 `timestamp` 的 `neteaseApi`，避免把个性化结果缓存成公共响应。
+3. **端点层面**：`neteaseApi` 允许调用全部 377 个端点（含 `/login/cellphone`、`/user/replacephone` 等敏感写接口）。当前仅内部使用、且都需要登录态，风险可接受；若未来对外开放该模块，建议按「读/写/敏感」分级并加白名单。
+4. **能力层面**：听歌识曲（`/audio/match`）涉及第三方指纹算法（来源不明二进制），继续维持**不接入**；如后续确需，先明确许可与来源可验证性再评估。
+

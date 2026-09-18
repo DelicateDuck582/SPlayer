@@ -29,6 +29,8 @@ import {
 import type {
   NeteaseAudioMatchResult,
   NeteaseCalendarResult,
+  NeteaseDjItem,
+  NeteaseDigitalAlbum,
   NeteaseListenReport,
   NeteaseListenToday,
   NeteaseListenTotal,
@@ -80,6 +82,18 @@ export const neteaseApiByName = <T = any>(
   options: NeteaseCallOptions = {},
 ): Promise<T> => neteaseApi<T>(NETEASE_ENDPOINT_PATH_BY_NAME[name], options);
 
+/**
+ * 浏览类（只读、非个性化）调用：**不附加 `timestamp`**
+ *
+ * 原因：API 服务的响应缓存以完整 URL 为键（上游 `apicache`，默认 2 分钟），
+ * 带时间戳参数会让每次请求都变成「新 URL」而穿透缓存；浏览类接口内容与用户无关，
+ * 去掉时间戳可以吃到缓存、降低上游压力与首屏耗时。
+ */
+export const neteaseBrowse = <T = any>(
+  path: NeteaseEndpointPath,
+  options: NeteaseCallOptions = {},
+): Promise<T> => neteaseApi<T>(path, { ...options, timestamp: false });
+
 /** 端点总数（用于「网易云 API 能力」页展示） */
 export const neteaseEndpointList = NETEASE_ENDPOINTS;
 
@@ -123,27 +137,29 @@ export const listenDataYearReport = () =>
 
 /** 曲风列表（含子曲风） */
 export const styleList = () =>
-  neteaseApi<{ code: number; data?: NeteaseStyleTag[] }>("/style/list");
+  neteaseBrowse<{ code: number; data?: NeteaseStyleTag[] }>("/style/list");
 
 /** 曲风详情 */
 export const styleDetail = (tagId: number | string) =>
-  neteaseApi<{ code: number; data?: NeteaseStyleDetail }>("/style/detail", { params: { tagId } });
+  neteaseBrowse<{ code: number; data?: NeteaseStyleDetail }>("/style/detail", {
+    params: { tagId },
+  });
 
 /** 曲风 - 歌曲 */
 export const styleSong = (tagId: number | string) =>
-  neteaseApi("/style/song", { params: { tagId } });
+  neteaseBrowse("/style/song", { params: { tagId } });
 
 /** 曲风 - 歌单 */
 export const stylePlaylist = (tagId: number | string) =>
-  neteaseApi("/style/playlist", { params: { tagId } });
+  neteaseBrowse("/style/playlist", { params: { tagId } });
 
 /** 曲风 - 歌手 */
 export const styleArtist = (tagId: number | string) =>
-  neteaseApi("/style/artist", { params: { tagId } });
+  neteaseBrowse("/style/artist", { params: { tagId } });
 
 /** 曲风 - 专辑 */
 export const styleAlbum = (tagId: number | string) =>
-  neteaseApi("/style/album", { params: { tagId } });
+  neteaseBrowse("/style/album", { params: { tagId } });
 
 /** 曲风偏好（登录后） */
 export const stylePreference = () => neteaseApi("/style/preference");
@@ -152,22 +168,22 @@ export const stylePreference = () => neteaseApi("/style/preference");
 
 /** 相似歌曲 */
 export const simiSong = (id: number | string) =>
-  neteaseApi<{ code: number; songs?: any[] }>("/simi/song", { params: { id } });
+  neteaseBrowse<{ code: number; songs?: any[] }>("/simi/song", { params: { id } });
 
 /** 相似歌手 */
 export const simiArtist = (id: number | string) =>
-  neteaseApi<{ code: number; artists?: any[] }>("/simi/artist", { params: { id } });
+  neteaseBrowse<{ code: number; artists?: any[] }>("/simi/artist", { params: { id } });
 
 /** 相似歌单 */
 export const simiPlaylist = (id: number | string) =>
-  neteaseApi<{ code: number; playlists?: any[] }>("/simi/playlist", { params: { id } });
+  neteaseBrowse<{ code: number; playlists?: any[] }>("/simi/playlist", { params: { id } });
 
 /** 相似 MV */
 export const simiMv = (mvid: number | string) =>
-  neteaseApi<{ code: number; mvs?: NeteaseMvBrief[] }>("/simi/mv", { params: { mvid } });
+  neteaseBrowse<{ code: number; mvs?: NeteaseMvBrief[] }>("/simi/mv", { params: { mvid } });
 
 /** 听了这首歌的用户（最近 5 个） */
-export const simiUser = (id: number | string) => neteaseApi("/simi/user", { params: { id } });
+export const simiUser = (id: number | string) => neteaseBrowse("/simi/user", { params: { id } });
 
 /* -------------------------------------------------------------------- 会员 */
 
@@ -271,17 +287,21 @@ export const msgNotices = (limit = 30, offset = 0) =>
 export const msgRecentContact = () =>
   neteaseApi<{ code: number; data?: NeteaseMessageItem[] }>("/msg/recentcontact");
 
-/** 发送私信（文本） */
+/** 发送私信（文本）—— 内容走 POST body，避免出现在 URL / 访问日志中 */
 export const sendText = (userIds: string, msg: string) =>
-  neteaseApi("/send/text", { params: { userIds, msg } });
+  neteaseApi("/send/text", { method: "post", data: { userIds, msg }, timestamp: false });
 
-/** 发送私信（歌曲） */
+/** 发送私信（歌曲）—— 同上，走 POST body */
 export const sendSong = (userIds: string, id: number | string, msg = "") =>
-  neteaseApi("/send/song", { params: { userIds, id, msg } });
+  neteaseApi("/send/song", { method: "post", data: { userIds, id, msg }, timestamp: false });
 
-/** 发送私信（歌单） */
+/** 发送私信（歌单）—— 同上，走 POST body */
 export const sendPlaylist = (userIds: string, playlist: number | string, msg = "") =>
-  neteaseApi("/send/playlist", { params: { userIds, playlist, msg } });
+  neteaseApi("/send/playlist", {
+    method: "post",
+    data: { userIds, playlist, msg },
+    timestamp: false,
+  });
 
 /* ---------------------------------------------------------------- 用户与社交 */
 
@@ -344,17 +364,17 @@ export const userAccount = () => neteaseApi("/user/account");
 
 /** MV 详情 */
 export const mvDetail = (mvid: number | string) =>
-  neteaseApi<{ code: number; data?: NeteaseMvDetail; subed?: boolean }>("/mv/detail", {
+  neteaseBrowse<{ code: number; data?: NeteaseMvDetail; subed?: boolean }>("/mv/detail", {
     params: { mvid },
   });
 
 /** MV 点赞 / 转发 / 评论数 */
 export const mvDetailInfo = (mvid: number | string) =>
-  neteaseApi("/mv/detail/info", { params: { mvid } });
+  neteaseBrowse("/mv/detail/info", { params: { mvid } });
 
 /** MV 播放地址（r：分辨率，如 480 / 720 / 1080） */
 export const mvUrl = (id: number | string, r = 1080) =>
-  neteaseApi<{ code: number; data?: { id: number; url: string; r: number; size: number } }>(
+  neteaseBrowse<{ code: number; data?: { id: number; url: string; r: number; size: number } }>(
     "/mv/url",
     {
       params: { id, r },
@@ -367,50 +387,51 @@ export const mvSub = (mvid: number | string, t: 0 | 1 = 1) =>
 
 /** 全部 MV */
 export const mvAll = (area = "全部", type = "全部", order = "上升最快", limit = 30, offset = 0) =>
-  neteaseApi("/mv/all", { params: { area, type, order, limit, offset } });
+  neteaseBrowse("/mv/all", { params: { area, type, order, limit, offset } });
 
 /** 最新 MV */
 export const mvFirst = (area = "", limit = 30) =>
-  neteaseApi("/mv/first", { params: { area, limit } });
+  neteaseBrowse("/mv/first", { params: { area, limit } });
 
 /** 网易出品 MV */
 export const mvExclusiveRcmd = (limit = 30, offset = 0) =>
-  neteaseApi("/mv/exclusive/rcmd", { params: { limit, offset } });
+  neteaseBrowse("/mv/exclusive/rcmd", { params: { limit, offset } });
 
 /** 推荐 MV */
 export const personalizedMv = () =>
-  neteaseApi<{ code: number; result?: NeteaseMvBrief[] }>("/personalized/mv");
+  neteaseBrowse<{ code: number; result?: NeteaseMvBrief[] }>("/personalized/mv");
 
 /** MV 排行 */
 export const topMv = (limit = 30, offset = 0) =>
-  neteaseApi("/top/mv", { params: { limit, offset } });
+  neteaseBrowse("/top/mv", { params: { limit, offset } });
 
 /** 收藏的 MV 列表 */
 export const mvSublist = (limit = 30, offset = 0) =>
   neteaseApi("/mv/sublist", { params: { limit, offset } });
 
 /** 视频详情 */
-export const videoDetail = (id: string) => neteaseApi("/video/detail", { params: { id } });
+export const videoDetail = (id: string) => neteaseBrowse("/video/detail", { params: { id } });
 
 /** 视频播放地址 */
-export const videoUrl = (id: string) => neteaseApi("/video/url", { params: { id } });
+export const videoUrl = (id: string) => neteaseBrowse("/video/url", { params: { id } });
 
 /** 视频分类列表 */
-export const videoCategoryList = () => neteaseApi("/video/category/list");
+export const videoCategoryList = () => neteaseBrowse("/video/category/list");
 
 /** 视频标签列表 */
-export const videoGroupList = () => neteaseApi("/video/group/list");
+export const videoGroupList = () => neteaseBrowse("/video/group/list");
 
 /** 推荐视频（视频时间线） */
 export const videoTimelineRecommend = (offset = 0) =>
-  neteaseApi("/video/timeline/recommend", { params: { offset } });
+  neteaseBrowse("/video/timeline/recommend", { params: { offset } });
 
 /** 全部视频（按标签） */
 export const videoTimelineAll = (tagId = 0, offset = 0) =>
-  neteaseApi("/video/timeline/all", { params: { tagId, offset } });
+  neteaseBrowse("/video/timeline/all", { params: { tagId, offset } });
 
 /** 相关视频 */
-export const relatedAllvideo = (id: string) => neteaseApi("/related/allvideo", { params: { id } });
+export const relatedAllvideo = (id: string) =>
+  neteaseBrowse("/related/allvideo", { params: { id } });
 
 /* ---------------------------------------------------------------- 听歌识曲 */
 
@@ -454,7 +475,7 @@ export const musicFirstListenInfo = (songId: number | string) =>
 
 /** 数字专辑详情 */
 export const digitalAlbumDetail = (id: number | string) =>
-  neteaseApi("/digitalAlbum/detail", { params: { id } });
+  neteaseBrowse("/digitalAlbum/detail", { params: { id } });
 
 /** 已购数字专辑 */
 export const digitalAlbumPurchased = (limit = 30, offset = 0) =>
@@ -462,24 +483,80 @@ export const digitalAlbumPurchased = (limit = 30, offset = 0) =>
 
 /** 数字专辑 - 新碟上架 */
 export const albumList = (limit = 30, offset = 0) =>
-  neteaseApi("/album/list", { params: { limit, offset } });
+  neteaseBrowse("/album/list", { params: { limit, offset } });
 
 /** 全部新碟 */
 export const albumNew = (area = "ALL", limit = 30, offset = 0) =>
-  neteaseApi("/album/new", { params: { area, limit, offset } });
+  neteaseBrowse("/album/new", { params: { area, limit, offset } });
 
 /* ------------------------------------------------------------------ 播客 */
 
 /** 播客搜索 */
 export const voicelistSearch = (keyword: string, limit = 30, offset = 0) =>
-  neteaseApi("/voicelist/search", { params: { keyword, limit, offset } });
+  neteaseBrowse("/voicelist/search", { params: { keyword, limit, offset } });
 
 /** 播客声音列表 */
 export const voicelistList = (voiceListId: number | string, limit = 30, offset = 0) =>
-  neteaseApi("/voicelist/list", { params: { voiceListId, limit, offset } });
+  neteaseBrowse("/voicelist/list", { params: { voiceListId, limit, offset } });
 
 /** 声音详情 */
-export const voiceDetail = (id: number | string) => neteaseApi("/voice/detail", { params: { id } });
+export const voiceDetail = (id: number | string) =>
+  neteaseBrowse("/voice/detail", { params: { id } });
 
 /** 声音歌词 */
-export const voiceLyric = (id: number | string) => neteaseApi("/voice/lyric", { params: { id } });
+export const voiceLyric = (id: number | string) =>
+  neteaseBrowse("/voice/lyric", { params: { id } });
+
+/* ------------------------------------------------------------ 电台榜单/推荐 */
+
+/** 热门电台 */
+export const djHot = (limit = 30, offset = 0) =>
+  neteaseBrowse<{ code: number; djRadios?: NeteaseDjItem[]; hasMore?: boolean }>("/dj/hot", {
+    params: { limit, offset },
+  });
+
+/** 推荐电台 */
+export const djRecommend = () =>
+  neteaseBrowse<{ code: number; djRadios?: NeteaseDjItem[] }>("/dj/recommend");
+
+/** 电台节目榜 */
+export const djProgramToplist = (limit = 30, offset = 0) =>
+  neteaseBrowse<{ code: number; toplist?: any[]; updateTime?: number }>("/dj/program/toplist", {
+    params: { limit, offset },
+  });
+
+/** 电台 24 小时节目榜 */
+export const djProgramToplistHours = () =>
+  neteaseBrowse<{ code: number; data?: any }>("/dj/program/toplist/hours");
+
+/** 电台付费精品榜 */
+export const djPaygift = (limit = 30, offset = 0) =>
+  neteaseBrowse<{ code: number; data?: any[] }>("/dj/paygift", { params: { limit, offset } });
+
+/** 电台今日优选 */
+export const djTodayPerfered = () =>
+  neteaseBrowse("/dj/today/perfered", { params: { limit: 30, offset: 0 } });
+
+/** 电台详情 */
+export const djDetail = (rid: number | string) =>
+  neteaseBrowse<{ code: number; data?: any }>("/dj/detail", { params: { rid } });
+
+/** 电台节目列表 */
+export const djProgram = (rid: number | string, limit = 30, offset = 0, asc = false) =>
+  neteaseBrowse("/dj/program", { params: { rid, limit, offset, asc } });
+
+/** 电台节目详情 */
+export const djProgramDetail = (id: number | string) =>
+  neteaseBrowse<{ code: number; data?: any; program?: any }>("/dj/program/detail", {
+    params: { id },
+  });
+
+/** 数字专辑 - 语种风格馆 */
+export const albumListStyle = (limit = 30, offset = 0) =>
+  neteaseBrowse<{ code: number; albumProducts?: NeteaseDigitalAlbum[] }>("/album/list/style", {
+    params: { limit, offset },
+  });
+
+/** 专辑销量榜（付费专辑榜） */
+export const albumSongsaleboard = (albumType = 0, type = "daily", year?: number) =>
+  neteaseBrowse("/album/songsaleboard", { params: { albumType, type, year } });

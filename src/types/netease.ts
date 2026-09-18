@@ -248,6 +248,66 @@ export interface NeteaseUserRecordSong {
 
 /* ---------------------------------------------------------------- MV / 视频 */
 
+/** 视频条目（视频时间线 / 视频详情） */
+export interface NeteaseVideoItem {
+  /** 视频 id（字符串，非数字） */
+  vid: string;
+  title?: string;
+  coverUrl?: string;
+  /** 时长（毫秒） */
+  durationms?: number;
+  /** 播放次数 */
+  playTime?: number;
+  /** 点赞数 */
+  praisedCount?: number;
+  /** 评论数 */
+  commentCount?: number;
+  description?: string;
+  creator?: { nickname?: string; avatarUrl?: string; userId?: number };
+}
+
+/* ---------------------------------------------------------------- 数字专辑 */
+
+/** 数字专辑（新碟上架 / 已购） */
+export interface NeteaseDigitalAlbum {
+  albumId: number;
+  albumName: string;
+  artistName?: string;
+  artistId?: number;
+  /** 价格（分） */
+  price?: number;
+  coverUrl?: string;
+  pubTime?: number;
+  /** 销量 */
+  saleNum?: number;
+  /** 1：专辑 2：单曲 */
+  albumType?: number;
+}
+
+/* ------------------------------------------------------------ 电台 / 播客 */
+
+/** 电台（榜单 / 推荐）条目，上游各榜单字段不完全一致，这里做兼容 */
+export interface NeteaseDjItem {
+  id: number;
+  name?: string;
+  picUrl?: string;
+  coverUrl?: string;
+  /** 主播昵称 */
+  djNickname?: string;
+  nickname?: string;
+  /** 订阅数 / 播放数 */
+  subCount?: number;
+  playCount?: number;
+  programCount?: number;
+  desc?: string;
+  /** 榜单排名 */
+  rank?: number;
+  /** 节目所属电台名 */
+  radioName?: string;
+  radio?: { name?: string; picUrl?: string };
+  dj?: { nickname?: string; avatarUrl?: string };
+}
+
 /** MV 详情 */
 export interface NeteaseMvDetail {
   id: number;

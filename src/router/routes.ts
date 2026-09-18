@@ -391,6 +391,24 @@ const appRoutes: Array<RouteRecordRaw> = [
     name: "mv",
     component: () => import("@/views/Mv.vue"),
   },
+  // 视频广场（npm 版 API：/video/group/list、/video/timeline/*）
+  {
+    path: "/video-square",
+    name: "video-square",
+    component: () => import("@/views/VideoSquare.vue"),
+  },
+  // 数字专辑 / 新碟（npm 版 API：/album/list、/album/new、/digitalAlbum/*）
+  {
+    path: "/digital-album",
+    name: "digital-album",
+    component: () => import("@/views/DigitalAlbum.vue"),
+  },
+  // 电台榜单（npm 版 API：/dj/hot、/dj/recommend、/dj/program/toplist、/dj/paygift）
+  {
+    path: "/radio-board",
+    name: "radio-board",
+    component: () => import("@/views/RadioBoard.vue"),
+  },
   // 状态
   {
     path: "/403",

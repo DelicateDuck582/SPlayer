@@ -70,6 +70,7 @@
 
 | 日期 | 变更摘要 | 详情 |
 | --- | --- | --- |
+| 2026-09-19 | **网易云 API 能力补齐（第二批）+ 性能/安全审计修复**：新增 视频广场（含播放）/ 数字专辑 / 电台榜单 页面，`最近播放` 扩展为 6 个 Tab；浏览类接口改走缓存友好的 `neteaseBrowse`、曲风页加缓存、私信改 POST、播放地址协议白名单、写操作登录前置 | [CHANGELOG § 第二批 + 审计](./doc/CHANGELOG.md#v2026-09-19-newapi2) · [AUDIT § 增量审计](./doc/AUDIT.md#审计报告2026-09-19--newapi-分支增量) |
 | 2026-09-19 | **网易云 API 能力补齐**（`NEWAPI` 分支）：377 个官方端点清单 + 类型安全通用调用器；新增 曲风 / MV 广场与播放 / 音乐日历 / 听歌足迹 / 消息中心 / 用户主页 / 会员与云贝签到 共 7 个页面 | [CHANGELOG § API 能力补齐](./doc/CHANGELOG.md#v2026-09-19-newapi) |
 | 2026-09-18 | **API 源运行时切换**：设置 → 网络 → API 服务，可在多个自建 / npm 版 API 之间随时切换（**立即生效、无需重新构建**）；配套独立部署项目 `ncm-api-vercel`（npm 版 `NeteaseCloudMusicApi`，并补 `X-Netease-Cookie` 兼容） | [CHANGELOG § API 源切换](./doc/CHANGELOG.md#v2026-09-18-api-switch) |
 | 2026-09-18 | **移动端第三轮**：歌单头部按钮不再压住简介/元信息（<420px）、横屏列表可正常滑动（滚动区可视高度 0px → 120px）、窄屏歌手名不再被压成 1px | [CHANGELOG § 移动端第三轮](./doc/CHANGELOG.md#v2026-09-18-mobile-header) |
@@ -99,6 +100,7 @@
 > 完整报告（安全 S1–S8 / 性能 P1–P6 / 密钥 K1–K4 / 移动端 M1–M5，含问题、证据、状态、复审建议与待办）见 **[doc/AUDIT.md](./doc/AUDIT.md)**。
 
 - 结论速览：安全 6 项已修复 / 1 项部分修复 / 1 项已缓解；性能 4 项已修复、2 项待办；密钥 2 项通过、2 项需注意；移动端 5 项全部已修复
+- **2026-09-19 增量（`NEWAPI` 分支）**：安全 4 项（3 项已修复 / 1 项通过）、性能 4 项（全部已修复）、观察项 1 项（web 模式既有控制台报错，已用未改动路由作对照证明非本分支引入）
 - 高优先级待办：云盘读回 CORS（P6）、凭据存储根治（S6）、CSP 收紧（S2）
 
 ## 🧑‍💻 开发
@@ -153,6 +155,10 @@
 - 🧩 **网易云 API 能力补齐**（`NEWAPI` 分支）：内置官方 377 个端点清单与类型安全通用调用器
 - 🎼 曲风浏览（曲风下的歌曲 / 歌单 / 歌手）
 - 📹 MV 广场与 MV 播放（多分辨率回退取链、相似 MV、收藏、评论入口）
+- 🎬 视频广场（107 个视频标签、推荐流与时间线、弹窗播放）
+- 💿 数字专辑 / 新碟上架、语种风格馆与已购
+- 📻 电台榜单（热门 / 推荐 / 节目榜 / 付费精品）
+- 🕘 最近播放分类（歌曲 / 歌单 / 专辑 / 视频 / 声音 / 播客）
 - 🗓️ 音乐日历（按天回看听过的歌，可一键播放当日歌单）
 - 📊 听歌足迹（累计 / 本周 / 本月 / 年度收听时长与今日收听）
 - 💬 消息中心（私信会话与发送、评论 / @我 / 通知）
@@ -183,21 +189,23 @@
 | 云贝与签到 | `/yunbei/info`、`/yunbei/sign`、`/yunbei/tasks`、`/yunbei/task/finish`、`/daily_signin` | 侧边栏「会员中心」 |
 | 消息中心 | `/msg/private`、`/msg/private/history`、`/msg/comments`、`/msg/forwards`、`/msg/notices`、`/send/text` | 侧边栏「消息中心」 |
 | 用户主页 | `/user/detail`、`/user/playlist`、`/user/follows`、`/user/followeds`、`/user/record`、`/follow` | 侧边栏「我的主页」 |
+| 视频广场（含弹窗播放） | `/video/group/list`、`/video/timeline/recommend`、`/video/timeline/all`、`/video/detail`、`/video/url` | 侧边栏「视频广场」 |
+| 数字专辑 / 新碟 | `/album/list`、`/album/list/style`、`/album/new`、`/digitalAlbum/purchased` | 侧边栏「数字专辑」 |
+| 电台榜单 | `/dj/hot`、`/dj/recommend`、`/dj/program/toplist`、`/dj/paygift` | 侧边栏「电台榜单」 |
+| 最近播放分类 | `/record/recent/{playlist,album,video,voice,dj}` | 侧边栏「最近播放」的 6 个 Tab |
 
 ### 已封装 API、暂未接入界面
 
 > 这些能力已在 `src/api/netease` 封装好（含类型与注释），需要时直接调用即可；其余任意端点也可用 `neteaseApi(path, params)` 调用。
 
-| 能力 | 端点 |
-| --- | --- |
-| 听歌识曲 | `/audio/match`（需上游 300KB WASM 指纹算法）、`/check/music`（歌曲可用性） |
-| 相似内容 | `/simi/song`、`/simi/artist`、`/simi/playlist`、`/simi/user` |
-| 数字专辑 | `/digitalAlbum/detail`、`/digitalAlbum/purchased`、`/album/list`、`/album/new` |
-| 播客 / 声音 | `/voicelist/search`、`/voicelist/list`、`/voice/detail`、`/voice/lyric`、`/dj/*` |
-| 最近播放分类 | `/record/recent/{song,video,voice,playlist,album,dj}` |
-| 视频扩展 | `/video/category/list`、`/video/group/list`、`/video/timeline/*`、`/related/allvideo` |
-| 用户与社交扩展 | `/user/event`、`/event`、`/user/cloud`、`/user/binding`、`/send/song`、`/send/playlist`、`/msg/recentcontact` |
-| 其余全部端点 | 与上游 `module/<name>.js` 一一对应（377 个，见 `endpoints.ts`） |
+| 能力 | 端点 | 未接入原因 |
+| --- | --- | --- |
+| 听歌识曲 | `/audio/match`、`/check/music` | 需要音频指纹，上游 demo 依赖第三方 `mos9527/ncm-afp`（57KB JS + 301KB WASM，许可未明确）→ 不把来源不明的二进制纳入仓库 |
+| 播客声音 | `/voicelist/search`、`/voicelist/list`、`/voice/detail`、`/voice/lyric` | 实测匿名请求返回空（`total=0` / `code=400`），无法验证 |
+| 音乐人中心 | `/musician/data/overview`、`/musician/play/trend`、`/musician/tasks`、`/musician/cloudbean` | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证 |
+| 相似内容 | `/simi/song`、`/simi/artist`、`/simi/playlist`、`/simi/user` | 已封装；MV 页已用 `/simi/mv`，其它入口待设计 |
+| 一起听 / Mlog / 楼层评论 / 歌单导入 / 数字专辑购买 | `/listentogether/*`、`/mlog/*`、`/comment/floor`、`/playlist/import/*`、`/digitalAlbum/ordering` | 需要实时房间或额外交互链路，单独评估 |
+| 其余全部端点 | 与上游 `module/<name>.js` 一一对应（377 个，见 `endpoints.ts`） | 均可用 `neteaseApi` 调用 |
 
 ## 🖼️ 界面展示
 

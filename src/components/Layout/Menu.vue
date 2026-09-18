@@ -155,6 +155,36 @@ const menuOptions = computed<MenuOption[] | MenuGroupOption[]>(() => {
           }),
         },
         {
+          key: "video-square",
+          link: "video-square",
+          label: "视频广场",
+          icon: renderIcon("PlayCircle", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "radio-board",
+          link: "radio-board",
+          label: "电台榜单",
+          icon: renderIcon("Podcast", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "digital-album",
+          link: "digital-album",
+          label: "数字专辑",
+          icon: renderIcon("Album", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
           key: "calendar",
           link: "calendar",
           label: "音乐日历",

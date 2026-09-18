@@ -8,6 +8,7 @@
 
 ## 目录
 
+- [2026-09-19 网易云 API 能力补齐（第二批）+ 审计修复](#v2026-09-19-newapi2)
 - [2026-09-19 网易云 API 能力补齐（NEWAPI）](#v2026-09-19-newapi)
 - [2026-09-18 API 源运行时切换（多 API 并存）](#v2026-09-18-api-switch)
 - [2026-09-18 移动端第三轮：歌单头部按钮重叠与横屏列表滑不动](#v2026-09-18-mobile-header)
@@ -21,6 +22,62 @@
 - [2026-09-12 安全加固与性能优化（第一轮审计）](#v2026-09-12-audit1)
 - [2026-09-12 网页端歌曲下载](#v2026-09-12-download)
 - [2026-08-19 适配新版网易云音乐 API](#v2026-08-19-api)
+
+<a id="v2026-09-19-newapi2"></a>
+
+## 2026-09-19 网易云 API 能力补齐（第二批）+ 性能 / 安全审计修复
+
+**背景**：第一批已接入 7 个页面（曲风 / MV / 日历 / 听歌足迹 / 消息 / 用户 / 会员）；本批继续接入「视频广场 / 数字专辑 / 电台榜单 / 最近播放分类」，并对本分支新增代码做性能与安全审计、修复所发现问题。
+
+**新增接入**
+
+- `src/views/VideoSquare.vue` 视频广场：`/video/group/list`（实测 107 个标签）+ `/video/timeline/recommend`（推荐）+ `/video/timeline/all?tagId`（标签时间线，支持加载更多）；点击卡片在**弹窗内播放**（`/video/detail` + `/video/url`）
+  > 上游视频 `vid` 是 32 位十六进制字符串，既有 `Video.vue` 走 `Number(id)` 取参无法复用，因此自建播放弹窗而非跳转旧页面
+- `src/views/DigitalAlbum.vue` 数字专辑：`/album/list`（新碟上架）、`/album/list/style`（语种风格馆）、`/album/new`（全部新碟）、`/digitalAlbum/purchased`（已购，需登录）；点击进入既有专辑页
+- `src/views/RadioBoard.vue` 电台榜单：`/dj/hot`（热门电台）、`/dj/recommend`（推荐电台）、`/dj/program/toplist`（节目榜，含排名与评分）、`/dj/paygift`（付费精品）；点击进入既有电台页
+- `src/views/History.vue` 扩展为多 Tab：本地最近播放 + 云端 `/record/recent/{playlist,album,video,voice,dj}`（**按需加载**，切到该 Tab 才请求）
+- `src/api/netease/index.ts`：新增电台榜单 / 数字专辑 / 语种风格馆等封装（`djHot`、`djRecommend`、`djProgramToplist`、`djProgramToplistHours`、`djPaygift`、`djTodayPerfered`、`djDetail`、`djProgram`、`djProgramDetail`、`albumListStyle`、`albumSongsaleboard`）
+- 路由与侧边栏：新增「视频广场 / 电台榜单 / 数字专辑」入口
+
+**刻意未接入（附依据）**
+
+| 能力 | 未接入原因 |
+| --- | --- |
+| 听歌识曲 `/audio/match` | 需要音频指纹；上游 demo 依赖第三方 `mos9527/ncm-afp`（`afp.js` 57KB + `afp.wasm` 301KB，许可未明确）→ 不把来源不明的二进制纳入仓库 |
+| 播客声音 `/voicelist/*`、`/voice/*` | 实测匿名请求返回空（`total=0` / `code=400`），无法验证；接口已封装，待有权限时接入 |
+| 音乐人中心 `/musician/*` | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证 |
+| 一起听、Mlog、楼层评论、歌单导入、数字专辑购买链路 | 需要实时房间或额外交互链路，单独评估 |
+
+**审计与修复**（完整证据见 [doc/AUDIT.md](./AUDIT.md) 的 2026-09-19 增量章节）
+
+- 安全
+  - **N-S1** 私信内容原本经 URL 查询参数发送（会进入服务端访问日志与浏览器历史）→ 改为 POST body（`/send/text|song|playlist`）
+  - **N-S2** 播放地址未校验协议 → 统一 `toSafeUrl()`（`http` → `https` 升级 + 仅接受 http(s)）
+  - **N-S3** 会员中心写操作（每日签到 / 云贝签到 / 领成长值 / 完成任务）缺少登录态即时校验 → 统一 `requireLogin()` 前置（登录态中途失效会给出提示并拉起登录）
+  - **N-S4**（结论）新增页面无 `v-html`、无动态脚本注入、不引入第三方二进制 → 通过
+- 性能
+  - **N-P1** 浏览类接口默认附带 `timestamp`，会让每次请求都成为「新 URL」而穿透 API 服务 2 分钟缓存 → 新增 `neteaseBrowse()` 并用于曲风 / 相似内容 / MV / 视频 / 电台 / 专辑 / 播客等只读接口
+  - **N-P2** 曲风页来回切换会重复请求同一曲风的 4 个接口 → 增加按 `tagId` 的内存缓存
+  - **N-P3** 视频时间线分页可能返回重复条目 → 按 `vid` 去重，列表上限 200 条
+  - **N-P4** 377 条端点联合类型对类型检查的影响 → 实测全量 web `vue-tsc` 耗时 8.6s，可忽略
+- 观察项（本次未改，已记录）
+  - 本地 web dev 模式下存在 3 条既有控制台错误（`window.api` / `window.electron` 未注入）；用**未改动**的对照路由 `/style` 复测，错误数同样为 3 条 → 非本分支引入，建议后续统一守卫
+
+**验证**（本地 dev + 本地 npm 版 API 源 `http://127.0.0.1:3210`）
+
+| 检查项 | 结果 |
+| --- | --- |
+| `vue-tsc --noEmit`（web） | 通过（8.6s） |
+| ESLint（TS；仓库配置不覆盖 `.vue`） | 通过 |
+| Prettier | 通过 |
+| 端点清单 `--check` | 通过（377 条，幂等） |
+| `#/video-square` | 渲染 107 个标签 + 7 张视频卡片（推荐流真实数据） |
+| `#/digital-album` | 4 个 Tab，30 张数字专辑（真实名称 / 价格 / 销量） |
+| `#/radio-board` | 4 个 Tab，30 个电台（真实主播 / 期数 / 订阅数） |
+| `#/history` | 6 个 Tab（歌曲 / 歌单 / 专辑 / 视频 / 声音 / 播客） |
+| 控制台错误对照 | 新页面与未改动对照路由均为 3 条既有错误 → 本分支未新增错误 |
+
+**影响范围**：新增 3 个页面与 3 条路由；扩展 `History.vue`；`src/api/netease` 增补封装与 `neteaseBrowse`；未改动既有功能逻辑。
 
 <a id="v2026-09-19-newapi"></a>
 

@@ -171,6 +171,8 @@ import {
   yunbeiTasks as fetchYunbeiTasks,
 } from "@/api/netease";
 import { formatTimestamp } from "@/utils/time";
+import { isLogin } from "@/utils/auth";
+import { openUserLogin } from "@/utils/modal";
 
 const loading = ref<boolean>(false);
 /** 账号信息（昵称 / 头像） */
@@ -202,8 +204,17 @@ const vipExpireText = computed<string>(() => {
   return expire ? formatTimestamp(expire) : "-";
 });
 
+/** 写操作统一前置登录检查（登录态可能在使用过程中失效） */
+const requireLogin = () => {
+  if (isLogin()) return true;
+  window.$message?.warning("登录状态已失效，请重新登录");
+  openUserLogin();
+  return false;
+};
+
 /** 领取成长值 */
 const claimGrowthPoint = async () => {
+  if (!requireLogin()) return;
   const result: any = await vipGrowthPointGet();
   window.$message?.[result?.code === 200 ? "success" : "warning"](
     result?.code === 200 ? "成长值领取成功" : (result?.message ?? "领取失败，请稍后再试"),
@@ -213,6 +224,7 @@ const claimGrowthPoint = async () => {
 
 /** 每日签到（PC 端） */
 const doSignin = async () => {
+  if (!requireLogin()) return;
   const result: any = await dailySignin(1);
   window.$message?.[result?.code === 200 ? "success" : "warning"](
     result?.code === 200
@@ -224,6 +236,7 @@ const doSignin = async () => {
 
 /** 云贝签到 */
 const doYunbeiSign = async () => {
+  if (!requireLogin()) return;
   const result: any = await yunbeiSign();
   window.$message?.[result?.code === 200 ? "success" : "warning"](
     result?.code === 200 ? "云贝签到成功" : (result?.message ?? "云贝签到失败"),
@@ -234,6 +247,7 @@ const doYunbeiSign = async () => {
 /** 完成云贝任务 */
 const finishYunbeiTask = async (task: NeteaseYunbeiTask) => {
   if (!task.taskId) return;
+  if (!requireLogin()) return;
   const result: any = await yunbeiTaskFinish(task.taskId);
   window.$message?.[result?.code === 200 ? "success" : "warning"](
     result?.code === 200 ? "任务已完成" : (result?.message ?? "任务完成失败"),
