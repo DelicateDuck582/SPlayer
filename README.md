@@ -6,10 +6,16 @@
 >
 > 新功能及后续版本请移步 [SPlayer-Next](https://github.com/SPlayer-Dev/SPlayer-Next)
 >
-> ## 本 fork 说明
+> ## 本仓库说明（个人修改版）
 >
-> - 本仓库为个人维护的 fork，不做上游贡献；所有修改更新均集中在 `feat/api-enhanced` 分支
-> - 变更摘要见 [更新记录](#-更新记录)，详细更新日志与审计报告见 [doc/](./doc/README.md)
+> - **原作者 / 原项目**：[imsyy](https://github.com/imsyy)（[imsyy.top](https://imsyy.top)）开发的 [SPlayer](https://github.com/SPlayer-Dev/SPlayer)
+> - **原链接（上游）**：https://github.com/SPlayer-Dev/SPlayer
+> - **许可证**：[GNU AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html)（与原项目一致，**不改变原许可**；对代码的修改、分发或衍生作品须同样采用 AGPL-3.0，并保留原作者的版权与许可信息，全文见 [LICENSE](./LICENSE)）
+> - **本仓库性质**：**个人修改版**，由 [DelicateDuck582](https://github.com/DelicateDuck582) 基于上游二次开发与自行维护；**非官方版本，与原作者、SPlayer 官方团队无关**，不代表官方立场，也未经官方审核或背书
+> - **与上游关系**：上游已进入维护模式并归档，本仓库**不跟进上游、不向上游提交**；所有改动集中在 `feat/api-enhanced` 分支
+> - **本仓库地址**：https://github.com/DelicateDuck582/SPlayer
+> - 变更摘要见 [更新记录](#changelog-summary)，详细更新日志与审计报告见 [doc/](./doc/README.md)
+> - 版权与归属的完整说明见 [关于本仓库（版权与归属）](#about-this-repo)
 
 <div align="center">
 <img alt="logo" height="100" width="100" src="public/icons/favicon.png" />
@@ -54,6 +60,8 @@
 <!--  > 请注意，本程序不打算开发移动端，也不会对移动端进行完美适配，仅保证基础可用性 -->
 
 - 欢迎各位大佬 `Star` 😍
+
+<a id="changelog-summary"></a>
 
 ## 📝 更新记录（摘要）
 
@@ -338,6 +346,27 @@ docker run -d --name SPlayer -p 25884:25884 imsyy/splayer:latest
 请使用者在使用本项目时遵守相关法律法规，**不要将本项目用于任何商业及非法用途。如有违反，一切后果由使用者自负。** 同时，使用者应该自行承担因使用本项目而带来的风险和责任。本项目开发者不对本项目所提供的服务和内容做出任何保证
 
 感谢您的理解
+
+<a id="about-this-repo"></a>
+
+## 🙏 关于本仓库（版权与归属）
+
+本仓库是 [SPlayer](https://github.com/SPlayer-Dev/SPlayer) 的**个人修改版**，非官方发行版。原项目版权与荣誉归原作者所有。
+
+| 项目 | 说明 |
+| --- | --- |
+| 原作者 | [imsyy](https://github.com/imsyy)（[imsyy.top](https://imsyy.top)） |
+| 原项目 | [SPlayer](https://github.com/SPlayer-Dev/SPlayer) |
+| **原链接** | **https://github.com/SPlayer-Dev/SPlayer** |
+| 许可证 | [GNU Affero General Public License v3.0（AGPL-3.0）](https://www.gnu.org/licenses/agpl-3.0.html)，全文见 [LICENSE](./LICENSE) |
+| 本仓库 | [DelicateDuck582/SPlayer](https://github.com/DelicateDuck582/SPlayer)（个人修改版，工作分支 `feat/api-enhanced`） |
+| 与官方的关系 | 无隶属关系，未经原作者审核、授权或背书，不代表原项目及 SPlayer-Next 的立场；请以原项目官方发布为准 |
+| 上游状态 | 原项目已进入维护模式并归档，本仓库不再跟进上游 |
+
+- 原有代码的版权归原作者 **imsyy** 及原项目的贡献者们所有，并继续按 **AGPL-3.0** 授权；本仓库未修改程序内的原作版权信息
+- 本仓库新增的修改由本仓库维护者独立完成，**不代表**原作者的观点或立场，也不构成对原项目的官方维护
+- 本仓库同样以 **AGPL-3.0** 开源：如需使用、修改或分发本仓库代码，请一并遵守 AGPL-3.0（保留原作者版权与许可信息、提供对应源代码、并在适当位置注明原作者）
+- 若原作者或权利方认为本仓库的任何内容不妥，请联系本仓库维护者，我们会及时调整或移除
 
 ## 📜 开源许可
 
