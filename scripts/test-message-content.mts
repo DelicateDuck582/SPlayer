@@ -6,7 +6,13 @@
  */
 import { parseMessageContent, toPreviewText } from "../src/utils/messageContent";
 
-const cases: Array<{ name: string; input: unknown; expectText?: string; expectType?: string }> = [
+const cases: Array<{
+  name: string;
+  input: unknown;
+  expectText?: string;
+  expectType?: string;
+  expectImages?: number;
+}> = [
   {
     name: "① 私信分享歌曲（JSON 串）",
     input:
@@ -60,6 +66,24 @@ const cases: Array<{ name: string; input: unknown; expectText?: string; expectTy
     expectText: "分享歌单",
     expectType: "playlist",
   },
+  {
+    name: "⑧ 私信含大图（HTML <img> 应按消息框尺寸渲染）",
+    input:
+      '<img src="http://p1.music.126.net/obj/big_pic.jpg" width="800" height="1200">看看这张图',
+    expectText: "看看这张图",
+    expectImages: 1,
+  },
+  {
+    name: "⑨ 私信含图片直链",
+    input: "分享一张 https://p1.music.126.net/a/pic.png 哈哈",
+    expectImages: 1,
+  },
+  {
+    name: "⑩ 对象里的 HTML 图片 + 文字",
+    input: { content: '图：<img src="https://p/x.jpg">收到' },
+    expectText: "图：收到",
+    expectImages: 1,
+  },
 ];
 
 let pass = 0;
@@ -74,16 +98,20 @@ for (const testCase of cases) {
   const textOk = testCase.expectText === undefined || result?.text === testCase.expectText;
   const typeOk =
     testCase.expectType === undefined || result?.resource?.type === testCase.expectType;
-  const ok = !error && textOk && typeOk;
+  const imagesOk =
+    testCase.expectImages === undefined || (result?.images?.length ?? 0) === testCase.expectImages;
+  const ok = !error && textOk && typeOk && imagesOk;
   pass += ok ? 1 : 0;
   console.log(`${ok ? "✅" : "❌"} ${testCase.name}`);
   console.log(
-    `   text=${JSON.stringify(result?.text)} type=${result?.resource?.type ?? "-"} sub=${JSON.stringify(result?.resource?.sub ?? "")} cover=${result?.resource?.cover ?? "-"}`,
+    `   text=${JSON.stringify(result?.text)} type=${result?.resource?.type ?? "-"} sub=${JSON.stringify(result?.resource?.sub ?? "")} cover=${result?.resource?.cover ?? "-"} images=${JSON.stringify(result?.images ?? [])}`,
   );
   if (testCase.expectText !== undefined && !textOk)
     console.log(`   期望 text=${JSON.stringify(testCase.expectText)}`);
   if (testCase.expectType !== undefined && !typeOk)
     console.log(`   期望 type=${testCase.expectType}`);
+  if (testCase.expectImages !== undefined && !imagesOk)
+    console.log(`   期望 images=${testCase.expectImages}`);
   if (error) console.log(`   异常：${error}`);
 }
 console.log("");

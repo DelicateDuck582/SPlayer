@@ -68,6 +68,19 @@
                   </n-tag>
                   <SvgIcon class="resource-arrow" name="Right" />
                 </div>
+                <!-- 正文里的图片（限尺寸显示，点击放大） -->
+                <div v-if="item.images?.length" class="msg-images">
+                  <img
+                    v-for="(src, i) in item.images"
+                    :key="i"
+                    class="msg-image"
+                    :class="{ emoji: isEmojiImage(src) }"
+                    :src="src"
+                    loading="lazy"
+                    alt=""
+                    @click.stop="previewImage(src)"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -109,6 +122,19 @@
                     <n-tag :bordered="false" round size="tiny" type="info">
                       {{ resourceLabel(msg.resource.type) }}
                     </n-tag>
+                  </div>
+                  <!-- 消息里的图片（限尺寸显示，点击放大） -->
+                  <div v-if="msg.images?.length" class="msg-images">
+                    <img
+                      v-for="(src, i) in msg.images"
+                      :key="i"
+                      class="msg-image"
+                      :class="{ emoji: isEmojiImage(src) }"
+                      :src="src"
+                      loading="lazy"
+                      alt=""
+                      @click="previewImage(src)"
+                    />
                   </div>
                 </div>
                 <n-avatar v-if="msg.self" round :size="32" :src="myAvatar" />
@@ -180,6 +206,11 @@
         </template>
       </n-drawer-content>
     </n-drawer>
+
+    <!-- 图片预览 -->
+    <n-modal v-model:show="previewVisible" preset="card" style="width: 720px" title="图片预览">
+      <img class="preview-image" :src="previewSrc" alt="" />
+    </n-modal>
   </div>
 </template>
 
@@ -198,7 +229,12 @@ import { useDataStore } from "@/stores";
 import { songDetail } from "@/api/song";
 import { formatSongsList } from "@/utils/format";
 import { usePlayerController } from "@/core/player/PlayerController";
-import { parseMessageContent, toPreviewText, type MessageResource } from "@/utils/messageContent";
+import {
+  isEmojiImage,
+  parseMessageContent,
+  toPreviewText,
+  type MessageResource,
+} from "@/utils/messageContent";
 
 const router = useRouter();
 const dataStore = useDataStore();
@@ -214,6 +250,8 @@ interface NoticeItem {
   avatarUrl?: string;
   nickname?: string;
   resource?: MessageResource;
+  /** 正文里的图片 */
+  images?: string[];
 }
 
 const loading = ref<boolean>(false);
@@ -249,6 +287,8 @@ const history = ref<
     text: string;
     /** 消息附带的资源（分享歌曲 / 歌单等，以卡片展示） */
     resource?: MessageResource;
+    /** 消息里的图片（已限尺寸渲染） */
+    images?: string[];
     avatarUrl?: string;
     nickname?: string;
     time?: string;
@@ -281,6 +321,18 @@ const scrollToBottom = () => {
     const el = historyRef.value;
     if (el) el.scrollTop = el.scrollHeight;
   });
+};
+
+/** 图片预览（点击消息里的图片放大查看） */
+const previewSrc = ref<string>("");
+const previewVisible = computed({
+  get: () => !!previewSrc.value,
+  set: (value: boolean) => {
+    if (!value) previewSrc.value = "";
+  },
+});
+const previewImage = (src: string) => {
+  previewSrc.value = src;
 };
 
 /** Enter 发送、Shift + Enter 换行（避开输入法组词状态） */
@@ -415,6 +467,7 @@ const getNotices = async () => {
         avatarUrl,
         nickname,
         resource: parsed.resource,
+        images: parsed.images,
       };
     });
   };
@@ -448,6 +501,7 @@ const openSession = async (item: NeteaseMessageItem) => {
         return {
           text: parsed.text,
           resource: parsed.resource,
+          images: parsed.images,
           avatarUrl: fromUser?.avatarUrl ?? msg?.avatarUrl,
           nickname: fromUser?.nickname,
           time: formatTime(msg?.time ?? msg?.createTime ?? msg?.sendTime),
@@ -648,7 +702,7 @@ onMounted(getMessageData);
       opacity: 0.5;
     }
   }
-  /* 微信式输入条 */
+  /* 微信式输入条（压扁：单行高度约 32px） */
   .composer {
     display: flex;
     align-items: flex-end;
@@ -656,6 +710,8 @@ onMounted(getMessageData);
     width: 100%;
     .tool {
       flex-shrink: 0;
+      width: 32px;
+      height: 32px;
     }
     .composer-input {
       position: relative;
@@ -664,30 +720,90 @@ onMounted(getMessageData);
       .counter {
         position: absolute;
         right: 10px;
-        bottom: 2px;
+        bottom: 4px;
         font-size: 11px;
       }
       :deep(.n-input) {
         border-radius: 16px;
       }
+      :deep(.n-input__border),
+      :deep(.n-input__state-border) {
+        border-radius: 16px;
+      }
+      /* 去掉 textarea 的默认大内边距与最小高度，避免输入区出现大片空白 */
       :deep(.n-input__textarea-el) {
-        padding-right: 46px;
+        padding: 5px 46px 5px 12px;
+        min-height: 22px;
+        line-height: 22px;
+        resize: none;
       }
     }
     .send {
       flex-shrink: 0;
-      height: 36px;
-      min-width: 64px;
+      height: 32px;
+      min-width: 60px;
+      padding: 0 14px;
     }
   }
-  /* 会话消息区（微信式气泡） */
+  /* 消息 / 通知里的图片：限制尺寸，绝不按原图撑破卡片 */
+  .msg-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    .msg-image {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+      object-fit: cover;
+      cursor: zoom-in;
+      background: var(--n-border-color);
+      /* 表情图按行内小图渲染 */
+      &.emoji {
+        width: 1.4em;
+        height: 1.4em;
+        max-height: 1.4em;
+        object-fit: contain;
+        border-radius: 2px;
+        vertical-align: text-bottom;
+      }
+    }
+  }
+  .preview-image {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+  /* 抽屉：消息区铺满剩余高度，避免输入区上方出现大片空白 */
+  :deep(.n-drawer-body-content-wrapper) {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 12px 0;
+    /* n-spin 容器也要铺满，内部消息区才能撑开 */
+    .n-spin-container,
+    .n-spin-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+  }
+  :deep(.n-drawer-footer) {
+    padding: 8px 12px;
+  }
+  /* 会话消息区（微信式气泡；消息不足时贴底显示） */
   .history {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: calc(100vh - 190px);
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding-right: 4px;
+    > :first-child {
+      margin-top: auto;
+    }
     .time-divider {
       align-self: center;
       margin: 6px 0;

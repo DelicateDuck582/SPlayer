@@ -48,6 +48,8 @@
 | F12 | **消息正文把原始 JSON / HTML 直接渲染出来**（表现为"一长串"、卡片被撑爆变形） | 上游**分享类私信**的 `msg` 是 JSON 串（形如 `{"type":1,"msg":"分享单曲","song":{...}}`），评论 / 通知正文可能含 HTML，部分字段直接是对象；旧实现用 `String(...)` 直接绑定到文本容器 | 新增 `src/utils/messageContent.ts`：`parseMessageContent()` 统一处理 **JSON 串 / HTML / 对象 / 坏 JSON**，输出「可读纯文本 + 可选资源」；**任何解析异常都退化为纯文本**，不再把结构体泄露到界面；会话预览走 `toPreviewText()` 截断 |
 | F13 | 分享类消息只显示一行文字 | 未识别消息体内的资源 | 解析出 `song/album/playlist/mv/video/program/dj` 时渲染**卡片**（封面 + 名称 + 多歌手/作者 + 类型标签），**私信气泡内同样支持**（微信式分享卡片）；歌曲点击直接播放，其余跳转对应页面 |
 | F14 | 超长文本撑破卡片布局 | 文本容器无换行/高度约束 | 正文 `overflow-wrap: anywhere` + `max-height: 320px` 可滚动；封面与标题统一省略号截断 |
+| F15 | **消息里的图片按原始尺寸渲染，把消息框撑爆** | 富文本里的 `<img>` 之前被整段剥掉（既不显示也无法限尺寸） | 解析阶段提取图片（HTML `<img src/data-src>` + 图片直链，去重、`http→https`、最多 6 张）；渲染时 `max-width: 100%` + `max-height: 200px` + 圆角，**表情图按 `1.4em` 行内显示**，点击可放大预览 |
+| F16 | **输入框区域留白过大**（截图中的大片灰色） | `textarea` 保留 naive-ui 默认的大内边距/最小高度；消息区没有铺满抽屉，内容少时与输入区之间留出大片空白 | 压扁输入条：`textarea` 改 `padding: 5px 12px` + `min-height: 22px` + `resize: none`，表情/发送按钮统一 32px；抽屉 body 与 `n-spin` 容器改为 flex 列布局，消息区 `flex: 1` 撑满并**内容不足时贴底**（`margin-top: auto`）；footer 内边距收紧为 `8px 12px` |
 
 **日志与隐私治理**
 
@@ -80,7 +82,8 @@
 | 控制台默认静默实测 | 无头浏览器访问 `/`（首页）与 `/style`：**项目自身诊断日志命中 0 条**（含 `music data:`、`最终播放信息`、`Fetched ... for user`、`[LyricStripper]` 等全部消失），错误数仍为既有基线 3 条 |
 | 资源卡片提取逻辑（用实测样例） | 用「新专辑通知」真实样例 + 歌单 / MV / 视频 / 纯文本共 5 例逐例校验：**全部符合预期**，其中发现并修复「视频 `vid` 为十六进制字符串被 `Number()` 过滤」的问题；封面统一 `http → https` |
 | 音乐日历解析（用实测响应 + 推断形态） | 6 例逐例校验：① 登录后真实形态（`calendarEvents` + 仅 `id/playCount`，经 `/song/detail` 补全为「Ref:rain / Aimer」）② 匿名空壳（实测返回，必须 0 天）③ `song` 嵌套 ④ 数组形态 + `artists/album` 命名 ⑤ 以日期为键 ⑥ `songId` + 带时间日期 —— **6/6 通过** |
-| 消息体解析回归测试（新增 `pnpm test:message-content`） | **7/7 通过**：JSON 分享歌曲（封面取自 `al/album.picUrl`）、真实通知样例（多歌手副标题 `HorseSea1 / 可不 / 初音ミク`）、HTML 去标签、嵌套对象 `msg.song`、坏 JSON 退化为纯文本、空值、歌单分享 |
+| 消息体解析回归测试（新增 `pnpm test:message-content`） | **10/10 通过**：JSON 分享歌曲（封面取自 `al/album.picUrl`）、真实通知样例（多歌手副标题 `HorseSea1 / 可不 / 初音ミク`）、HTML 去标签、嵌套对象 `msg.song`、坏 JSON 退化为纯文本、空值、歌单分享、**HTML 大图提取（限尺寸渲染）**、图片直链、对象内嵌图片 |
+| 消息页 SFC 编译校验 | 通过 Vite 实际编译 `/src/views/Message.vue`（模板 + SCSS）与 `src/utils/messageContent.ts`，无编译错误（该页需登录，视觉需人工确认） |
 
 **影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）。
 

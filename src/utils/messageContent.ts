@@ -31,7 +31,38 @@ export interface ParsedMessage {
   text: string;
   /** 消息附带的资源（存在时以卡片展示） */
   resource?: MessageResource;
+  /** 消息里的图片（HTML `<img>` 或图片直链），渲染时需限制尺寸 */
+  images?: string[];
 }
+
+/** 图片地址判定（含常见图片扩展名或网易图床） */
+const isImageUrl = (url: string): boolean =>
+  /\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/i.test(url) ||
+  /music\.126\.net\/.+\.(png|jpe?g|gif|webp)/i.test(url);
+
+/**
+ * 从 HTML 或纯文本里提取图片地址（最多 6 张，去重、http → https）
+ * @param input 原始内容
+ */
+export const extractImages = (input: string): string[] => {
+  const source = String(input ?? "");
+  const found: string[] = [];
+  // 1) HTML <img src / data-src>
+  const imgPattern = /<img[^>]+(?:src|data-src)=["']([^"']+)["']/gi;
+  let match: RegExpExecArray | null;
+  while ((match = imgPattern.exec(source))) found.push(match[1]);
+  // 2) 纯文本里的图片直链
+  const urlPattern = /https?:\/\/[^\s"'<>()]+/gi;
+  while ((match = urlPattern.exec(source))) {
+    if (isImageUrl(match[0])) found.push(match[0]);
+  }
+  return [...new Set(found.map((url) => url.replace(/^http:/, "https:")))]
+    .filter(isImageUrl)
+    .slice(0, 6);
+};
+
+/** 表情图（尺寸极小，按行内渲染而不是大图） */
+export const isEmojiImage = (url: string): boolean => /emoji|emoticon/i.test(url);
 
 /** 资源字段候选（按优先级） */
 const RESOURCE_CANDIDATES: Array<{ key: string; type: MessageResourceType }> = [
@@ -128,6 +159,21 @@ export const pickMessageResource = (source: unknown): MessageResource | undefine
 /** 可能携带资源 / 文本的嵌套字段 */
 const NESTED_SOURCES = ["msg", "content", "text", "data", "comment", "lastForward", "resource"];
 
+/** 可能携带文本 / 图片的字段 */
+const TEXT_KEYS = ["content", "msg", "text", "html", "title"];
+
+/** 从多个来源对象里收集图片 */
+const collectImages = (sources: Array<Record<string, any>>): string[] => {
+  const images: string[] = [];
+  sources.forEach((source) => {
+    TEXT_KEYS.forEach((key) => {
+      const value = source?.[key];
+      if (typeof value === "string" && value) images.push(...extractImages(value));
+    });
+  });
+  return [...new Set(images)].slice(0, 6);
+};
+
 /**
  * 从对象里提取可读文本与资源（含嵌套字段）
  * @param record 任意对象
@@ -147,9 +193,10 @@ const parseFromObject = (record: Record<string, any>): ParsedMessage => {
     record.title,
     ...NESTED_SOURCES.map((key) => record[key]?.msg ?? record[key]?.content ?? record[key]?.text),
   );
+  const images = collectImages(sources);
 
-  if (text) return { text: stripHtmlText(text), resource };
-  return { text: resource ? "分享内容" : "（非文本消息）", resource };
+  if (text) return { text: stripHtmlText(text), resource, images };
+  return { text: resource ? "分享内容" : "（非文本消息）", resource, images };
 };
 
 /**
@@ -179,8 +226,8 @@ export const parseMessageContent = (raw: unknown): ParsedMessage => {
     }
   }
 
-  // 3) 普通文本（可能含 HTML）
-  return { text: stripHtmlText(value) };
+  // 3) 普通文本（可能含 HTML 或图片直链）
+  return { text: stripHtmlText(value), images: extractImages(value) };
 };
 
 /**
