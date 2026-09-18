@@ -50,6 +50,8 @@
 | F14 | 超长文本撑破卡片布局 | 文本容器无换行/高度约束 | 正文 `overflow-wrap: anywhere` + `max-height: 320px` 可滚动；封面与标题统一省略号截断 |
 | F15 | **消息里的图片按原始尺寸渲染，把消息框撑爆** | 富文本里的 `<img>` 之前被整段剥掉（既不显示也无法限尺寸） | 解析阶段提取图片（HTML `<img src/data-src>` + 图片直链，去重、`http→https`、最多 6 张）；渲染时 `max-width: 100%` + `max-height: 200px` + 圆角，**表情图按 `1.4em` 行内显示**，点击可放大预览 |
 | F16 | **输入框区域留白过大**（截图中的大片灰色） | `textarea` 保留 naive-ui 默认的大内边距/最小高度；消息区没有铺满抽屉，内容少时与输入区之间留出大片空白 | 压扁输入条：`textarea` 改 `padding: 5px 12px` + `min-height: 22px` + `resize: none`，表情/发送按钮统一 32px；抽屉 body 与 `n-spin` 容器改为 flex 列布局，消息区 `flex: 1` 撑满并**内容不足时贴底**（`margin-top: auto`）；footer 内边距收紧为 `8px 12px` |
+| F17 | **私信抽屉里「看起来根本没改」**（图片仍按原图撑破聊天栏、输入区依旧留白、消息区没铺满） | `n-drawer` / `n-modal` 由 naive-ui 经 `VLazyTeleport` 渲染到 `body`，而样式全部写在 `<style scoped>` 里并嵌套于 `.message-view` → 编译为 `.message-view[data-v-*] .history { … }`，**在抽屉/弹窗里一条都不命中**（页面内的通知卡片仍正常，因此不易察觉）| 去掉 `scoped`，改为**以组件唯一 class 作作用域根的全局样式**：`.message-view`（页面）/ `.chat-drawer`（抽屉，加在 `n-drawer-content` 上）/ `.msg-preview`（预览弹窗）；`:deep(...)` 全部改为普通选择器（如 `.chat-drawer .n-drawer-body-content-wrapper`），并保留注释说明原因 |
+| F18 | 图片仍**超出聊天栏宽度**、抽屉底部出现**可拖拽的横向滚动条** | 图片只设 `max-width: 100%`，而气泡宽度由内容决定（不定宽），百分比上限不可靠；`.history` / `.n-drawer-body-content-wrapper` 未限制横向溢出（只写 `overflow-y: auto` 时 `overflow-x` 会被计算为 `auto` → 出现横向滚动条）| 图片加**双层上限** `max-width: min(100%, 260px)` + `max-height: 200px`（`object-fit: contain`，表情图仍 `1.4em`）；气泡 `width: fit-content` + `max-width: 76%`、`.msg` 补 `width: 100% / min-width: 0`；`.history` 与抽屉 body/content-wrapper 统一 `overflow-x: hidden` + `min-width: 0`；预览弹窗宽度改 `min(720px, 92vw)`；通知卡片标题补省略号截断、`.notice-item` 补 `min-width: 0` |
 
 **日志与隐私治理**
 
@@ -84,8 +86,10 @@
 | 音乐日历解析（用实测响应 + 推断形态） | 6 例逐例校验：① 登录后真实形态（`calendarEvents` + 仅 `id/playCount`，经 `/song/detail` 补全为「Ref:rain / Aimer」）② 匿名空壳（实测返回，必须 0 天）③ `song` 嵌套 ④ 数组形态 + `artists/album` 命名 ⑤ 以日期为键 ⑥ `songId` + 带时间日期 —— **6/6 通过** |
 | 消息体解析回归测试（新增 `pnpm test:message-content`） | **10/10 通过**：JSON 分享歌曲（封面取自 `al/album.picUrl`）、真实通知样例（多歌手副标题 `HorseSea1 / 可不 / 初音ミク`）、HTML 去标签、嵌套对象 `msg.song`、坏 JSON 退化为纯文本、空值、歌单分享、**HTML 大图提取（限尺寸渲染）**、图片直链、对象内嵌图片 |
 | 消息页 SFC 编译校验 | 通过 Vite 实际编译 `/src/views/Message.vue`（模板 + SCSS）与 `src/utils/messageContent.ts`，无编译错误（该页需登录，视觉需人工确认） |
+| **抽屉布局 / 图片尺寸实测**（系统 Chrome 无头，复刻 naive-ui 真实 DOM 与盒模型） | 「修复前」对照：图片按 **1200×800** 原图渲染、`.n-drawer-body-content-wrapper` 横向溢出 **759px**（= 底部可拖拽的横向滚动条）、`.history` 横向溢出 783px；「修复后」：图片 **260×173**、两处横向溢出 **0**、消息区高度撑满（667px）；窄屏（360px）复测：图片 **252×168**、横向溢出 **0** |
+| 本轮样式校验 | `<style>` 块用工程本地 `sass` 单独编译通过，产物选择器确认为 `.chat-drawer .n-drawer-body-content-wrapper` / `.message-view .msg-images .msg-image` 等（即确实命中抽屉/弹窗）；Prettier 通过；`vue-tsc -p tsconfig.web.json` EXIT=0 |
 
-**影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）。
+**影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）；F17 / F18 再改 `src/views/Message.vue`（抽屉样式作用域 + 图片尺寸）+ 2 处文档。
 
 <a id="v2026-09-19-newapi2"></a>
 

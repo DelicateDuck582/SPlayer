@@ -91,7 +91,7 @@
 
     <!-- 私信会话（抽屉） -->
     <n-drawer v-model:show="showSession" :width="drawerWidth" placement="right">
-      <n-drawer-content :title="currentSession?.nickname || '私信'" closable>
+      <n-drawer-content class="chat-drawer" :title="currentSession?.nickname || '私信'" closable>
         <n-spin :show="sessionLoading">
           <div ref="historyRef" class="history">
             <template v-for="(msg, index) in history" :key="index">
@@ -207,9 +207,16 @@
       </n-drawer-content>
     </n-drawer>
 
-    <!-- 图片预览 -->
-    <n-modal v-model:show="previewVisible" preset="card" style="width: 720px" title="图片预览">
-      <img class="preview-image" :src="previewSrc" alt="" />
+    <!-- 图片预览（限制在视口内，避免出现横向滚动条） -->
+    <n-modal
+      v-model:show="previewVisible"
+      preset="card"
+      style="width: min(720px, 92vw)"
+      title="图片预览"
+    >
+      <div class="msg-preview">
+        <img class="preview-image" :src="previewSrc" alt="" />
+      </div>
     </n-modal>
   </div>
 </template>
@@ -572,91 +579,17 @@ const getMessageData = async () => {
 onMounted(getMessageData);
 </script>
 
-<style lang="scss" scoped>
-.message-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: auto;
-  .title {
-    display: flex;
-    align-items: flex-end;
-    margin-top: 12px;
-    margin-bottom: 16px;
-    .name {
-      font-size: 30px;
-      font-weight: bold;
-      margin-right: 8px;
-      line-height: normal;
-    }
-    .tip {
-      font-size: 14px;
-      line-height: 30px;
-    }
-  }
-  .session {
-    margin-left: 10px;
-    .nickname {
-      display: block;
-      font-weight: bold;
-    }
-    .last {
-      display: block;
-      font-size: 12px;
-      max-width: 320px;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-  }
-  .notice-title {
-    font-weight: bold;
-  }
-  .notice-content {
-    display: block;
-    font-size: 13px;
-    line-height: 1.6;
-    margin-top: 4px;
-    // 长文本（超长评论 / 未解析内容）不撑破卡片
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: pre-wrap;
-    max-height: 320px;
-    overflow-y: auto;
-  }
-  .time {
-    flex-shrink: 0;
-    font-size: 12px;
-  }
-  .alert {
-    margin-bottom: 10px;
-    border-radius: 10px;
-  }
-  /* 通知 / 评论 / @我：微信式卡片列表 */
-  .notice-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    .notice-item {
-      display: flex;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: var(--n-action-color);
-      &.clickable {
-        cursor: pointer;
-        transition: transform 0.2s var(--n-bezier);
-        &:hover {
-          transform: translateY(-1px);
-        }
-      }
-      .notice-main {
-        flex: 1;
-        min-width: 0;
-      }
-    }
-  }
-  /* 结构化资源卡片（通知卡片与私信气泡共用） */
+<style lang="scss">
+/**
+ * 私信抽屉（n-drawer）与图片预览（n-modal）会被 naive-ui Teleport 渲染到 body，
+ * scoped 样式会编译为 `.message-view[data-v-*] …`，无法命中抽屉/弹窗内部
+ * （此前「图片限尺寸、输入区压扁、消息区铺满」因此完全没生效）。
+ * 改为以组件唯一的 class 作为作用域根，写成全局样式：
+ * .message-view（消息中心页面）、.chat-drawer（私信抽屉）、.msg-preview（图片预览）。
+ */
+.message-view,
+.chat-drawer {
+  /* ===== 共用：结构化资源卡片（通知卡片与私信气泡） ===== */
   .resource-card {
     display: flex;
     align-items: center;
@@ -702,6 +635,131 @@ onMounted(getMessageData);
       opacity: 0.5;
     }
   }
+  /* ===== 共用：消息 / 通知里的图片，限制尺寸，绝不按原图撑破容器 ===== */
+  .msg-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    .msg-image {
+      display: block;
+      width: auto;
+      height: auto;
+      /* 双重上限：容器宽度 + 260px 硬上限，保证一定装得进聊天栏 */
+      max-width: min(100%, 260px);
+      max-height: 200px;
+      object-fit: contain;
+      border-radius: 8px;
+      cursor: zoom-in;
+      background: var(--n-border-color);
+      /* 表情图按行内小图渲染 */
+      &.emoji {
+        width: 1.4em;
+        height: 1.4em;
+        max-height: 1.4em;
+        object-fit: contain;
+        border-radius: 2px;
+        vertical-align: text-bottom;
+      }
+    }
+  }
+}
+.message-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* 只允许纵向滚动，避免页面底部出现可拖拽的横向滚动条 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  .title {
+    display: flex;
+    align-items: flex-end;
+    margin-top: 12px;
+    margin-bottom: 16px;
+    .name {
+      font-size: 30px;
+      font-weight: bold;
+      margin-right: 8px;
+      line-height: normal;
+    }
+    .tip {
+      font-size: 14px;
+      line-height: 30px;
+    }
+  }
+  .session {
+    margin-left: 10px;
+    .nickname {
+      display: block;
+      font-weight: bold;
+    }
+    .last {
+      display: block;
+      font-size: 12px;
+      max-width: 320px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+  .notice-title {
+    font-weight: bold;
+    /* 标题过长时省略：避免撑破卡片，导致页面出现横向滚动条 */
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .notice-content {
+    display: block;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-top: 4px;
+    // 长文本（超长评论 / 未解析内容）不撑破卡片
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .time {
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+  .alert {
+    margin-bottom: 10px;
+    border-radius: 10px;
+  }
+  /* 通知 / 评论 / @我：微信式卡片列表 */
+  .notice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    .notice-item {
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      min-width: 0;
+      background: var(--n-action-color);
+      &.clickable {
+        cursor: pointer;
+        transition: transform 0.2s var(--n-bezier);
+        &:hover {
+          transform: translateY(-1px);
+        }
+      }
+      .notice-main {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+  }
+}
+/* ===== 私信抽屉：内容被 Teleport 到 body，必须使用全局样式 ===== */
+.chat-drawer {
   /* 微信式输入条（压扁：单行高度约 32px） */
   .composer {
     display: flex;
@@ -723,15 +781,13 @@ onMounted(getMessageData);
         bottom: 4px;
         font-size: 11px;
       }
-      :deep(.n-input) {
-        border-radius: 16px;
-      }
-      :deep(.n-input__border),
-      :deep(.n-input__state-border) {
+      .n-input,
+      .n-input__border,
+      .n-input__state-border {
         border-radius: 16px;
       }
       /* 去掉 textarea 的默认大内边距与最小高度，避免输入区出现大片空白 */
-      :deep(.n-input__textarea-el) {
+      .n-input__textarea-el {
         padding: 5px 46px 5px 12px;
         min-height: 22px;
         line-height: 22px;
@@ -745,51 +801,25 @@ onMounted(getMessageData);
       padding: 0 14px;
     }
   }
-  /* 消息 / 通知里的图片：限制尺寸，绝不按原图撑破卡片 */
-  .msg-images {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    .msg-image {
-      max-width: 100%;
-      max-height: 200px;
-      border-radius: 8px;
-      object-fit: cover;
-      cursor: zoom-in;
-      background: var(--n-border-color);
-      /* 表情图按行内小图渲染 */
-      &.emoji {
-        width: 1.4em;
-        height: 1.4em;
-        max-height: 1.4em;
-        object-fit: contain;
-        border-radius: 2px;
-        vertical-align: text-bottom;
-      }
-    }
-  }
-  .preview-image {
-    display: block;
-    width: 100%;
-    max-height: 70vh;
-    object-fit: contain;
-    border-radius: 8px;
-  }
-  /* 抽屉：消息区铺满剩余高度，避免输入区上方出现大片空白 */
-  :deep(.n-drawer-body-content-wrapper) {
+  /* 抽屉：消息区铺满剩余高度、输入区贴底，且杜绝横向滚动条 */
+  .n-drawer-body-content-wrapper {
     display: flex;
     flex-direction: column;
     padding: 10px 12px 0;
-    /* n-spin 容器也要铺满，内部消息区才能撑开 */
-    .n-spin-container,
-    .n-spin-content {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-    }
+    min-width: 0;
+    overflow-x: hidden;
   }
-  :deep(.n-drawer-footer) {
+  /* n-spin 容器也要铺满，内部消息区才能撑开 */
+  .n-spin-container,
+  .n-spin-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+  .n-drawer-footer {
     padding: 8px 12px;
   }
   /* 会话消息区（微信式气泡；消息不足时贴底显示） */
@@ -799,7 +829,10 @@ onMounted(getMessageData);
     gap: 8px;
     flex: 1;
     min-height: 0;
+    min-width: 0;
+    /* 只允许纵向滚动：避免消息区底部出现可拖拽的横向滚动条 */
     overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 4px;
     > :first-child {
       margin-top: auto;
@@ -816,11 +849,16 @@ onMounted(getMessageData);
       display: flex;
       align-items: flex-start;
       gap: 8px;
+      width: 100%;
       max-width: 100%;
+      min-width: 0;
       .bubble {
         display: flex;
         flex-direction: column;
         gap: 6px;
+        /* 气泡宽度由内容决定（fit-content）且限制在 76% 内，
+           内部图片的百分比宽度才有确定的参照，不会撑出横向滚动条 */
+        width: fit-content;
         max-width: 76%;
         min-width: 0;
         .msg-text {
@@ -857,6 +895,16 @@ onMounted(getMessageData);
       margin: -4px 42px 0 0;
       font-size: 11px;
     }
+  }
+}
+/* ===== 图片预览：n-modal 同样被 Teleport 到 body，需独立根类 ===== */
+.msg-preview {
+  .preview-image {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 8px;
   }
 }
 </style>
