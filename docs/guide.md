@@ -48,7 +48,7 @@ docker run -d --name SPlayer -p 25884:25884 imsyy/splayer:latest
 
 ### Vercel 部署
 
-1. 先部署 [NeteaseCloudMusicApi](https://github.com/neteasecloudmusicapienhanced/api-enhanced) 并获取 API 地址
+1. 先部署 NeteaseCloudMusicApi 并获取 API 地址
 2. Fork 本仓库到你的 GitHub 账号
 3. 复制 `/.env.example` 为 `/.env` 并配置：
    ```
@@ -224,7 +224,7 @@ pnpm build:win -- --x64 --arm64
 
 特此感谢为本项目提供支持与灵感的项目
 
-- [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)
+- NeteaseCloudMusicApi
 - [YesPlayMusic](https://github.com/qier222/YesPlayMusic)
 - [UnblockNeteaseMusic](https://github.com/UnblockNeteaseMusic/server)
 - [applemusic-like-lyrics](https://github.com/Steve-xmh/applemusic-like-lyrics)

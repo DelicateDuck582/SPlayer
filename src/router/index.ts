@@ -27,9 +27,8 @@ const router: Router = createRouter({
   // },
 });
 
-// 前置守卫
-router.beforeEach((to, from, next) => {
-  // console.log("前置守卫", to, from);
+// 前置守卫（使用「返回值」风格：`next()` 回调已被 vue-router 标记为废弃）
+router.beforeEach((to, from) => {
   // 进度条
   if (!isElectron && to.path !== from.path) {
     window.$loadingBar?.start();
@@ -39,14 +38,14 @@ router.beforeEach((to, from, next) => {
     if (!isElectron) window.$loadingBar?.error();
     window.$message?.warning("请登录后使用");
     openUserLogin();
-    return;
+    return false;
   }
   // 需要客户端
-  else if (to.meta.needApp && !isElectron) {
+  if (to.meta.needApp && !isElectron) {
     window.$message?.warning("该功能为客户端独占功能");
-    next("/403");
+    return { path: "/403" };
   }
-  next();
+  return true;
 });
 
 // 后置守卫

@@ -197,7 +197,10 @@ const loadPlaylistData = async (id: number, forceRefresh: boolean = false) => {
 
     // 如果 privileges 数量少于 trackCount，说明数据不完整，需要全量获取
     if (serverIds.length < trackCount && trackCount > 0) {
-      console.log(`🔄 Liked songs incomplete (${serverIds.length}/${trackCount}), fetching all...`);
+      if (import.meta.env.DEV)
+        console.log(
+          `🔄 Liked songs incomplete (${serverIds.length}/${trackCount}), fetching all...`,
+        );
       await fetchAllSongs(id, trackCount);
     } else {
       if (serverIds.length === 0) {
@@ -253,7 +256,7 @@ const fetchAllSongs = async (id: number, total: number) => {
   if (currentRequestId.value !== id) return;
   // 确保最终列表完整性
   setListData(allSongs);
-  console.log(`✅ Fetched all ${allSongs.length} liked songs`);
+  if (import.meta.env.DEV) console.log(`✅ Fetched all ${allSongs.length} liked songs`);
 };
 
 /**
@@ -281,7 +284,8 @@ const syncSongList = async (serverIds: number[], requestId: number) => {
   const missingIds = serverIds.filter((id) => !cachedMap.has(id));
   // 获取缺失的歌曲详情
   if (missingIds.length > 0) {
-    console.log(`🔄 Syncing liked songs: found ${missingIds.length} missing songs`);
+    if (import.meta.env.DEV)
+      console.log(`🔄 Syncing liked songs: found ${missingIds.length} missing songs`);
     const limit = 500;
     let offset = 0;
     while (offset < missingIds.length) {
@@ -306,7 +310,7 @@ const syncSongList = async (serverIds: number[], requestId: number) => {
   if (currentRequestId.value === requestId) {
     setDetailData(formatCoverList(detail.playlist)[0]);
   }
-  console.log("✅ 我喜欢的音乐已同步到服务器顺序");
+  if (import.meta.env.DEV) console.log("✅ 我喜欢的音乐已同步到服务器顺序");
 };
 
 /**
@@ -317,10 +321,11 @@ const checkNeedsUpdate = (): boolean => {
   const likedCount = dataStore.userLikeData.songs.length;
   const cachedCount = dataStore.likeSongsList.data.length;
   if (likedCount !== cachedCount) {
-    console.log(`🔄 我喜欢的音乐缓存需要更新: count changed (${cachedCount} -> ${likedCount})`);
+    if (import.meta.env.DEV)
+      console.log(`🔄 我喜欢的音乐缓存需要更新: count changed (${cachedCount} -> ${likedCount})`);
     return true;
   }
-  console.log("✅ 我喜欢的音乐缓存已更新");
+  if (import.meta.env.DEV) console.log("✅ 我喜欢的音乐缓存已更新");
   return false;
 };
 

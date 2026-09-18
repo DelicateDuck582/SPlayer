@@ -70,6 +70,7 @@
 
 | 日期 | 变更摘要 | 详情 |
 | --- | --- | --- |
+| 2026-09-19 | **实测问题修复 + 日志与密钥治理**：修复消息中心（显示/输入框/发送）、最近播放「未知」、数字专辑排版、会员中心、私人漫游偶发打不开、点「开启控制台」致命错误；消除 `vue-router` 弃用告警洪水；52 处日志收敛到开发环境（含签名直链/接口响应/用户 id）；删除 md 中的作者 npmjs 与上游 API 仓库链接 | [CHANGELOG § 实测问题修复](./doc/CHANGELOG.md#v2026-09-19-fixes) · [AUDIT § 实测与密钥审查](./doc/AUDIT.md#审计报告2026-09-19--实测问题与密钥审查) |
 | 2026-09-19 | **网易云 API 能力补齐（第二批）+ 性能/安全审计修复**：新增 视频广场（含播放）/ 数字专辑 / 电台榜单 页面，`最近播放` 扩展为 6 个 Tab；浏览类接口改走缓存友好的 `neteaseBrowse`、曲风页加缓存、私信改 POST、播放地址协议白名单、写操作登录前置 | [CHANGELOG § 第二批 + 审计](./doc/CHANGELOG.md#v2026-09-19-newapi2) · [AUDIT § 增量审计](./doc/AUDIT.md#审计报告2026-09-19--newapi-分支增量) |
 | 2026-09-19 | **网易云 API 能力补齐**（`NEWAPI` 分支）：377 个官方端点清单 + 类型安全通用调用器；新增 曲风 / MV 广场与播放 / 音乐日历 / 听歌足迹 / 消息中心 / 用户主页 / 会员与云贝签到 共 7 个页面 | [CHANGELOG § API 能力补齐](./doc/CHANGELOG.md#v2026-09-19-newapi) |
 | 2026-09-18 | **API 源运行时切换**：设置 → 网络 → API 服务，可在多个自建 / npm 版 API 之间随时切换（**立即生效、无需重新构建**）；配套独立部署项目 `ncm-api-vercel`（npm 版 `NeteaseCloudMusicApi`，并补 `X-Netease-Cookie` 兼容） | [CHANGELOG § API 源切换](./doc/CHANGELOG.md#v2026-09-18-api-switch) |
@@ -93,7 +94,7 @@
 - 登录凭据存于前端并经请求头传递：API 为独立域，无法使用 `httpOnly` Cookie；根治需 API 侧引入服务端会话
 - 云盘读回为整对象 GET，且 NOS 直连在浏览器必被 CORS 拦截（待改为 API 代理 / 签名 URL）
 - 部署网页端时请在构建环境（如 Vercel 项目环境变量）配置 `VITE_API_URL`，指向自建 API 服务地址（结尾不要带 `/`），或直接修改仓库 `.env`
-- API 服务建议使用 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 最新版本；若其 CORS 配置为通配符 `*`，请勿在播放器侧同时开启凭证模式
+- API 服务建议使用 api-enhanced 最新版本；若其 CORS 配置为通配符 `*`，请勿在播放器侧同时开启凭证模式
 
 ## 🔍 审计报告
 
@@ -168,7 +169,7 @@
 
 ## 🧩 网易云 API 能力（`NEWAPI` 分支）
 
-> npm 版 [`NeteaseCloudMusicApi`](https://www.npmjs.com/package/NeteaseCloudMusicApi) 共 **377 个端点**。本项目把官方能力整理为一份可校验的端点清单 + 类型安全的通用调用器，并在此基础上补齐了一批此前没有入口的功能。
+> npm 版 `NeteaseCloudMusicApi` 共 **377 个端点**。本项目把官方能力整理为一份可校验的端点清单 + 类型安全的通用调用器，并在此基础上补齐了一批此前没有入口的功能。
 
 - **端点清单**：`src/api/netease/endpoints.ts`（自动生成，377 条，每条含中文说明）
   - 生成：`pnpm gen:netease-endpoints -- --pkg <上游包目录>`（或设置 `NCM_PKG_DIR`）
@@ -200,7 +201,7 @@
 
 | 能力 | 端点 | 未接入原因 |
 | --- | --- | --- |
-| 听歌识曲 | `/audio/match`、`/check/music` | 需要音频指纹，上游 demo 依赖第三方 `mos9527/ncm-afp`（57KB JS + 301KB WASM，许可未明确）→ 不把来源不明的二进制纳入仓库 |
+| 听歌识曲 | `/audio/match`、`/check/music` | 需要音频指纹，上游 demo 依赖第三方 `第三方音频指纹库（来源与许可未明确）`（57KB JS + 301KB WASM，许可未明确）→ 不把来源不明的二进制纳入仓库 |
 | 播客声音 | `/voicelist/search`、`/voicelist/list`、`/voice/detail`、`/voice/lyric` | 实测匿名请求返回空（`total=0` / `code=400`），无法验证 |
 | 音乐人中心 | `/musician/data/overview`、`/musician/play/trend`、`/musician/tasks`、`/musician/cloudbean` | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证 |
 | 相似内容 | `/simi/song`、`/simi/artist`、`/simi/playlist`、`/simi/user` | 已封装；MV 页已用 `/simi/mv`，其它入口待设计 |
@@ -309,7 +310,7 @@ docker run -d --name SPlayer -p 25884:25884 imsyy/splayer:latest
 
 > 其他部署平台大致相同，在此不做说明
 
-1. 本程序依赖 [NeteaseCloudMusicApi](https://github.com/neteasecloudmusicapienhanced/api-enhanced) 运行，请确保您已成功部署该项目或兼容的项目，并成功取得在线访问地址
+1. 本程序依赖 NeteaseCloudMusicApi 运行，请确保您已成功部署该项目或兼容的项目，并成功取得在线访问地址
 2. 点击本仓库右上角的 `Fork`，复制本仓库到你的 `GitHub` 账号
 3. 复制 `/.env.example` 文件并重命名为 `/.env`
 4. 将 `.env` 文件中的 `VITE_API_URL` 改为第一步得到的 API 地址
@@ -375,7 +376,7 @@ docker run -d --name SPlayer -p 25884:25884 imsyy/splayer:latest
 
 特此感谢为本项目提供支持与灵感的项目：
 
-- [NeteaseCloudMusicApi](https://github.com/neteasecloudmusicapienhanced/api-enhanced)
+- NeteaseCloudMusicApi
 - [YesPlayMusic](https://github.com/qier222/YesPlayMusic)
 - [UnblockNeteaseMusic](https://github.com/UnblockNeteaseMusic/server)
 - [applemusic-like-lyrics](https://github.com/Steve-xmh/applemusic-like-lyrics)

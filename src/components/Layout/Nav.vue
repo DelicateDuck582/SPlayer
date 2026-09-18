@@ -278,7 +278,8 @@ const setOptions = computed<DropdownOption[]>(() => [
   {
     key: "dev-tools",
     label: "开启控制台",
-    show: isDev,
+    // 仅在客户端开发模式显示：网页端没有 Electron 主进程，点击会抛错
+    show: isDev && isElectron,
     icon: renderIcon("Code"),
   },
   {
@@ -304,7 +305,8 @@ const setSelect = (key: string) => {
       openSetting();
       break;
     case "dev-tools":
-      window.electron.ipcRenderer.send("open-dev-tools");
+      // 防御：网页端不存在 Electron 主进程（菜单项已在网页端隐藏）
+      if (isElectron) window.electron.ipcRenderer.send("open-dev-tools");
       break;
   }
 };

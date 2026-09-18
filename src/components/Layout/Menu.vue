@@ -504,13 +504,17 @@ const renderMenuLabel = (option: MenuOption) => {
 };
 
 // 菜单项更改
-const menuUpdate = (key: string, item: MenuOption) => {
+const menuUpdate = async (key: string, item: MenuOption) => {
   emit("menu-click", key);
   // 私人漫游
   if (key === "personal-fm") {
+    // 列表为空时先尝试拉取一次（刚登录 / 长时间未使用 / 上次刷新失败都会导致为空）
     if (!musicStore.personalFMSong?.id) {
-      window.$message.error("开启私人漫游出错，请重试");
-      return;
+      await songManager.refreshPersonalFM();
+      if (!musicStore.personalFMSong?.id) {
+        window.$message.error("开启私人漫游出错，请稍后重试或检查 API 服务");
+        return;
+      }
     }
     if (statusStore.personalFmMode) {
       player.play();

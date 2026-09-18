@@ -4,7 +4,22 @@
     <div class="title">
       <n-text class="name">会员中心</n-text>
       <n-text class="tip" depth="3">黑胶会员、成长值、云贝与签到</n-text>
+      <n-button
+        :focusable="false"
+        class="refresh"
+        size="small"
+        strong
+        secondary
+        round
+        :loading="loading"
+        @click="getVipData"
+      >
+        刷新
+      </n-button>
     </div>
+    <n-alert v-if="vipError" type="warning" :bordered="false" class="alert">
+      {{ vipError }}
+    </n-alert>
     <n-spin :show="loading">
       <n-grid :cols="3" :x-gap="16" :y-gap="16" item-responsive responsive="screen">
         <!-- 会员状态 -->
@@ -175,6 +190,8 @@ import { isLogin } from "@/utils/auth";
 import { openUserLogin } from "@/utils/modal";
 
 const loading = ref<boolean>(false);
+/** 数据加载错误（例如未登录 / 非会员） */
+const vipError = ref<string>("");
 /** 账号信息（昵称 / 头像） */
 const account = ref<{ nickname?: string; avatarUrl?: string } | null>(null);
 /** 会员信息 */
@@ -258,6 +275,7 @@ const finishYunbeiTask = async (task: NeteaseYunbeiTask) => {
 /** 拉取会员中心全部数据（并发请求，单项失败不影响其余） */
 const getVipData = async () => {
   loading.value = true;
+  vipError.value = "";
   try {
     const [accountResult, vipResult, growthResult, yunbeiResult, taskResult, yunbeiTaskResult] =
       await Promise.allSettled([
@@ -270,18 +288,32 @@ const getVipData = async () => {
       ]);
 
     if (accountResult.status === "fulfilled") {
-      account.value = accountResult.value?.profile ?? null;
+      const account: any = accountResult.value;
+      if (account?.code !== undefined && account.code !== 200) {
+        vipError.value = `账号信息加载失败：${account?.message ?? account?.msg ?? `code ${account?.code}`}`;
+      }
+      account.value = account?.profile ?? null;
     }
-    if (vipResult.status === "fulfilled") vip.value = vipResult.value;
-    if (growthResult.status === "fulfilled") growth.value = growthResult.value?.data ?? {};
-    if (yunbeiResult.status === "fulfilled") yunbei.value = yunbeiResult.value ?? {};
+    if (vipResult.status === "fulfilled") {
+      const result: any = vipResult.value;
+      if (result?.code !== undefined && result.code !== 200 && !vipError.value) {
+        vipError.value = `会员信息加载失败：${result?.message ?? result?.msg ?? `code ${result?.code}`}`;
+      }
+      vip.value = result ?? null;
+    }
+    if (growthResult.status === "fulfilled") {
+      growth.value = (growthResult.value as any)?.data ?? (growthResult.value as any) ?? {};
+    }
+    if (yunbeiResult.status === "fulfilled") {
+      yunbei.value = (yunbeiResult.value as any) ?? {};
+    }
     if (taskResult.status === "fulfilled") {
-      const data: any = taskResult.value?.data;
-      vipTasks.value = Array.isArray(data) ? data : (data?.tasks ?? []);
+      const data: any = (taskResult.value as any)?.data;
+      vipTasks.value = Array.isArray(data) ? data : (data?.list ?? data?.tasks ?? []);
     }
     if (yunbeiTaskResult.status === "fulfilled") {
-      const data: any = yunbeiTaskResult.value?.data;
-      yunbeiTaskList.value = Array.isArray(data) ? data : (data?.tasks ?? []);
+      const data: any = (yunbeiTaskResult.value as any)?.data;
+      yunbeiTaskList.value = Array.isArray(data) ? data : (data?.list ?? data?.tasks ?? []);
     }
   } finally {
     loading.value = false;

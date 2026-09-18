@@ -8,6 +8,7 @@
 
 ## 目录
 
+- [2026-09-19 实测问题修复 + 日志与密钥治理](#v2026-09-19-fixes)
 - [2026-09-19 网易云 API 能力补齐（第二批）+ 审计修复](#v2026-09-19-newapi2)
 - [2026-09-19 网易云 API 能力补齐（NEWAPI）](#v2026-09-19-newapi)
 - [2026-09-18 API 源运行时切换（多 API 并存）](#v2026-09-18-api-switch)
@@ -22,6 +23,54 @@
 - [2026-09-12 安全加固与性能优化（第一轮审计）](#v2026-09-12-audit1)
 - [2026-09-12 网页端歌曲下载](#v2026-09-12-download)
 - [2026-08-19 适配新版网易云音乐 API](#v2026-08-19-api)
+
+<a id="v2026-09-19-fixes"></a>
+
+## 2026-09-19 实测问题修复 + 日志与密钥治理
+
+**背景**：用户实测反馈六类问题 —— 消息中心无法显示消息 / 输入框异常 / 发送后需重新确认；最近播放云端分类全为「未知」；数字专辑排版错乱；会员中心数据异常；私人漫游偶发打不开；点「开启控制台」出现致命错误（`Nav.vue:307 setSelect` → `Cannot read properties of undefined (reading 'ipcRenderer')`）。同时提供的控制台日志含大量 `vue-router` 弃用告警与 Cookie 名称输出，需做日志与密钥审查。
+
+**修复**
+
+| 编号 | 问题 | 根因 | 修复 |
+| --- | --- | --- | --- |
+| F1 | 点「开启控制台」致命错误 | `Nav.vue` 的 `dev-tools` 菜单项仅在 `isDev` 下显示，网页开发模式同样满足 → 调用 `window.electron.ipcRenderer` 时 Electron 主进程不存在 | 菜单项改为 `isDev && isElectron`，调用处补 `isElectron` 守卫 |
+| F2 | 私人漫游偶发打不开 | 列表为空（刚登录 / 长时间未使用 / 上次刷新失败）时直接报错返回 | 点击时若为空先自动 `refreshPersonalFM()` 再播放，失败给出明确提示（含「检查 API 服务」） |
+| F3 | 消息中心不显示 / 输入框异常 / 发送需重新确认 | 上游字段层级多样（`msgs`/`data.msgs`、`fromUser`/`user`、`lastMsg`/`lastMessage`、`msg`/`text`）导致映射落空；输入框为单行且 `@keyup.enter` 在输入法组词时会误发 | 字段多形态兼容；后端 `code≠200` 直接在页面提示（如 301 需要登录）；输入框改 textarea + Enter 发送 / Shift+Enter 换行（避开输入法 229）；发送改**乐观展示**（发送中 → 成功 / 失败可重试并回填），自动滚动到底部、自己/对方消息左右对齐、发送后刷新会话列表 |
+| F4 | 最近播放云端分类全是「未知」 | 资源对象可能位于 `data`/`song`/`video`/`voice`/`dj`/`playlist`/`album` 等不同层级，原实现只取 `item.data` 且兜底文案写死「未知」 | 新增 `pickResource/pickName/pickCover` 多形态提取，名称缺失时兜底显示 `#<id>`；错误可见 |
+| F5 | 数字专辑排版错乱 | 卡片完全没有样式（封面高度不一致、标题长短不齐） | 补齐卡片样式：封面 `1:1` + `object-fit: cover`、标题两行截断、价格/销量同行对齐、栅格改为 `2 / 3 / 5` 列自适应 |
+| F6 | 会员中心数据异常 | VIP / 成长值 / 任务的取值路径与容器类型（数组 vs `data.list`）不完全匹配，且异常时静默 | 修正取值路径与兼容分支、错误可见、新增「刷新」按钮 |
+| F7 | 控制台被 `vue-router` 弃用告警刷屏 | 全局守卫与 10 处 `beforeEnter` 使用已废弃的 `next()` 回调 | 全部改为「返回值」风格（`return false` / `{ path }` / `true`） |
+
+**日志与隐私治理**
+
+- 将 **52 处**诊断日志收敛到 `import.meta.env.DEV`（仅在开发环境输出），涉及：`auth.ts`（用户 id）、`data.ts`、`liked.vue`、`useListDataCache.ts`、`SongInfoEditor.vue`（本地路径与元数据）、`LyricManager.ts`、`PlayerController.ts`（**签名音频直链**）、`SongManager.ts`（接口原始响应）
+- 播放失败日志由 `console.log` 改为 `console.error`（`CoverList.vue`）
+
+**密钥审查（结论）**
+
+| 检查项 | 结果 |
+| --- | --- |
+| 仓库扫描 `pnpm security:secret-scan` | 扫描 648 个文本文件，**0 命中** |
+| 用户提供的 90.5KB 控制台日志 | `MUSIC_U=` / `MUSIC_A_T=` / `__csrf=` / `wsSecret` / `Bearer` / `ghp_` / `sk-` **全部 0 命中** —— 日志中只有 Cookie **名称** |
+| 代码核查 | `src/utils/cookie.ts` 明确只打印 Cookie 名称（注释亦标注「绝不打印值」）；本次再将打印**签名直链**与**接口响应**的日志收敛到开发环境 |
+| 残留风险 | 日志含用户 id（PII，已消除来源）与一条已过期签名直链（已消除来源）；**建议不要把完整控制台日志公开分享** |
+
+**文档与链接**
+
+- 删除 `README.md` 及全部 md 中指向「作者 npmjs 页面 / 上游 API 仓库 / 上游文档站」的**可点击链接**（保留纯文本表述）；`NeteaseCloudMusicApi` 的 **MIT 版权声明保留**（许可要求，非链接）
+- 独立适配层项目（`ncm-api-vercel`）的 README 与代码注释中同类链接一并清理
+
+**验证**
+
+| 检查项 | 结果 |
+| --- | --- |
+| `vue-tsc` / `tsc` / ESLint / Prettier | 全部通过 |
+| 端点清单 `--check` | 通过 |
+| 隔离冒烟（`#/style`（对照）、`#/history`、`#/digital-album`） | 控制台错误数均为 3，与**未改动**对照路由一致 → 未引入新错误 |
+| 3 条残留错误的定性 | 均为本地 web dev 环境 `window.api` / `window.electron` 未注入所致（生产 web 构建此前审计无此类报错）；另有 1 条 `VM2801 ... 'startTime'` 来自浏览器扩展注入脚本，与项目无关 |
+
+**影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）。
 
 <a id="v2026-09-19-newapi2"></a>
 
@@ -43,7 +92,7 @@
 
 | 能力 | 未接入原因 |
 | --- | --- |
-| 听歌识曲 `/audio/match` | 需要音频指纹；上游 demo 依赖第三方 `mos9527/ncm-afp`（`afp.js` 57KB + `afp.wasm` 301KB，许可未明确）→ 不把来源不明的二进制纳入仓库 |
+| 听歌识曲 `/audio/match` | 需要音频指纹；上游 demo 依赖第三方 `第三方音频指纹库（来源与许可未明确）`（`afp.js` 57KB + `afp.wasm` 301KB，许可未明确）→ 不把来源不明的二进制纳入仓库 |
 | 播客声音 `/voicelist/*`、`/voice/*` | 实测匿名请求返回空（`total=0` / `code=400`），无法验证；接口已封装，待有权限时接入 |
 | 音乐人中心 `/musician/*` | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证 |
 | 一起听、Mlog、楼层评论、歌单导入、数字专辑购买链路 | 需要实时房间或额外交互链路，单独评估 |
@@ -318,7 +367,7 @@
 
 ## 2026-08-19 适配新版网易云音乐 API
 
-- **API 地址切换**（`.env` → `VITE_API_URL`）：网页端使用的网易云 API 服务切换为持续维护的新版项目（[api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)），修复网易云接口改版后部分「收藏」无法同步的问题
+- **API 地址切换**（`.env` → `VITE_API_URL`）：网页端使用的网易云 API 服务切换为持续维护的新版项目（api-enhanced），修复网易云接口改版后部分「收藏」无法同步的问题
 - **CORS 兼容**（`src/utils/request.ts`）：关闭 `withCredentials`。登录态通过 `params.cookie` 显式传递，浏览器无需跨域自动携带凭证，从而兼容新版 API 返回的 `Access-Control-Allow-Origin: *`，避免请求被 CORS 策略拦截
 - **缓存健壮性**（`src/utils/cache.ts`）：`getCacheData` 不再缓存 `null/undefined` 结果，防止接口短暂异常时把空值写入 `sessionStorage` 导致页面持续空白
 

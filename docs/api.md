@@ -221,7 +221,7 @@
 - `GET /api/netease/user/playlist?uid=xxx`
 - `GET /api/netease/song/detail?ids=xxx`
 
-更多接口请参考 [NeteaseCloudMusicApi Enhanced 文档](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)
+更多接口请参考 NeteaseCloudMusicApi Enhanced 文档
 
 ---
 

@@ -20,20 +20,20 @@
     <n-spin :show="loading">
       <n-grid
         v-if="list.length"
-        :cols="5"
         :x-gap="16"
         :y-gap="16"
+        cols="2 s:3 m:5"
         item-responsive
         responsive="screen"
       >
-        <n-grid-item v-for="album in list" :key="album.albumId" span="2 s:1">
+        <n-grid-item v-for="album in list" :key="album.albumId" span="1">
           <div class="album-card" @click="goAlbum(album.albumId)">
             <img class="cover" :src="album.coverUrl" loading="lazy" alt="" />
             <n-text class="album-name" :title="album.albumName">{{ album.albumName }}</n-text>
             <n-text class="artist" depth="3" :title="album.artistName">{{
               album.artistName
             }}</n-text>
-            <n-flex class="price" justify="space-between" align="center">
+            <n-flex class="price" justify="space-between" align="center" :wrap="false">
               <n-tag :bordered="false" round size="tiny" type="warning">
                 ¥{{ ((album.price || 0) / 100).toFixed(2) }}
               </n-tag>
@@ -129,6 +129,42 @@ onMounted(getList);
 .digital-album {
   height: 100%;
   overflow: auto;
+  .album-card {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    .cover {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      background: var(--n-action-color);
+    }
+    .album-name {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-top: 6px;
+      font-size: 14px;
+      line-height: 1.4;
+      min-height: 2.8em;
+    }
+    .artist {
+      display: block;
+      font-size: 12px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .price {
+      margin-top: 4px;
+      .sale {
+        font-size: 12px;
+      }
+    }
+  }
   .title {
     display: flex;
     align-items: flex-end;

@@ -41,6 +41,10 @@
       animated
       @update:value="getCloudRecord"
     >
+      <!-- 云端记录错误可见（例如 301 需要登录） -->
+      <n-alert v-if="cloudError" type="warning" :bordered="false" class="alert">
+        {{ cloudError }}
+      </n-alert>
       <n-tab-pane name="song" tab="歌曲">
         <Transition name="fade" mode="out-in">
           <SongList
@@ -152,48 +156,84 @@ const pickItems = (result: any, key: string): any[] => {
   return data[key] ?? data.list ?? [];
 };
 
+/** 取出真正的资源对象：上游可能把资源放在 data / song / video / voice / dj 等字段 */
+const pickResource = (item: any): any => {
+  if (!item || typeof item !== "object") return {};
+  return (
+    item.data ??
+    item.resource ??
+    item.song ??
+    item.video ??
+    item.voice ??
+    item.dj ??
+    item.playlist ??
+    item.album ??
+    item
+  );
+};
+
+/** 资源名（字段命名不一，兜底显示 id，避免整页"未知"） */
+const pickName = (raw: any, ...keys: string[]): string => {
+  for (const key of keys) {
+    const value = raw?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return raw?.id ? `#${raw.id}` : "";
+};
+
+/** 封面地址 */
+const pickCover = (raw: any): string =>
+  raw?.coverUrl ?? raw?.cover ?? raw?.picUrl ?? raw?.coverImgUrl ?? raw?.album?.picUrl ?? "";
+
 /** 已加载过的 Tab（避免每次切回都重新请求） */
 const cloudLoaded = ref<Record<string, boolean>>({});
+/** 云端记录加载错误（例如未登录） */
+const cloudError = ref<string>("");
 
 /** 获取云端最近播放（按需加载） */
 const getCloudRecord = async () => {
   const tab = activeTab.value;
   if (tab === "song" || cloudLoaded.value[tab]) return;
   cloudLoading.value = true;
+  cloudError.value = "";
   try {
+    const result: any = await (tab === "playlist"
+      ? recordRecentPlaylist()
+      : tab === "album"
+        ? recordRecentAlbum()
+        : tab === "video"
+          ? recordRecentVideo()
+          : tab === "voice"
+            ? recordRecentVoice()
+            : recordRecentDj());
+
+    // 后端错误可见（例如 301 需要登录）
+    if (result?.code !== undefined && result.code !== 200) {
+      cloudError.value = `云端记录加载失败：${result?.message ?? result?.msg ?? `code ${result?.code}`}`;
+      return;
+    }
+    const items = pickItems(result, tab === "playlist" ? "playlists" : `${tab}s`).map(pickResource);
+
     if (tab === "playlist" || tab === "album") {
-      const result = await (tab === "playlist" ? recordRecentPlaylist() : recordRecentAlbum());
-      const items = pickItems(result, tab === "playlist" ? "playlists" : "albums").map(
-        (item) => item?.data ?? item,
-      );
       coverList.value[tab] = formatCoverList(items);
     } else if (tab === "video") {
-      const result = await recordRecentVideo();
-      simpleList.value.video = pickItems(result, "videos")
-        .map((item) => item?.data ?? item)
-        .map((item) => ({
-          name: item?.title ?? item?.name ?? "未知视频",
-          cover: item?.coverUrl ?? item?.cover ?? "",
-          sub: item?.creator?.nickname ?? "",
-        }));
+      simpleList.value.video = items.map((raw) => ({
+        name: pickName(raw, "title", "name", "videoTitle"),
+        cover: pickCover(raw),
+        sub: raw?.creator?.nickname ?? raw?.nickname ?? "",
+      }));
     } else if (tab === "voice") {
-      const result = await recordRecentVoice();
-      simpleList.value.voice = pickItems(result, "voices")
-        .map((item) => item?.data ?? item)
-        .map((item) => ({
-          name: item?.name ?? "未知声音",
-          cover: item?.coverUrl ?? item?.cover ?? "",
-          sub: item?.dj?.nickname ?? item?.radio?.name ?? "",
-        }));
+      simpleList.value.voice = items.map((raw) => ({
+        name: pickName(raw, "name", "title", "voiceName"),
+        cover: pickCover(raw),
+        sub: raw?.dj?.nickname ?? raw?.radio?.name ?? raw?.programName ?? "",
+      }));
     } else {
-      const result = await recordRecentDj();
-      simpleList.value.dj = pickItems(result, "djs")
-        .map((item) => item?.data ?? item)
-        .map((item) => ({
-          name: item?.name ?? "未知播客",
-          cover: item?.picUrl ?? item?.cover ?? "",
-          sub: item?.dj?.nickname ?? "",
-        }));
+      simpleList.value.dj = items.map((raw) => ({
+        name: pickName(raw, "name", "title", "radioName"),
+        cover: pickCover(raw),
+        sub: raw?.dj?.nickname ?? raw?.nickname ?? "",
+      }));
     }
     cloudLoaded.value[tab] = true;
   } finally {
@@ -250,6 +290,10 @@ const cleanHistory = () => {
   .song-list {
     flex: 1;
     overflow: hidden;
+  }
+  .alert {
+    margin-bottom: 10px;
+    border-radius: 10px;
   }
   .tabs {
     flex: 1;

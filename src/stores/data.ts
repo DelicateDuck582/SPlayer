@@ -148,7 +148,7 @@ export const useDataStore = defineStore("data", {
       try {
         // 获取 music-data
         const musicDataKeys = await musicDB.keys();
-        console.log(musicDataKeys);
+        if (import.meta.env.DEV) console.log(musicDataKeys);
         await Promise.all(
           musicDataKeys.map(async (key) => {
             const data = await musicDB.getItem(key);
@@ -391,12 +391,12 @@ export const useDataStore = defineStore("data", {
       try {
         if (name) {
           await localforage.dropInstance({ name });
-          console.log(`Dropped ${name} database`);
+          if (import.meta.env.DEV) console.log(`Dropped ${name} database`);
           return;
         }
         await musicDB.clear();
         await userDB.clear();
-        console.log("All databases cleared");
+        if (import.meta.env.DEV) console.log("All databases cleared");
       } catch (error) {
         console.error("Error deleting database:", error);
         throw error;
@@ -411,7 +411,7 @@ export const useDataStore = defineStore("data", {
       // 获取歌单分类
       try {
         const [catsRes, hqCatsRes] = await Promise.all([playlistCatlist(), playlistCatlist(true)]);
-        console.log(catsRes, hqCatsRes);
+        if (import.meta.env.DEV) console.log(catsRes, hqCatsRes);
         this.catData = {
           type: catsRes.categories,
           cats: formatCategoryList(catsRes.sub),

@@ -8,18 +8,24 @@
     <n-tabs v-model:value="activeTab" class="tabs" type="segment" animated>
       <n-tab-pane name="private" tab="私信">
         <n-spin :show="loading">
+          <!-- 后端错误可见（例如 301 需要登录），避免"一片空白" -->
+          <n-alert v-if="errorText" type="warning" :bordered="false" class="alert">
+            {{ errorText }}
+          </n-alert>
           <n-list v-if="sessions.length" hoverable clickable>
             <n-list-item v-for="item in sessions" :key="item.id" @click="openSession(item)">
-              <n-flex align="center" justify="space-between">
-                <n-flex align="center">
+              <n-flex align="center" justify="space-between" :wrap="false">
+                <n-flex align="center" :wrap="false" class="session-main">
                   <n-avatar round :size="40" :src="item.avatarUrl" />
                   <div class="session">
                     <n-text class="nickname">{{ item.nickname || `用户 ${item.id}` }}</n-text>
-                    <n-text class="last" depth="3">{{ item.lastMessage || "" }}</n-text>
+                    <n-text class="last" depth="3">{{
+                      item.lastMessage || "（暂无消息内容）"
+                    }}</n-text>
                   </div>
                 </n-flex>
-                <n-flex align="center">
-                  <n-badge v-if="item.unreadCount" :value="item.unreadCount" />
+                <n-flex align="center" :wrap="false">
+                  <n-badge v-if="item.unreadCount" :value="item.unreadCount" :max="99" />
                   <n-text depth="3" class="time">{{ item.time || "" }}</n-text>
                 </n-flex>
               </n-flex>
@@ -30,6 +36,9 @@
       </n-tab-pane>
       <n-tab-pane v-for="tab in noticeTabs" :key="tab.name" :name="tab.name" :tab="tab.label">
         <n-spin :show="loading">
+          <n-alert v-if="errorText" type="warning" :bordered="false" class="alert">
+            {{ errorText }}
+          </n-alert>
           <n-list v-if="lists[tab.name]?.length" hoverable>
             <n-list-item v-for="(item, index) in lists[tab.name]" :key="item.id ?? index">
               <n-flex vertical>
@@ -45,28 +54,43 @@
     </n-tabs>
 
     <!-- 私信会话（抽屉） -->
-    <n-drawer v-model:show="showSession" :width="480" placement="right">
-      <n-drawer-content :title="currentSession?.nickname || '私信'">
+    <n-drawer v-model:show="showSession" :width="drawerWidth" placement="right">
+      <n-drawer-content :title="currentSession?.nickname || '私信'" closable>
         <n-spin :show="sessionLoading">
-          <n-flex vertical class="history">
-            <div v-for="(msg, index) in history" :key="index" class="msg">
-              <n-avatar round :size="30" :src="msg.avatarUrl" />
-              <n-text class="msg-text">{{ msg.text }}</n-text>
+          <div ref="historyRef" class="history">
+            <div
+              v-for="(msg, index) in history"
+              :key="index"
+              class="msg"
+              :class="{ self: msg.self, pending: msg.pending, failed: msg.failed }"
+            >
+              <n-avatar v-if="!msg.self" round :size="30" :src="msg.avatarUrl" />
+              <div class="bubble">
+                <n-text class="msg-text">{{ msg.text }}</n-text>
+                <n-text v-if="msg.time || msg.pending || msg.failed" class="msg-time" depth="3">
+                  {{ msg.failed ? "发送失败" : msg.pending ? "发送中…" : msg.time }}
+                </n-text>
+              </div>
+              <n-avatar v-if="msg.self" round :size="30" :src="myAvatar" />
             </div>
             <n-empty
               v-if="!history.length && !sessionLoading"
               description="暂无消息"
               size="small"
+              style="margin-top: 20px"
             />
-          </n-flex>
+          </div>
         </n-spin>
         <template #footer>
-          <n-flex align="center">
+          <div class="send-bar">
             <n-input
               v-model:value="sendContent"
-              placeholder="输入私信内容"
+              type="textarea"
+              placeholder="输入私信内容（Enter 发送，Shift + Enter 换行）"
+              :autosize="{ minRows: 1, maxRows: 4 }"
               :maxlength="200"
-              @keyup.enter="sendMessage"
+              :disabled="sending"
+              @keydown="handleKeydown"
             />
             <n-button
               :focusable="false"
@@ -75,12 +99,12 @@
               secondary
               round
               :loading="sending"
-              :disabled="!sendContent.trim()"
+              :disabled="!sendContent.trim() || !currentSession?.id"
               @click="sendMessage"
             >
               发送
             </n-button>
-          </n-flex>
+          </div>
         </template>
       </n-drawer-content>
     </n-drawer>
@@ -98,6 +122,9 @@ import {
   sendText,
 } from "@/api/netease";
 import { formatTimestamp } from "@/utils/time";
+import { useDataStore } from "@/stores";
+
+const dataStore = useDataStore();
 
 const loading = ref<boolean>(false);
 const activeTab = ref<string>("private");
@@ -109,6 +136,8 @@ const lists = ref<Record<string, NeteaseMessageItem[]>>({
   forwards: [],
   notices: [],
 });
+/** 后端错误提示（例如 301 需要登录），避免页面"一片空白" */
+const errorText = ref<string>("");
 
 /** 通知类 Tab */
 const noticeTabs = [
@@ -121,9 +150,44 @@ const noticeTabs = [
 const showSession = ref<boolean>(false);
 const currentSession = ref<NeteaseMessageItem | null>(null);
 const sessionLoading = ref<boolean>(false);
-const history = ref<Array<{ text: string; avatarUrl?: string; nickname?: string }>>([]);
+const historyRef = ref<HTMLElement | null>(null);
+/** 历史消息（`self` 用于区分自己发出的消息，`pending/failed` 表示发送状态） */
+const history = ref<
+  Array<{
+    text: string;
+    avatarUrl?: string;
+    nickname?: string;
+    time?: string;
+    self?: boolean;
+    pending?: boolean;
+    failed?: boolean;
+  }>
+>([]);
 const sendContent = ref<string>("");
 const sending = ref<boolean>(false);
+/** 我的头像与 uid（用于消息左右对齐） */
+const myAvatar = computed<string>(() => String(dataStore.userData?.avatarUrl ?? ""));
+const myUid = computed<number>(() => Number(dataStore.userData?.userId ?? 0));
+/** 抽屉宽度：窄屏占满视口 */
+const drawerWidth = computed<string>(() =>
+  typeof window !== "undefined" && window.innerWidth < 560 ? "100%" : "480",
+);
+
+/** 滚动到消息底部 */
+const scrollToBottom = () => {
+  nextTick(() => {
+    const el = historyRef.value;
+    if (el) el.scrollTop = el.scrollHeight;
+  });
+};
+
+/** Enter 发送、Shift + Enter 换行（避开输入法组词状态） */
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key !== "Enter" || event.shiftKey) return;
+  if (event.isComposing || event.keyCode === 229) return;
+  event.preventDefault();
+  sendMessage();
+};
 
 /** 上游时间字段可能是时间戳或字符串 */
 const formatTime = (time?: number | string) => {
@@ -133,17 +197,28 @@ const formatTime = (time?: number | string) => {
   return Number.isNaN(timestamp) ? String(time) : formatTimestamp(timestamp);
 };
 
-/** 拉取私信会话 */
+/** 拉取私信会话（对上游字段做多形态兼容） */
 const getSessions = async () => {
-  const result = await msgPrivate();
-  sessions.value = (result?.msgs ?? []).map((item: any) => ({
-    id: item?.id ?? item?.userId,
-    nickname: item?.nickname ?? item?.fromUser?.nickname,
-    avatarUrl: item?.avatarUrl ?? item?.fromUser?.avatarUrl,
-    lastMessage: item?.lastMsg ?? item?.lastMessage,
-    unreadCount: item?.unreadCount,
-    time: formatTime(item?.time),
-  }));
+  const result: any = await msgPrivate();
+  if (result?.code !== undefined && result.code !== 200) {
+    errorText.value = `会话加载失败：${result?.message ?? result?.msg ?? `code ${result?.code}`}`;
+    sessions.value = [];
+    return;
+  }
+  const raw: any[] = result?.msgs ?? result?.data?.msgs ?? result?.data?.sessions ?? [];
+  sessions.value = (Array.isArray(raw) ? raw : [])
+    .map((item: any) => {
+      const peer = item?.fromUser ?? item?.user ?? item?.peer ?? item?.toUser ?? {};
+      return {
+        id: Number(item?.id ?? item?.userId ?? peer?.userId ?? 0),
+        nickname: item?.nickname ?? peer?.nickname,
+        avatarUrl: item?.avatarUrl ?? peer?.avatarUrl,
+        lastMessage: String(item?.lastMsg ?? item?.lastMessage ?? item?.msg ?? ""),
+        unreadCount: Number(item?.unreadCount ?? item?.newMsgCount ?? 0),
+        time: formatTime(item?.lastMsgTime ?? item?.time ?? item?.createTime),
+      };
+    })
+    .filter((item) => item.id > 0);
 };
 
 /** 拉取通知类数据 */
@@ -153,15 +228,38 @@ const getNotices = async () => {
     msgForwards(),
     msgNotices(),
   ]);
-  const pick = (result: PromiseSettledResult<any>, key: string) =>
-    result.status === "fulfilled"
-      ? ((result.value?.[key] ?? result.value?.data ?? []) as any[]).map((item) => ({
-          id: item?.id,
-          title: item?.title ?? item?.comment?.content?.slice(0, 20) ?? "通知",
-          lastMessage: item?.lastMessage ?? item?.comment?.content ?? item?.msg ?? "",
-          time: formatTime(item?.time),
-        }))
-      : [];
+  const pick = (result: PromiseSettledResult<any>, key: string) => {
+    if (result.status !== "fulfilled") return [];
+    const value: any = result.value;
+    if (value?.code !== undefined && value.code !== 200) {
+      if (!errorText.value) {
+        errorText.value = `通知加载失败：${value?.message ?? value?.msg ?? `code ${value?.code}`}`;
+      }
+      return [];
+    }
+    const raw: any[] = value?.[key] ?? value?.data?.[key] ?? value?.data ?? [];
+    return (Array.isArray(raw) ? raw : []).map((item) => ({
+      id: item?.id,
+      title: String(
+        (item?.title ??
+          item?.notice?.title ??
+          item?.comment?.content?.slice(0, 16) ??
+          key === "forwards")
+          ? "有人提到了我"
+          : "通知",
+      ),
+      lastMessage: String(
+        item?.lastMessage ??
+          item?.comment?.content ??
+          item?.notice?.content ??
+          item?.content ??
+          item?.msg ??
+          item?.lastForward?.content ??
+          "",
+      ),
+      time: formatTime(item?.time ?? item?.createTime),
+    }));
+  };
   lists.value = {
     comments: pick(commentsResult, "comments"),
     forwards: pick(forwardsResult, "forwards"),
@@ -174,46 +272,78 @@ const openSession = async (item: NeteaseMessageItem) => {
   currentSession.value = item;
   showSession.value = true;
   sessionLoading.value = true;
+  errorText.value = "";
+  history.value = [];
   try {
     const result: any = await msgPrivateHistory(Number(item.id), 30);
-    const source: any[] = result?.msgs ?? result?.data?.msgs ?? [];
-    history.value = source
-      .map((msg) => {
+    if (result?.code !== undefined && result.code !== 200) {
+      errorText.value = `私信加载失败：${result?.message ?? result?.msg ?? `code ${result?.code}`}`;
+      return;
+    }
+    const raw: any[] = result?.msgs ?? result?.data?.msgs ?? result?.data ?? [];
+    history.value = (Array.isArray(raw) ? raw : [])
+      .map((msg: any) => {
         const fromUser = msg?.fromUser ?? msg?.user ?? {};
+        const fromUid = Number(fromUser?.userId ?? msg?.fromUserId ?? msg?.userId ?? 0);
         return {
-          text: msg?.text ?? msg?.msg ?? "",
-          avatarUrl: fromUser?.avatarUrl,
+          text: String(msg?.msg ?? msg?.text ?? msg?.content ?? ""),
+          avatarUrl: fromUser?.avatarUrl ?? msg?.avatarUrl,
           nickname: fromUser?.nickname,
+          time: formatTime(msg?.time ?? msg?.createTime ?? msg?.sendTime),
+          self: myUid.value > 0 && fromUid === myUid.value,
         };
       })
-      .reverse()
-      .filter((msg) => msg.text);
+      .filter((msg) => msg.text)
+      .reverse();
+    scrollToBottom();
   } finally {
     sessionLoading.value = false;
   }
 };
 
-/** 发送私信 */
+/** 发送私信（乐观展示：先插入「发送中」气泡，失败可重试） */
 const sendMessage = async () => {
   const content = sendContent.value.trim();
-  if (!content || !currentSession.value?.id) return;
+  const peerId = Number(currentSession.value?.id ?? 0);
+  if (!content || !peerId || sending.value) return;
   sending.value = true;
+  const draft = {
+    text: content,
+    self: true,
+    pending: true,
+    failed: false,
+    time: formatTime(Date.now()),
+  };
+  history.value.push(draft);
+  sendContent.value = "";
+  scrollToBottom();
   try {
-    const result: any = await sendText(String(currentSession.value.id), content);
+    const result: any = await sendText(String(peerId), content);
     if (result?.code === 200) {
-      history.value.push({ text: content });
-      sendContent.value = "";
+      draft.pending = false;
+      // 后台刷新会话列表（更新最后一条消息与未读数）
+      getSessions().catch(() => undefined);
     } else {
-      window.$message?.warning(result?.message ?? "发送失败，请稍后再试");
+      draft.pending = false;
+      draft.failed = true;
+      sendContent.value = content;
+      window.$message?.warning(result?.message ?? result?.msg ?? "发送失败，请稍后再试");
     }
+  } catch (error) {
+    draft.pending = false;
+    draft.failed = true;
+    sendContent.value = content;
+    window.$message?.error("发送失败，请检查网络后重试");
   } finally {
     sending.value = false;
+    scrollToBottom();
   }
 };
 
 /** 拉取全部数据 */
 const getMessageData = async () => {
   loading.value = true;
+  errorText.value = "";
   try {
     await Promise.allSettled([getSessions(), getNotices()]);
   } finally {
@@ -271,18 +401,59 @@ onMounted(getMessageData);
   .time {
     font-size: 12px;
   }
+  .alert {
+    margin-bottom: 10px;
+    border-radius: 10px;
+  }
+  .send-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+  }
   .history {
+    display: flex;
+    flex-direction: column;
     gap: 10px;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+    padding-right: 4px;
     .msg {
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      .msg-text {
-        background: var(--n-action-color);
-        border-radius: 10px;
-        padding: 6px 10px;
-        font-size: 13px;
-        word-break: break-all;
+      // 对方消息靠左，自己消息靠右
+      &.self {
+        flex-direction: row;
+        justify-content: flex-end;
+        .bubble {
+          align-items: flex-end;
+        }
+      }
+      .bubble {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        max-width: 76%;
+        .msg-text {
+          background: var(--n-action-color);
+          border-radius: 10px;
+          padding: 6px 10px;
+          font-size: 13px;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .msg-time {
+          margin-top: 2px;
+          font-size: 11px;
+        }
+      }
+      &.pending .msg-text {
+        opacity: 0.6;
+      }
+      &.failed .msg-text {
+        outline: 1px solid var(--n-error-color, #d03050);
       }
     }
   }

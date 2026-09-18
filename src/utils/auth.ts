@@ -481,7 +481,7 @@ const setUserLikeDataLoop = async <T>(
     await dataStore.setUserLikeData(key, allData as CoverType[]);
   }
 
-  console.log(`✅ Fetched ${allData.length} ${key} for user ${userId}`);
+  if (import.meta.env.DEV) console.log(`✅ Fetched ${allData.length} ${key} for user ${userId}`);
   return allData;
 };
 
