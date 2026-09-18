@@ -8,6 +8,7 @@
 
 ## 目录
 
+- [2026-09-18 API 源运行时切换（多 API 并存）](#v2026-09-18-api-switch)
 - [2026-09-18 移动端第三轮：歌单头部按钮重叠与横屏列表滑不动](#v2026-09-18-mobile-header)
 - [2026-09-13 移动端适配修复](#v2026-09-13-mobile)
 - [2026-09-13 自建 / 隐私歌单打不开（401）修复](#v2026-09-13-playlist)
@@ -19,6 +20,30 @@
 - [2026-09-12 安全加固与性能优化（第一轮审计）](#v2026-09-12-audit1)
 - [2026-09-12 网页端歌曲下载](#v2026-09-12-download)
 - [2026-08-19 适配新版网易云音乐 API](#v2026-08-19-api)
+
+<a id="v2026-09-18-api-switch"></a>
+
+## 2026-09-18 API 源运行时切换（多 API 并存）
+
+**背景**：上游 API 原作者 Binaryify 的 `NeteaseCloudMusicApi` 仍在 npm 上持续更新（api-enhanced 的 README 也提示以 npm 为准），而其 GitHub 仓库已不再更新；同时原有的自建 api-enhanced 仍要继续用。因此需要在**不重新构建 SPlayer** 的前提下随时切换 API 源。
+
+**变更**
+
+- `src/utils/request.ts`：把原先构建期写死的 `baseURL` 拆为 `DEFAULT_API_BASE`（构建时默认：dev 走 Vite 代理、prod 取 `VITE_API_URL`）与 `getApiBase()`（运行时解析，优先取设置里的自定义地址）；请求拦截器按当前源赋值，切换后**立即生效、无需重启或重建**；新增 `normalizeApiBase()`、`rememberApiBase()`（记录最近 5 条）、`testApiBase()`（匿名请求 `/login/status` 探活）
+- `src/stores/setting.ts`：新增 `apiBaseUrl`（当前源，留空 = 默认）与 `apiBaseUrlHistory`（快速切换列表），随既有 `persist` 自动持久化
+- `src/components/Setting/config/network.ts`：新增「API 服务」分组 —— API 源下拉（默认 + 历史）、自定义 API 地址输入、测试并记录、恢复默认
+- 新增配套部署项目 `ncm-api-vercel`（独立目录，**不并入本仓库**）：把 npm 版 `NeteaseCloudMusicApi@^4.32.0` 跑在 Vercel 上。适配层补了官方实现缺失的两处兼容：
+  1. **CORS 放行 `X-Netease-Cookie`**：官方只放行 `X-Requested-With,Content-Type`，跨域预检会被浏览器拦下，带登录态的接口全部失败
+  2. **`X-Netease-Cookie` → 标准 Cookie 的翻译**：官方只认标准 `Cookie` 头与 `cookie` 查询参数（`X-Netease-Cookie` 是 api-enhanced fork 的扩展）；且需把 SPlayer 的 `MUSIC_U=xxx;os=pc;`（分号后无空格）归一化为 `; ` 分隔，否则官方 `/;\s+/` 解析会把 `;os=pc;` 粘进 token
+
+**验证**（无头浏览器 + 真实页面）
+
+- API 源设为不可用地址 `http://127.0.0.1:9`：实测请求全部打到该地址并失败 → 歌单页 `songCards: 0`、无详情头
+- 运行时切到本地 npm 版适配器 `http://127.0.0.1:3210`：请求全部打到新源，`playlist/track/all` 成功、歌单正常渲染（`songCards: 12`）——同时证明跨域（14558 → 3210）与适配层 CORS 修复有效
+- 适配层接口实测：`/healthz` 200；`/login/status` 返回真实账号数据；`/banner` 返回真实数据；`OPTIONS` 预检 204 且 `Access-Control-Allow-Headers` 含 `X-Netease-Cookie`；`X-Netease-Cookie: MUSIC_U=_TEST_LEAK_MARKER_;os=pc;` 被正确拆分为 `MUSIC_U` 与 `os`
+- `vue-tsc --noEmit` 与 ESLint 均无报错
+
+**影响范围**：`src/utils/request.ts`、`src/stores/setting.ts`、`src/components/Setting/config/network.ts`（其余请求层行为、默认 API 源与 `cloud.ts` 的本机 API 地址均不受影响）
 
 <a id="v2026-09-18-mobile-header"></a>
 

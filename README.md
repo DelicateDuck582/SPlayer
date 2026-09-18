@@ -70,6 +70,8 @@
 
 | 日期 | 变更摘要 | 详情 |
 | --- | --- | --- |
+| 2026-09-18 | **API 源运行时切换**：设置 → 网络 → API 服务，可在多个自建 / npm 版 API 之间随时切换（**立即生效、无需重新构建**）；配套独立部署项目 `ncm-api-vercel`（npm 版 `NeteaseCloudMusicApi`，并补 `X-Netease-Cookie` 兼容） | [CHANGELOG § API 源切换](./doc/CHANGELOG.md#v2026-09-18-api-switch) |
+| 2026-09-18 | **移动端第三轮**：歌单头部按钮不再压住简介/元信息（<420px）、横屏列表可正常滑动（滚动区可视高度 0px → 120px）、窄屏歌手名不再被压成 1px | [CHANGELOG § 移动端第三轮](./doc/CHANGELOG.md#v2026-09-18-mobile-header) |
 | 2026-09-13 | **移动端适配**：弹窗按视口夹取、网格轨道改 `minmax(0, 1fr)`（修复发现页 288 个元素横向溢出）、`100vh` → `dvh`、安全区适配、4 处 hover-only 控件触屏常显 | [CHANGELOG § 移动端适配](./doc/CHANGELOG.md#v2026-09-13-mobile) |
 | 2026-09-13 | **自建 / 隐私歌单 401 修复**：`playlistDetail` 移除 `noCookie`，恢复登录态与 `privileges` | [CHANGELOG § 歌单 401](./doc/CHANGELOG.md#v2026-09-13-playlist) |
 | 2026-09-13 | **审计落地（安全 / 性能）**：凭据不再经 URL、API 日志脱敏、CSP 收紧、安全响应头、静态资源 `immutable`、分包、字体、重试策略 | [CHANGELOG § 审计落地](./doc/CHANGELOG.md#v2026-09-13-audit) |

@@ -5,12 +5,85 @@ import { getCookie } from "./cookie";
 import { isLogin } from "./auth";
 import axiosRetry from "axios-retry";
 
-// 全局地址
-const baseURL: string = String(isDev ? "/api/netease" : import.meta.env["VITE_API_URL"]);
+// 全局地址（构建时默认值）
+/**
+ * 构建时默认的网易云 API 地址
+ * - 开发环境：走 Vite 代理 `/api/netease`
+ * - 生产环境：取 `VITE_API_URL`（Vercel / 服务器部署时注入）
+ *
+ * 运行时可在「设置 → 网络 → API 服务」中切换为其它自建 API 源，见 `getApiBase`
+ */
+export const DEFAULT_API_BASE: string = String(
+  isDev ? "/api/netease" : import.meta.env["VITE_API_URL"] || "",
+).replace(/\/+$/, "");
+
+/**
+ * 规范化 API 地址：去除首尾空白与结尾斜杠
+ * @param url 原始地址
+ */
+export const normalizeApiBase = (url: unknown): string =>
+  String(url ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+
+/**
+ * 当前生效的网易云 API 地址
+ * 优先使用设置中的自定义地址，留空时回退到构建时默认地址
+ */
+export const getApiBase = (): string => {
+  try {
+    return normalizeApiBase(useSettingStore().apiBaseUrl) || DEFAULT_API_BASE;
+  } catch {
+    // pinia 尚未就绪（极早期调用）时回退到默认地址
+    return DEFAULT_API_BASE;
+  }
+};
+
+/**
+ * 记录使用过的 API 地址（设置页快速切换用，最多 5 条，最近在前）
+ * @param url API 地址（默认地址不入库）
+ */
+export const rememberApiBase = (url: string): void => {
+  const value = normalizeApiBase(url);
+  if (!value || value === DEFAULT_API_BASE) return;
+  try {
+    const settingStore = useSettingStore();
+    const history = (settingStore.apiBaseUrlHistory || []).filter((item) => item !== value);
+    settingStore.apiBaseUrlHistory = [value, ...history].slice(0, 5);
+  } catch {
+    // 忽略：仅影响快速切换列表
+  }
+};
+
+/**
+ * 探测指定 API 地址是否可用（匿名请求 `/login/status`）
+ * @param url 待测地址；留空则测当前生效地址
+ * @returns 是否可用及提示信息
+ */
+export const testApiBase = async (url?: string): Promise<{ ok: boolean; message: string }> => {
+  const base = normalizeApiBase(url) || getApiBase();
+  try {
+    const response = await axios.get(`${base}/login/status`, {
+      timeout: 10000,
+      withCredentials: false,
+    });
+    const body = response.data ?? {};
+    const code = body?.data?.code ?? body?.code;
+    if (response.status === 200 && (code === undefined || code === 200)) {
+      return { ok: true, message: `连接成功：${base}` };
+    }
+    return { ok: false, message: `接口返回异常（code=${code ?? "未知"}）：${base}` };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `连接失败：${(error as Error)?.message || "未知错误"}（${base}）`,
+    };
+  }
+};
 
 // 基础配置
 const server: AxiosInstance = axios.create({
-  baseURL,
+  baseURL: DEFAULT_API_BASE,
   // 登录态经 X-Netease-Cookie 请求头显式传递（不经 URL、不依赖浏览器自动携带凭证）。
   // 注意：新版 API 返回 Access-Control-Allow-Origin: *，
   // 若开启 withCredentials(credentials=include)，浏览器会按 CORS 规范拦截该响应。
@@ -62,7 +135,12 @@ export const LOCAL_API_BASE = `http://127.0.0.1:${
  */
 const isNeteaseApiRequest = (config: AxiosRequestConfig) => {
   const requestBase = config.baseURL ?? "";
-  return !requestBase || requestBase === baseURL || requestBase === LOCAL_API_BASE;
+  return (
+    !requestBase ||
+    requestBase === server.defaults.baseURL ||
+    requestBase === getApiBase() ||
+    requestBase === LOCAL_API_BASE
+  );
 };
 
 /**
@@ -85,6 +163,11 @@ const setRequestHeader = (config: AxiosRequestConfig, key: string, value: string
 // 请求拦截器
 server.interceptors.request.use(
   (request) => {
+    // 运行时 API 源：未显式指定 baseURL 的请求（绝大多数）跟随当前设置，
+    // 在「设置 → 网络 → API 服务」切换源后立即生效，无需重启或重新构建
+    if (!request.baseURL || request.baseURL === server.defaults.baseURL) {
+      request.baseURL = getApiBase();
+    }
     // pinia
     const settingStore = useSettingStore();
     if (!request.params) request.params = {};

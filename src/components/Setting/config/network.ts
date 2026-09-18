@@ -7,6 +7,13 @@ import { NA } from "naive-ui";
 import { disableDiscordRpc, enableDiscordRpc, updateDiscordConfig } from "@/core/player/PlayerIpc";
 import { getAuthToken, getAuthUrl, getSession } from "@/api/lastfm";
 import StreamingServerList from "../components/StreamingServerList.vue";
+import {
+  DEFAULT_API_BASE,
+  getApiBase,
+  normalizeApiBase,
+  rememberApiBase,
+  testApiBase,
+} from "@/utils/request";
 
 export const useNetworkSettings = (): SettingConfig => {
   const settingStore = useSettingStore();
@@ -42,6 +49,30 @@ export const useNetworkSettings = (): SettingConfig => {
       window.$message.error("代理测试失败，请重试");
     }
     testProxyLoading.value = false;
+  };
+
+  // --- API 源切换逻辑（运行时切换，无需重新构建） ---
+  const apiTestLoading = ref<boolean>(false);
+
+  /** 应用 API 源：空值表示恢复默认源 */
+  const applyApiBase = (value: string) => {
+    const url = normalizeApiBase(value);
+    settingStore.apiBaseUrl = url;
+    if (url) rememberApiBase(url);
+    window.$message.success(url ? `已切换 API 源：${url}` : "已恢复默认 API 源");
+  };
+
+  /** 测试当前 API 源连通性，成功后写入快速切换列表 */
+  const handleTestApiBase = async () => {
+    apiTestLoading.value = true;
+    const { ok, message } = await testApiBase(settingStore.apiBaseUrl);
+    apiTestLoading.value = false;
+    if (ok) {
+      rememberApiBase(settingStore.apiBaseUrl || DEFAULT_API_BASE);
+      window.$message.success(message);
+    } else {
+      window.$message.error(message);
+    }
   };
 
   // --- Discord RPC Logic (from third.ts) ---
@@ -231,6 +262,73 @@ export const useNetworkSettings = (): SettingConfig => {
             description: "在此添加和管理您的流媒体服务器",
             noWrapper: true,
             component: markRaw(StreamingServerList),
+          },
+        ],
+      },
+      {
+        title: "API 服务",
+        items: [
+          {
+            key: "apiSource",
+            label: "API 源",
+            type: "select",
+            description: computed(
+              () => `当前生效：${getApiBase()}${settingStore.apiBaseUrl ? "" : "（默认源）"}`,
+            ),
+            options: computed(() => {
+              const options: { label: string; value: string }[] = [
+                { label: `默认（${DEFAULT_API_BASE || "未配置"}）`, value: "" },
+              ];
+              const history = settingStore.apiBaseUrlHistory || [];
+              const current = settingStore.apiBaseUrl;
+              // 手填但尚未记录的地址也放进列表，避免下拉框显示空白
+              if (current && !history.includes(current)) {
+                options.push({ label: `${current}（当前）`, value: current });
+              }
+              options.push(...history.map((url) => ({ label: url, value: url })));
+              return options;
+            }),
+            keywords: ["api", "接口", "源", "网易云", "服务器", "切换"],
+            value: computed({
+              get: () => settingStore.apiBaseUrl,
+              set: (v: string) => applyApiBase(v),
+            }),
+          },
+          {
+            key: "apiSourceCustom",
+            label: "自定义 API 地址",
+            type: "text-input",
+            description:
+              "留空使用默认源；可填自建 API（如 api-enhanced）或 npm 版 NeteaseCloudMusicApi 的 Vercel 部署地址；切换后立即生效，无需重启或重建",
+            keywords: ["api", "地址", "url", "自建", "vercel"],
+            componentProps: {
+              placeholder: "https://your-api.example.com",
+              clearable: true,
+            },
+            value: computed({
+              get: () => settingStore.apiBaseUrl,
+              set: (v: string) => (settingStore.apiBaseUrl = normalizeApiBase(v)),
+            }),
+          },
+          {
+            key: "apiSourceTest",
+            label: "测试 API 源",
+            type: "button",
+            description: "匿名请求所选源的 /login/status；成功后写入「API 源」列表，便于多源快速切换",
+            keywords: ["api", "测试", "连通", "ping"],
+            buttonLabel: "测试并记录",
+            action: handleTestApiBase,
+            componentProps: computed(() => ({ loading: apiTestLoading.value, type: "primary" })),
+          },
+          {
+            key: "apiSourceReset",
+            label: "恢复默认 API 源",
+            type: "button",
+            description: `回到构建时配置的默认地址（${DEFAULT_API_BASE || "未配置"}）`,
+            keywords: ["api", "重置", "默认"],
+            buttonLabel: "恢复默认",
+            show: computed(() => !!settingStore.apiBaseUrl),
+            action: () => applyApiBase(""),
           },
         ],
       },

@@ -140,6 +140,14 @@ export interface SettingState {
   proxyServe: string;
   /** 代理端口 */
   proxyPort: number;
+  /**
+   * 自定义网易云 API 地址（运行时切换；留空表示使用构建时默认）
+   * - 留空：网页端用 `VITE_API_URL`，开发环境走 Vite 代理 `/api/netease`
+   * - 可填自建服务地址（如 `https://your-api.vercel.app`）或同源反向代理前缀
+   */
+  apiBaseUrl: string;
+  /** 最近使用过的 API 地址（设置页快速切换用，最多 5 条，最近在前） */
+  apiBaseUrlHistory: string[];
   /** 歌曲音质 */
   songLevel:
     | "standard"
@@ -645,6 +653,8 @@ export const useSettingStore = defineStore("setting", {
     proxyProtocol: "off",
     proxyServe: "127.0.0.1",
     proxyPort: 80,
+    apiBaseUrl: "",
+    apiBaseUrlHistory: [],
     useRealIP: false,
     realIP: "",
     useHeaderCookie: true,
