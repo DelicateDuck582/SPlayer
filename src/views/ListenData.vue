@@ -139,17 +139,27 @@ const getListenData = async () => {
     const rawSongs =
       todayResult.status === "fulfilled" ? (todayResult.value?.data?.songs ?? []) : [];
     if (rawSongs.length) {
-      const detail = await songDetail(
-        [...new Set(rawSongs.map((item) => item.songId))].slice(0, 100),
-      );
+      const ids = [...new Set(rawSongs.map((item) => item.songId))];
+      const detail = await songDetail(ids.slice(0, 100));
       const detailMap = new Map<number, any>(
         (detail?.songs ?? []).map((song: any) => [song.id, song]),
       );
-      todaySongs.value = formatSongsList(
-        rawSongs.map(
-          (item) => detailMap.get(item.songId) ?? { id: item.songId, name: item.songName },
-        ),
-      );
+      // 去重 + 详情缺失时用上游自带字段兜底（避免出现"未知歌手/未知作者"）
+      const merged = new Map<number, any>();
+      rawSongs.forEach((item) => {
+        const id = Number(item.songId);
+        if (!id || merged.has(id)) return;
+        merged.set(
+          id,
+          detailMap.get(id) ?? {
+            id,
+            name: item.songName ?? `歌曲 #${id}`,
+            ar: (item as any).artistName ? [{ id: 0, name: (item as any).artistName }] : undefined,
+            al: (item as any).albumName ? { id: 0, name: (item as any).albumName } : undefined,
+          },
+        );
+      });
+      todaySongs.value = formatSongsList([...merged.values()]);
     } else {
       todaySongs.value = [];
     }
