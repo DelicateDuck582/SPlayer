@@ -25,6 +25,7 @@
     "security:selfcheck": "tsx scripts/security-selfcheck.ts",
     "security:secret-scan": "tsx scripts/secret-scan.ts",
     "test:message-content": "tsx scripts/test-message-content.mts",
+    "test:route-guards": "tsx scripts/test-route-guards.mts",
     "gen:netease-endpoints": "tsx scripts/gen-netease-endpoints.ts",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",

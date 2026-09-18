@@ -1,5 +1,6 @@
 import AppLayout from "@/layout/AppLayout.vue";
 import { type RouteRecordRaw } from "vue-router";
+import { requireQuery } from "./guards";
 
 /**
  * 应用路由
@@ -17,7 +18,8 @@ const appRoutes: Array<RouteRecordRaw> = [
     path: "/search",
     name: "search",
     component: () => import("@/views/Search/layout.vue"),
-    beforeEnter: (to) => (!to.query.keyword ? true : { path: "/403" }),
+    // 搜索页必须带关键词，否则 403
+    beforeEnter: requireQuery("keyword"),
     redirect: "/search/songs",
     children: [
       {
@@ -85,7 +87,7 @@ const appRoutes: Array<RouteRecordRaw> = [
   {
     path: "/artist",
     name: "artist",
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/Artist/layout.vue"),
     redirect: "/artist/songs",
     children: [
@@ -110,42 +112,42 @@ const appRoutes: Array<RouteRecordRaw> = [
   {
     path: "/video",
     name: "video",
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/Video.vue"),
   },
   // 专辑
   {
     path: "/album",
     name: "album",
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/List/album.vue"),
   },
   // 歌曲百科
   {
     path: "/song/wiki",
     name: "song-wiki",
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/Song/wiki.vue"),
   },
   // 评论
   {
     path: "/comment",
     name: "comment",
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/Comment.vue"),
   },
   // 歌单
   {
     path: "/playlist",
     name: "playlist",
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/List/playlist.vue"),
   },
   // 流媒体歌单
   {
     path: "/streaming-playlist",
     name: "streaming-playlist",
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/List/streaming-playlist.vue"),
   },
   // 播客
@@ -153,7 +155,7 @@ const appRoutes: Array<RouteRecordRaw> = [
     path: "/radio",
     name: "radio",
 
-    beforeEnter: (to) => (!to.query.id ? true : { path: "/403" }),
+    beforeEnter: requireQuery("id"),
     component: () => import("@/views/List/radio.vue"),
   },
   // 热门播客
@@ -166,7 +168,8 @@ const appRoutes: Array<RouteRecordRaw> = [
   {
     path: "/radio-type",
     name: "radio-type",
-    beforeEnter: (to) => (!to.query.id || !to.query.name ? true : { path: "/403" }),
+    // 播客分类需要 id + name
+    beforeEnter: requireQuery("id", "name"),
     component: () => import("@/views/Radio/type.vue"),
   },
   // 我喜欢的音乐

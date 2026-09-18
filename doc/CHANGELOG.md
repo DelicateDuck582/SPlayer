@@ -52,6 +52,7 @@
 | F16 | **输入框区域留白过大**（截图中的大片灰色） | `textarea` 保留 naive-ui 默认的大内边距/最小高度；消息区没有铺满抽屉，内容少时与输入区之间留出大片空白 | 压扁输入条：`textarea` 改 `padding: 5px 12px` + `min-height: 22px` + `resize: none`，表情/发送按钮统一 32px；抽屉 body 与 `n-spin` 容器改为 flex 列布局，消息区 `flex: 1` 撑满并**内容不足时贴底**（`margin-top: auto`）；footer 内边距收紧为 `8px 12px` |
 | F17 | **私信抽屉里「看起来根本没改」**（图片仍按原图撑破聊天栏、输入区依旧留白、消息区没铺满） | `n-drawer` / `n-modal` 由 naive-ui 经 `VLazyTeleport` 渲染到 `body`，而样式全部写在 `<style scoped>` 里并嵌套于 `.message-view` → 编译为 `.message-view[data-v-*] .history { … }`，**在抽屉/弹窗里一条都不命中**（页面内的通知卡片仍正常，因此不易察觉）| 去掉 `scoped`，改为**以组件唯一 class 作作用域根的全局样式**：`.message-view`（页面）/ `.chat-drawer`（抽屉，加在 `n-drawer-content` 上）/ `.msg-preview`（预览弹窗）；`:deep(...)` 全部改为普通选择器（如 `.chat-drawer .n-drawer-body-content-wrapper`），并保留注释说明原因 |
 | F18 | 图片仍**超出聊天栏宽度**、抽屉底部出现**可拖拽的横向滚动条** | 图片只设 `max-width: 100%`，而气泡宽度由内容决定（不定宽），百分比上限不可靠；`.history` / `.n-drawer-body-content-wrapper` 未限制横向溢出（只写 `overflow-y: auto` 时 `overflow-x` 会被计算为 `auto` → 出现横向滚动条）| 图片加**双层上限** `max-width: min(100%, 260px)` + `max-height: 200px`（`object-fit: contain`，表情图仍 `1.4em`）；气泡 `width: fit-content` + `max-width: 76%`、`.msg` 补 `width: 100% / min-width: 0`；`.history` 与抽屉 body/content-wrapper 统一 `overflow-x: hidden` + `min-width: 0`；预览弹窗宽度改 `min(720px, 92vw)`；通知卡片标题补省略号截断、`.notice-item` 补 `min-width: 0` |
+| F19 | **点击消息里的专辑 / 歌单等跳到 `#/403`**（正常带参反被拒） | F7 改守卫风格时**条件写反**：`!to.query.id ? true : { path: "/403" }` —— 原语义是「**缺** id → 403」，写反后成了「**有** id → 403」，波及 `/album`、`/playlist`、`/video`、`/comment`、`/artist`、`/search`、`/song/wiki`、`/streaming-playlist`、`/radio`、`/radio-type` 共 **10 条路由** | 抽出 `src/router/guards.ts` 的 `requireQuery(...keys)`：**正向**判断（字段齐全才放行，缺任一跳 403，避免再写反），10 处路由统一改为 `beforeEnter: requireQuery("id")` / `requireQuery("keyword")` / `requireQuery("id", "name")`；新增回归测试 `pnpm test:route-guards`（语义 9 项 + 源码级断言 4 项） |
 
 **日志与隐私治理**
 
@@ -88,8 +89,10 @@
 | 消息页 SFC 编译校验 | 通过 Vite 实际编译 `/src/views/Message.vue`（模板 + SCSS）与 `src/utils/messageContent.ts`，无编译错误（该页需登录，视觉需人工确认） |
 | **抽屉布局 / 图片尺寸实测**（系统 Chrome 无头，复刻 naive-ui 真实 DOM 与盒模型） | 「修复前」对照：图片按 **1200×800** 原图渲染、`.n-drawer-body-content-wrapper` 横向溢出 **759px**（= 底部可拖拽的横向滚动条）、`.history` 横向溢出 783px；「修复后」：图片 **260×173**、两处横向溢出 **0**、消息区高度撑满（667px）；窄屏（360px）复测：图片 **252×168**、横向溢出 **0** |
 | 本轮样式校验 | `<style>` 块用工程本地 `sass` 单独编译通过，产物选择器确认为 `.chat-drawer .n-drawer-body-content-wrapper` / `.message-view .msg-images .msg-image` 等（即确实命中抽屉/弹窗）；Prettier 通过；`vue-tsc -p tsconfig.web.json` EXIT=0 |
+| 路由守卫回归测试（新增 `pnpm test:route-guards`） | **13/13 通过**：带 `id` 放行、缺 `id` / 空串 / `null` 403、`id + name` 组合、`keyword` 组合；源码级断言 `routes.ts` 无 `!to.query.`、无 `next()` 回调风格、`requireQuery` 用法恰为 10 处、无裸 `beforeEnter: (to) =>` |
+| **路由端到端验证**（本机 web dev `127.0.0.1:14558` + 无头 Chrome，Vite HMR 已加载修复） | `#/album?id=123` ✅ 放行、`#/album` ⛔ 403；`#/playlist?id=123` ✅ 放行、`#/playlist` ⛔ 403 —— 与预期语义完全一致（修复前**带参一律 403**） |
 
-**影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）；F17 / F18 再改 `src/views/Message.vue`（抽屉样式作用域 + 图片尺寸）+ 2 处文档。
+**影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）；F17 / F18 再改 `src/views/Message.vue`（抽屉样式作用域 + 图片尺寸）+ 2 处文档；F19 再改 `src/router/routes.ts`、新增 `src/router/guards.ts`、`scripts/test-route-guards.mts` 与 `package.json` 脚本 + 2 处文档。
 
 <a id="v2026-09-19-newapi2"></a>
 
