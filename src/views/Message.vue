@@ -45,7 +45,7 @@
               :key="item.id ?? index"
               class="notice-item"
               :class="{ clickable: !!item.resource }"
-              @click="openResource(item)"
+              @click="openResource(item.resource)"
             >
               <n-avatar round :size="38" :src="item.avatarUrl" />
               <div class="notice-main">
@@ -91,7 +91,26 @@
                 :class="{ self: msg.self, pending: msg.pending, failed: msg.failed }"
               >
                 <n-avatar v-if="!msg.self" round :size="32" :src="msg.avatarUrl" />
-                <n-text class="msg-text">{{ msg.text }}</n-text>
+                <div class="bubble">
+                  <n-text v-if="msg.text" class="msg-text">{{ msg.text }}</n-text>
+                  <!-- 分享类消息（歌曲 / 歌单 / MV …）以卡片展示 -->
+                  <div
+                    v-if="msg.resource"
+                    class="resource-card"
+                    @click="openResource(msg.resource)"
+                  >
+                    <img class="resource-cover" :src="msg.resource.cover" loading="lazy" alt="" />
+                    <div class="resource-info">
+                      <n-text class="resource-name" :title="msg.resource.name">
+                        {{ msg.resource.name }}
+                      </n-text>
+                      <n-text depth="3" class="resource-sub">{{ msg.resource.sub }}</n-text>
+                    </div>
+                    <n-tag :bordered="false" round size="tiny" type="info">
+                      {{ resourceLabel(msg.resource.type) }}
+                    </n-tag>
+                  </div>
+                </div>
                 <n-avatar v-if="msg.self" round :size="32" :src="myAvatar" />
               </div>
               <n-text v-if="msg.pending || msg.failed" class="send-state" depth="3">
@@ -179,22 +198,13 @@ import { useDataStore } from "@/stores";
 import { songDetail } from "@/api/song";
 import { formatSongsList } from "@/utils/format";
 import { usePlayerController } from "@/core/player/PlayerController";
+import { parseMessageContent, toPreviewText, type MessageResource } from "@/utils/messageContent";
 
 const router = useRouter();
 const dataStore = useDataStore();
 const player = usePlayerController();
 
-/** 通知 / 评论 / @我 中的结构化资源（专辑 / 歌曲 / 歌单 / MV 等） */
-interface NoticeResource {
-  type: "album" | "song" | "playlist" | "mv" | "video" | "program" | "dj";
-  /** 资源 id（视频 vid 为十六进制字符串，故允许 string） */
-  id: string | number;
-  name: string;
-  cover: string;
-  sub: string;
-}
-
-/** 通知类条目 */
+/** 通知 / 评论 / @我 条目 */
 interface NoticeItem {
   id?: number;
   title: string;
@@ -203,7 +213,7 @@ interface NoticeItem {
   ts: number;
   avatarUrl?: string;
   nickname?: string;
-  resource?: NoticeResource;
+  resource?: MessageResource;
 }
 
 const loading = ref<boolean>(false);
@@ -237,6 +247,8 @@ const historyRef = ref<HTMLElement | null>(null);
 const history = ref<
   Array<{
     text: string;
+    /** 消息附带的资源（分享歌曲 / 歌单等，以卡片展示） */
+    resource?: MessageResource;
     avatarUrl?: string;
     nickname?: string;
     time?: string;
@@ -295,7 +307,7 @@ const showTimeAt = (index: number) => {
 };
 
 /** 资源类型文案 */
-const resourceLabel = (type: NoticeResource["type"]) =>
+const resourceLabel = (type: MessageResource["type"]) =>
   ({
     album: "专辑",
     song: "歌曲",
@@ -306,9 +318,8 @@ const resourceLabel = (type: NoticeResource["type"]) =>
     dj: "电台",
   })[type] ?? "内容";
 
-/** 打开通知里的结构化资源 */
-const openResource = async (item: NoticeItem) => {
-  const resource = item.resource;
+/** 打开消息里的结构化资源（歌曲直接播放，其余跳转对应页面） */
+const openResource = async (resource?: MessageResource) => {
   if (!resource) return;
   if (resource.type === "song") {
     // 歌曲：直接加入播放（先取详情补全元数据；歌曲 id 必为数字）
@@ -355,63 +366,15 @@ const getSessions = async () => {
         id: Number(item?.id ?? item?.userId ?? peer?.userId ?? 0),
         nickname: item?.nickname ?? peer?.nickname,
         avatarUrl: item?.avatarUrl ?? peer?.avatarUrl,
-        lastMessage: String(item?.lastMsg ?? item?.lastMessage ?? item?.msg ?? ""),
+        lastMessage: toPreviewText(
+          parseMessageContent(item?.lastMsg ?? item?.lastMessage ?? item?.msg).text,
+          60,
+        ),
         unreadCount: Number(item?.unreadCount ?? item?.newMsgCount ?? 0),
         time: formatTime(item?.lastMsgTime ?? item?.time ?? item?.createTime),
       };
     })
     .filter((item) => item.id > 0);
-};
-
-/** 从通知条目里提取结构化资源（专辑 / 歌曲 / 歌单 / MV / 视频 / 电台节目） */
-const pickResource = (item: any): NoticeResource | undefined => {
-  const candidates: Array<{ key: string; type: NoticeResource["type"] }> = [
-    { key: "album", type: "album" },
-    { key: "song", type: "song" },
-    { key: "playlist", type: "playlist" },
-    { key: "mv", type: "mv" },
-    { key: "video", type: "video" },
-    { key: "program", type: "program" },
-    { key: "djRadio", type: "dj" },
-    { key: "radio", type: "dj" },
-  ];
-  for (const { key, type } of candidates) {
-    const raw = item?.[key];
-    const target = Array.isArray(raw) ? raw[0] : raw;
-    if (!target || typeof target !== "object") continue;
-    // 视频 vid 是十六进制字符串，不能强制转数字
-    const id = target.id ?? target.albumId ?? target.playlistId ?? target.vid ?? 0;
-    if (!id || id === 0) continue;
-    const cover =
-      target.picUrl ??
-      target.coverUrl ??
-      target.coverImgUrl ??
-      target.blurPicUrl ??
-      target.cover ??
-      "";
-    const name = String(target.name ?? target.title ?? target.albumName ?? "未知内容");
-    // 副标题：多歌手优先，其次作者 / 电台名
-    const artists = Array.isArray(target.artists)
-      ? target.artists.map((artist: any) => artist?.name).filter(Boolean)
-      : [];
-    const sub = String(
-      (artists.length ? artists.join(" / ") : "") ||
-        target.artistName ||
-        target.artist?.name ||
-        target.creator?.nickname ||
-        target.dj?.nickname ||
-        target.radio?.name ||
-        "",
-    );
-    return {
-      type,
-      id,
-      name,
-      cover: String(cover).replace(/^http:/, "https:"),
-      sub,
-    };
-  }
-  return undefined;
 };
 
 /** 拉取通知类数据 */
@@ -437,6 +400,8 @@ const getNotices = async () => {
         item?.user?.nickname ?? item?.fromUser?.nickname ?? item?.comment?.user?.nickname;
       const avatarUrl =
         item?.user?.avatarUrl ?? item?.fromUser?.avatarUrl ?? item?.comment?.user?.avatarUrl;
+      // 统一解析：JSON 串 / HTML / 对象 → 纯文本 + 可选资源卡片
+      const parsed = parseMessageContent(item);
       return {
         id: item?.id,
         title: String(
@@ -444,19 +409,12 @@ const getNotices = async () => {
             item?.notice?.title ??
             (nickname ? nickname : key === "forwards" ? "有人提到了我" : "通知"),
         ),
-        text: String(
-          item?.msg ??
-            item?.comment?.content ??
-            item?.notice?.content ??
-            item?.content ??
-            item?.lastForward?.content ??
-            "",
-        ),
+        text: parsed.text,
         time: formatTime(ts),
         ts,
         avatarUrl,
         nickname,
-        resource: pickResource(item),
+        resource: parsed.resource,
       };
     });
   };
@@ -485,8 +443,11 @@ const openSession = async (item: NeteaseMessageItem) => {
       .map((msg: any) => {
         const fromUser = msg?.fromUser ?? msg?.user ?? {};
         const fromUid = Number(fromUser?.userId ?? msg?.fromUserId ?? msg?.userId ?? 0);
+        // 统一解析：分享类消息的 msg 是 JSON 串（含 song/playlist 等资源）
+        const parsed = parseMessageContent(msg?.msg ?? msg?.text ?? msg?.content ?? msg);
         return {
-          text: String(msg?.msg ?? msg?.text ?? msg?.content ?? ""),
+          text: parsed.text,
+          resource: parsed.resource,
           avatarUrl: fromUser?.avatarUrl ?? msg?.avatarUrl,
           nickname: fromUser?.nickname,
           time: formatTime(msg?.time ?? msg?.createTime ?? msg?.sendTime),
@@ -494,7 +455,7 @@ const openSession = async (item: NeteaseMessageItem) => {
           self: myUid.value > 0 && fromUid === myUid.value,
         };
       })
-      .filter((msg) => msg.text)
+      .filter((msg) => msg.text || msg.resource)
       .reverse();
     scrollToBottom();
   } finally {
@@ -602,7 +563,12 @@ onMounted(getMessageData);
     font-size: 13px;
     line-height: 1.6;
     margin-top: 4px;
+    // 长文本（超长评论 / 未解析内容）不撑破卡片
+    overflow-wrap: anywhere;
     word-break: break-word;
+    white-space: pre-wrap;
+    max-height: 320px;
+    overflow-y: auto;
   }
   .time {
     flex-shrink: 0;
@@ -634,47 +600,52 @@ onMounted(getMessageData);
         flex: 1;
         min-width: 0;
       }
-      /* 结构化资源卡片（专辑 / 歌曲 / 歌单 / MV …） */
-      .resource-card {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 8px;
-        padding: 8px 10px;
-        border-radius: 10px;
-        background: var(--n-color-modal, rgba(128, 128, 128, 0.08));
-        .resource-cover {
-          flex-shrink: 0;
-          width: 46px;
-          height: 46px;
-          border-radius: 8px;
-          object-fit: cover;
-          background: var(--n-border-color);
-        }
-        .resource-info {
-          flex: 1;
-          min-width: 0;
-          .resource-name {
-            display: block;
-            font-size: 14px;
-            font-weight: bold;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-          }
-          .resource-sub {
-            display: block;
-            font-size: 12px;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-          }
-        }
-        .resource-arrow {
-          font-size: 16px;
-          opacity: 0.5;
-        }
+    }
+  }
+  /* 结构化资源卡片（通知卡片与私信气泡共用） */
+  .resource-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--n-color-modal, rgba(128, 128, 128, 0.08));
+    cursor: pointer;
+    transition: transform 0.2s var(--n-bezier);
+    &:hover {
+      transform: translateY(-1px);
+    }
+    .resource-cover {
+      flex-shrink: 0;
+      width: 46px;
+      height: 46px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: var(--n-border-color);
+    }
+    .resource-info {
+      flex: 1;
+      min-width: 0;
+      .resource-name {
+        display: block;
+        font-size: 14px;
+        font-weight: bold;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
       }
+      .resource-sub {
+        display: block;
+        font-size: 12px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+    }
+    .resource-arrow {
+      font-size: 16px;
+      opacity: 0.5;
     }
   }
   /* 微信式输入条 */
@@ -730,21 +701,31 @@ onMounted(getMessageData);
       align-items: flex-start;
       gap: 8px;
       max-width: 100%;
-      .msg-text {
+      .bubble {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
         max-width: 76%;
-        padding: 8px 12px;
-        border-radius: 12px;
-        font-size: 14px;
-        line-height: 1.6;
-        white-space: pre-wrap;
-        word-break: break-word;
-        background: var(--n-action-color);
+        min-width: 0;
+        .msg-text {
+          padding: 8px 12px;
+          border-radius: 12px;
+          font-size: 14px;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          // 长文本（含未解析的 JSON / 超长评论）不做横向撑爆，纵向超高时可滚动
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          max-height: 320px;
+          overflow-y: auto;
+          background: var(--n-action-color);
+        }
       }
       // 自己的消息靠右，并使用主题色气泡
       &.self {
         flex-direction: row;
         justify-content: flex-end;
-        .msg-text {
+        .bubble .msg-text {
           background: var(--n-primary-color-suppl, var(--n-action-color));
         }
       }
