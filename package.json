@@ -24,6 +24,7 @@
     "lint": "eslint . --max-warnings=0",
     "security:selfcheck": "tsx scripts/security-selfcheck.ts",
     "security:secret-scan": "tsx scripts/secret-scan.ts",
+    "gen:netease-endpoints": "tsx scripts/gen-netease-endpoints.ts",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",

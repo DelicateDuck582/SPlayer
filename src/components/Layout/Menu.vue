@@ -131,6 +131,85 @@ const menuOptions = computed<MenuOption[] | MenuGroupOption[]>(() => {
           }),
         },
         {
+          key: "divider-npm-api",
+          type: "divider",
+        },
+        {
+          key: "style",
+          link: "style",
+          label: "曲风",
+          icon: renderIcon("Tag", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "mv",
+          link: "mv",
+          label: "MV 广场",
+          icon: renderIcon("Video", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "calendar",
+          link: "calendar",
+          label: "音乐日历",
+          show: isLogin() !== 0,
+          icon: renderIcon("Calendar-Empty", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "listen-data",
+          link: "listen-data",
+          label: "听歌足迹",
+          show: isLogin() !== 0,
+          icon: renderIcon("Time", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "message",
+          link: "message",
+          label: "消息中心",
+          show: isLogin() !== 0,
+          icon: renderIcon("Chat", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "user",
+          link: "user",
+          label: "我的主页",
+          show: isLogin() !== 0,
+          icon: renderIcon("Person", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
+          key: "vip",
+          link: "vip",
+          label: "会员中心",
+          show: isLogin() !== 0,
+          icon: renderIcon("Star", {
+            style: {
+              transform: "translateY(-1px)",
+            },
+          }),
+        },
+        {
           key: "divider",
           type: "divider",
         },

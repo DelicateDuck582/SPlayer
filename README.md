@@ -12,7 +12,7 @@
 > - **原链接（上游）**：https://github.com/SPlayer-Dev/SPlayer
 > - **许可证**：[GNU AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html)（与原项目一致，**不改变原许可**；对代码的修改、分发或衍生作品须同样采用 AGPL-3.0，并保留原作者的版权与许可信息，全文见 [LICENSE](./LICENSE)）
 > - **本仓库性质**：**个人修改版**，由 [DelicateDuck582](https://github.com/DelicateDuck582) 基于上游二次开发与自行维护；**非官方版本，与原作者、SPlayer 官方团队无关**，不代表官方立场，也未经官方审核或背书
-> - **与上游关系**：上游已进入维护模式并归档，本仓库**不跟进上游、不向上游提交**；所有改动集中在 `feat/api-enhanced` 分支
+> - **与上游关系**：上游已进入维护模式并归档，本仓库**不跟进上游、不向上游提交**；所有改动集中在 `feat/api-enhanced` 分支，`NEWAPI` 分支在其之上补齐网易云官方 API 能力（曲风、MV、音乐日历、听歌足迹、消息、用户主页、会员/云贝等）
 > - **本仓库地址**：https://github.com/DelicateDuck582/SPlayer
 > - 变更摘要见 [更新记录](#changelog-summary)，详细更新日志与审计报告见 [doc/](./doc/README.md)
 > - 版权与归属的完整说明见 [关于本仓库（版权与归属）](#about-this-repo)
@@ -70,6 +70,7 @@
 
 | 日期 | 变更摘要 | 详情 |
 | --- | --- | --- |
+| 2026-09-19 | **网易云 API 能力补齐**（`NEWAPI` 分支）：377 个官方端点清单 + 类型安全通用调用器；新增 曲风 / MV 广场与播放 / 音乐日历 / 听歌足迹 / 消息中心 / 用户主页 / 会员与云贝签到 共 7 个页面 | [CHANGELOG § API 能力补齐](./doc/CHANGELOG.md#v2026-09-19-newapi) |
 | 2026-09-18 | **API 源运行时切换**：设置 → 网络 → API 服务，可在多个自建 / npm 版 API 之间随时切换（**立即生效、无需重新构建**）；配套独立部署项目 `ncm-api-vercel`（npm 版 `NeteaseCloudMusicApi`，并补 `X-Netease-Cookie` 兼容） | [CHANGELOG § API 源切换](./doc/CHANGELOG.md#v2026-09-18-api-switch) |
 | 2026-09-18 | **移动端第三轮**：歌单头部按钮不再压住简介/元信息（<420px）、横屏列表可正常滑动（滚动区可视高度 0px → 120px）、窄屏歌手名不再被压成 1px | [CHANGELOG § 移动端第三轮](./doc/CHANGELOG.md#v2026-09-18-mobile-header) |
 | 2026-09-13 | **移动端适配**：弹窗按视口夹取、网格轨道改 `minmax(0, 1fr)`（修复发现页 288 个元素横向溢出）、`100vh` → `dvh`、安全区适配、4 处 hover-only 控件触屏常显 | [CHANGELOG § 移动端适配](./doc/CHANGELOG.md#v2026-09-13-mobile) |
@@ -148,7 +149,55 @@
 - 💬 支持评论区
 - 🎵 支持 Last.fm Scrobble（播放记录上报）
 - ⬇️ 网页端支持歌曲下载（Cookie 登录后可用，含下载列表与实时进度）
+- 🌐 **API 源运行时切换**：设置 → 网络 → API 服务，可在 npm 版 / api-enhanced / 自建 API 之间一键切换，立即生效、无需重新构建
+- 🧩 **网易云 API 能力补齐**（`NEWAPI` 分支）：内置官方 377 个端点清单与类型安全通用调用器
+- 🎼 曲风浏览（曲风下的歌曲 / 歌单 / 歌手）
+- 📹 MV 广场与 MV 播放（多分辨率回退取链、相似 MV、收藏、评论入口）
+- 🗓️ 音乐日历（按天回看听过的歌，可一键播放当日歌单）
+- 📊 听歌足迹（累计 / 本周 / 本月 / 年度收听时长与今日收听）
+- 💬 消息中心（私信会话与发送、评论 / @我 / 通知）
+- 👤 用户主页（歌单、关注、粉丝、听歌排行，关注 / 取关）
+- 💎 会员中心（VIP 状态与到期、成长值领取、云贝与每日签到、会员任务）
 - 📱 移动端基础适配
+
+## 🧩 网易云 API 能力（`NEWAPI` 分支）
+
+> npm 版 [`NeteaseCloudMusicApi`](https://www.npmjs.com/package/NeteaseCloudMusicApi) 共 **377 个端点**。本项目把官方能力整理为一份可校验的端点清单 + 类型安全的通用调用器，并在此基础上补齐了一批此前没有入口的功能。
+
+- **端点清单**：`src/api/netease/endpoints.ts`（自动生成，377 条，每条含中文说明）
+  - 生成：`pnpm gen:netease-endpoints -- --pkg <上游包目录>`（或设置 `NCM_PKG_DIR`）
+  - 校验：`pnpm gen:netease-endpoints -- --pkg <上游包目录> --check`（CI 可用，清单与上游不一致即失败）
+- **通用调用器**：`src/api/netease` 的 `neteaseApi(path, options)` 与 `neteaseApiByName(name, options)`
+  - 路径类型是 377 个字面量构成的联合类型，**拼错端点会在编译期报错**；默认附带 `timestamp`，与仓库其它 api 风格一致
+- 所有调用都复用 `@/utils/request`，因此**跟随「设置 → 网络 → API 服务」里切换的 API 源**（npm 版 / api-enhanced / 自建服务均可）
+
+### 已接入界面
+
+| 功能 | 主要端点 | 入口 |
+| --- | --- | --- |
+| 曲风浏览（歌曲 / 歌单 / 歌手） | `/style/list`、`/style/detail`、`/style/song`、`/style/playlist`、`/style/artist` | 侧边栏「曲风」 |
+| MV 广场 / MV 播放 | `/mv/all`、`/mv/detail`、`/mv/url`、`/simi/mv`、`/mv/sub` | 侧边栏「MV 广场」 |
+| 音乐日历 | `/calendar`（缺歌曲信息时自动用 `/song/detail` 补全） | 侧边栏「音乐日历」 |
+| 听歌足迹 | `/listen/data/total`、`/listen/data/realtime/report`、`/listen/data/report`、`/listen/data/year/report`、`/listen/data/today/song` | 侧边栏「听歌足迹」 |
+| 会员中心 | `/vip/info/v2`、`/vip/growthpoint`、`/vip/growthpoint/get`、`/vip/tasks` | 侧边栏「会员中心」 |
+| 云贝与签到 | `/yunbei/info`、`/yunbei/sign`、`/yunbei/tasks`、`/yunbei/task/finish`、`/daily_signin` | 侧边栏「会员中心」 |
+| 消息中心 | `/msg/private`、`/msg/private/history`、`/msg/comments`、`/msg/forwards`、`/msg/notices`、`/send/text` | 侧边栏「消息中心」 |
+| 用户主页 | `/user/detail`、`/user/playlist`、`/user/follows`、`/user/followeds`、`/user/record`、`/follow` | 侧边栏「我的主页」 |
+
+### 已封装 API、暂未接入界面
+
+> 这些能力已在 `src/api/netease` 封装好（含类型与注释），需要时直接调用即可；其余任意端点也可用 `neteaseApi(path, params)` 调用。
+
+| 能力 | 端点 |
+| --- | --- |
+| 听歌识曲 | `/audio/match`（需上游 300KB WASM 指纹算法）、`/check/music`（歌曲可用性） |
+| 相似内容 | `/simi/song`、`/simi/artist`、`/simi/playlist`、`/simi/user` |
+| 数字专辑 | `/digitalAlbum/detail`、`/digitalAlbum/purchased`、`/album/list`、`/album/new` |
+| 播客 / 声音 | `/voicelist/search`、`/voicelist/list`、`/voice/detail`、`/voice/lyric`、`/dj/*` |
+| 最近播放分类 | `/record/recent/{song,video,voice,playlist,album,dj}` |
+| 视频扩展 | `/video/category/list`、`/video/group/list`、`/video/timeline/*`、`/related/allvideo` |
+| 用户与社交扩展 | `/user/event`、`/event`、`/user/cloud`、`/user/binding`、`/send/song`、`/send/playlist`、`/msg/recentcontact` |
+| 其余全部端点 | 与上游 `module/<name>.js` 一一对应（377 个，见 `endpoints.ts`） |
 
 ## 🖼️ 界面展示
 

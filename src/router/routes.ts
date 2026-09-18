@@ -345,6 +345,52 @@ const appRoutes: Array<RouteRecordRaw> = [
     name: "history",
     component: () => import("@/views/History.vue"),
   },
+  // 音乐日历（npm 版 API：/calendar）
+  {
+    path: "/calendar",
+    name: "calendar",
+    meta: { needLogin: true },
+    component: () => import("@/views/Calendar.vue"),
+  },
+  // 听歌足迹（npm 版 API：/listen/data/*）
+  {
+    path: "/listen-data",
+    name: "listen-data",
+    meta: { needLogin: true },
+    component: () => import("@/views/ListenData.vue"),
+  },
+  // 曲风（npm 版 API：/style/*）
+  {
+    path: "/style",
+    name: "style",
+    component: () => import("@/views/Style.vue"),
+  },
+  // 会员中心（npm 版 API：/vip/*、/yunbei/*、/daily_signin）
+  {
+    path: "/vip",
+    name: "vip",
+    meta: { needLogin: true },
+    component: () => import("@/views/Vip.vue"),
+  },
+  // 消息中心（npm 版 API：/msg/*）
+  {
+    path: "/message",
+    name: "message",
+    meta: { needLogin: true },
+    component: () => import("@/views/Message.vue"),
+  },
+  // 用户主页（npm 版 API：/user/*、/follow）
+  {
+    path: "/user",
+    name: "user",
+    component: () => import("@/views/User.vue"),
+  },
+  // MV 广场 / MV 详情（npm 版 API：/mv/all、/mv/detail、/mv/url、/simi/mv）
+  {
+    path: "/mv",
+    name: "mv",
+    component: () => import("@/views/Mv.vue"),
+  },
   // 状态
   {
     path: "/403",
