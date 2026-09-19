@@ -6,6 +6,25 @@
 >
 > **结论速览**：安全 8 项（6 项已修复 / 1 项部分修复 / 1 项已缓解）、性能 6 项（4 项已修复、2 项待办）、密钥 4 项（2 项通过、2 项需注意）、移动端 5 项（全部已修复）。
 
+## 2026-09-19 酷狗音乐源接入审计（第三轮，要点）
+
+> 完整证据、能力矩阵与复现命令见 [KUGOU-API.md](./KUGOU-API.md) 第六、七节。
+
+| 维度 | 检查项 | 结论 |
+| --- | --- | --- |
+| 链路 | 是否影响网易云链路 | 无影响：酷狗走**独立 axios 实例**，网易云的 cookie / realIP / 代理参数不注入酷狗请求 |
+| 链路 | 播放 / 歌词分流依据 | `src/api/song.ts` 以「注册表命中」判定（而非全局开关），切换源不会让已入队的酷狗歌曲误请求网易云 |
+| 安全 | 凭据落点 | 酷狗 Cookie 仅 localStorage + **POST 请求体**（不进 URL / 浏览器历史 / 服务端访问日志）；未配置时请求体不含 cookie 字段 |
+| 安全 | 跨源凭据 | 酷狗实例 `withCredentials:false`（酷狗 API 返回 `Access-Control-Allow-Origin: *`） |
+| 安全 | 注入面 | 请求路径为代码常量、参数受类型约束；只做字段映射，不生成 HTML |
+| 安全 | 部署保护 | Vercel 项目 `kugou-api` 已关闭 `ssoProtection` / `passwordProtection`；历史已构建的部署 URL 仍可直连（Vercel 不可变，已知限制） |
+| 安全 | 密钥扫描 | 设备指纹仅存 Vercel 环境变量；仓库扫描 0 命中 |
+| 性能 | 首屏 | 酷狗模块不进首屏关键路径，按需加载；无新增依赖 |
+| 性能 | 请求数 | 搜索 1 次；歌词 2 次（候选 + 下载）；歌曲详情 0 次（内存注册表） |
+| 性能 | 缓存与重试 | 未附加 `timestamp`，可吃上游 `apicache` 2 分钟缓存；酷狗实例不套 axios-retry，避免对风控接口重试放大 |
+
+**验证**：`pnpm test:kugou` 29/29、`pnpm typecheck:web` EXIT=0、`pnpm security:selfcheck` 43/43、`pnpm security:secret-scan` 0 命中。
+
 ## 安全
 
 | 编号 | 问题 | 证据 | 状态 |

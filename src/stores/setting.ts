@@ -149,6 +149,24 @@ export interface SettingState {
   apiBaseUrl: string;
   /** 最近使用过的 API 地址（设置页快速切换用，最多 5 条，最近在前） */
   apiBaseUrlHistory: string[];
+  /**
+   * 音乐源：`netease`（网易云音乐，默认）| `kugou`（酷狗音乐）
+   *
+   * 切换后：搜索、播放取链、歌词会按源路由；酷狗源需配合 `kugouApiBase`（酷狗 API 服务地址）。
+   */
+  musicSource: "netease" | "kugou";
+  /**
+   * 自定义酷狗 API 地址（留空使用构建时默认 `VITE_KUGOU_API_URL`）
+   * - 默认：`https://kugou-api.duckgame-play.top`
+   */
+  kugouApiBase: string;
+  /**
+   * 酷狗登录 Cookie（`token=...; userid=...`）
+   *
+   * 仅保存在本地，且只在向酷狗 API 发请求时放进 **请求体**（不经 URL，避免进入日志与浏览器历史）。
+   * 酷狗对匿名请求有风控：未填写时「歌曲搜索 / 取播放地址 / 歌词」等接口会被拒绝。
+   */
+  kugouCookie: string;
   /** 歌曲音质 */
   songLevel:
     | "standard"
@@ -656,6 +674,9 @@ export const useSettingStore = defineStore("setting", {
     proxyPort: 80,
     apiBaseUrl: "",
     apiBaseUrlHistory: [],
+    musicSource: "netease",
+    kugouApiBase: "",
+    kugouCookie: "",
     useRealIP: false,
     realIP: "",
     useHeaderCookie: true,

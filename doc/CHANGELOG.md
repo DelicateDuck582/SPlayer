@@ -8,6 +8,7 @@
 
 ## 目录
 
+- [2026-09-19 酷狗音乐源接入（KuGou API 部署 + 适配层 + 三审计）](#v2026-09-19-kugou)
 - [2026-09-19 Web 端（Vercel）安全 / 密钥 / 性能审计与修复](#v2026-09-19-web-audit)
 - [2026-09-19 实测问题修复 + 日志与密钥治理](#v2026-09-19-fixes)
 - [2026-09-19 网易云 API 能力补齐（第二批）+ 审计修复](#v2026-09-19-newapi2)
@@ -24,6 +25,36 @@
 - [2026-09-12 安全加固与性能优化（第一轮审计）](#v2026-09-12-audit1)
 - [2026-09-12 网页端歌曲下载](#v2026-09-12-download)
 - [2026-08-19 适配新版网易云音乐 API](#v2026-08-19-api)
+
+<a id="v2026-09-19-kugou"></a>
+
+## 2026-09-19 酷狗音乐源接入（KuGou API 部署 + 适配层 + 三审计）
+
+**背景**：需求为「设置里新增『源』（网易云 / 酷狗）+ 整合酷狗 API（Vercel 部署并分配 `KuGou-API.duckgame-play.top`）+ 链路/安全/性能审计」。上游 API 仓库 `DelicateDuck582/KuGouMusicApi` **不改动**。
+
+**改动**
+
+| 范围 | 内容 |
+| --- | --- |
+| 设置 | 新增分组「音乐源」：源选择（网易云 / 酷狗）、酷狗 API 服务地址、酷狗 Cookie（可选，密码框）、测试连接（匿名请求 `/search/hot`） |
+| 状态 | `settingStore` 新增 `musicSource` / `kugouApiBase` / `kugouCookie`（随既有 persist 持久化） |
+| 适配层 | 新增 `src/api/kugou/core.ts`（纯逻辑）与 `src/api/kugou/index.ts`（网络）：约 20 个端点 + **网易云形状兼容层** + **合成 ID 注册表** |
+| 路由 | `src/api/search.ts` 按音乐源分流（`searchResult`/`searchHot`/`searchDefault`/`searchSuggest`）；`src/api/song.ts` 按注册表命中分流（`songUrl`/`songLyric`/`songDetail`） |
+| 测试 | 新增 `scripts/test-kugou-adapter.mts` 与 `pnpm test:kugou`（20 项纯逻辑 + 9 项线上联调） |
+| 文档 | 新增 [KUGOU-API.md](./KUGOU-API.md)：部署记录、DNS 待办、能力矩阵、三审计、限制与后续 |
+
+**关键实现要点**
+
+1. **NetEase 兼容层**：把酷狗结果转成 `cloudsearch` / `/song/url/v1` / `/lyric/new` / `/song/detail` 字段形状，搜索页、播放器、歌词、下载等既有消费方**零改动**复用。
+2. **合成 ID**：`SongType.id` 是 `number`，酷狗用 32 位 `hash`。取 `hash` 前 13 位十六进制（52 bit）作为合成 ID + 内存注册表反查取链所需信息，确定性且无需持久化。
+3. **凭据走请求体**：KuGouMusicApi 会合并 `[req.query, req.body]`，因此统一 **POST + 请求体**——凭据不进 URL / 历史 / 访问日志；同时修掉了 GET query 传参时酷狗返回 152 的问题（实测 28 条结果）。
+4. **独立 axios 实例**：不经过 `@/utils/request`，避免把网易云 `MUSIC_U` / `realIP` / 代理参数发给第三方服务。
+
+**影响范围**：默认源仍是网易云，行为与体积不变（酷狗模块按需加载）；仅在「音乐源 = 酷狗」或命中酷狗合成 ID 时走酷狗链路。
+
+**验证**：`pnpm test:kugou` 29/29（线上联调实测：热搜/新歌速递/排行榜/歌单广场/歌手搜索/歌曲搜索全部可用；取链返回 `20028` 需酷狗登录 Cookie）；`pnpm typecheck:web` EXIT=0；`pnpm security:selfcheck` 43/43；`pnpm security:secret-scan` 0 命中。
+
+**已知限制**：酷狗对数据中心 IP 有风控，**播放取链与歌词需填酷狗登录 Cookie**；自定义域 `KuGou-API.duckgame-play.top` 需在域名商补 CNAME（详见 KUGOU-API.md 第三节）。
 
 <a id="v2026-09-19-web-audit"></a>
 

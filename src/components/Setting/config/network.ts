@@ -14,6 +14,12 @@ import {
   rememberApiBase,
   testApiBase,
 } from "@/utils/request";
+import {
+  DEFAULT_KUGOU_API_BASE,
+  getKugouApiBase,
+  normalizeKugouApiBase,
+  testKugouApiBase,
+} from "@/api/kugou";
 
 export const useNetworkSettings = (): SettingConfig => {
   const settingStore = useSettingStore();
@@ -73,6 +79,28 @@ export const useNetworkSettings = (): SettingConfig => {
     } else {
       window.$message.error(message);
     }
+  };
+
+  // --- 音乐源 / 酷狗 API（运行时切换，无需重新构建） ---
+  const kugouTestLoading = ref<boolean>(false);
+
+  /** 应用酷狗 API 地址：空值表示使用构建时默认地址 */
+  const applyKugouApiBase = (value: string) => {
+    settingStore.kugouApiBase = normalizeKugouApiBase(value);
+    window.$message.success(
+      settingStore.kugouApiBase
+        ? `已切换酷狗 API：${settingStore.kugouApiBase}`
+        : `已恢复默认酷狗 API：${DEFAULT_KUGOU_API_BASE}`,
+    );
+  };
+
+  /** 测试酷狗 API 连通性（匿名请求热搜，不消耗登录态） */
+  const handleTestKugouApiBase = async () => {
+    kugouTestLoading.value = true;
+    const { ok, message } = await testKugouApiBase(settingStore.kugouApiBase);
+    kugouTestLoading.value = false;
+    if (ok) window.$message.success(message);
+    else window.$message.error(message);
   };
 
   // --- Discord RPC Logic (from third.ts) ---
@@ -266,6 +294,86 @@ export const useNetworkSettings = (): SettingConfig => {
         ],
       },
       {
+        title: "音乐源",
+        items: [
+          {
+            key: "musicSource",
+            label: "音乐源",
+            type: "select",
+            description: computed(() =>
+              settingStore.musicSource === "kugou"
+                ? `当前：酷狗音乐（API：${getKugouApiBase()}）`
+                : `当前：网易云音乐（API：${getApiBase()}）`,
+            ),
+            options: [
+              { label: "网易云音乐", value: "netease" },
+              { label: "酷狗音乐", value: "kugou" },
+            ],
+            keywords: ["源", "音乐源", "酷狗", "网易云", "kugou", "切换"],
+            value: computed({
+              get: () => settingStore.musicSource,
+              set: (v: "netease" | "kugou") => {
+                settingStore.musicSource = v;
+                window.$message.success(
+                  v === "kugou"
+                    ? "已切换音乐源：酷狗音乐（搜索 / 取链 / 歌词走酷狗）"
+                    : "已切换音乐源：网易云音乐",
+                );
+              },
+            }),
+          },
+          {
+            key: "kugouApiBase",
+            label: "酷狗 API 服务地址",
+            type: "text-input",
+            show: computed(() => settingStore.musicSource === "kugou"),
+            description: computed(
+              () =>
+                `留空使用默认地址（${DEFAULT_KUGOU_API_BASE || "未配置"}）；当前生效：${getKugouApiBase()}`,
+            ),
+            keywords: ["酷狗", "api", "地址", "kugou", "vercel"],
+            componentProps: {
+              placeholder: "https://kugou-api.duckgame-play.top",
+              clearable: true,
+            },
+            value: computed({
+              get: () => settingStore.kugouApiBase,
+              set: (v: string) => applyKugouApiBase(v),
+            }),
+          },
+          {
+            key: "kugouCookie",
+            label: "酷狗 Cookie（可选）",
+            type: "text-input",
+            show: computed(() => settingStore.musicSource === "kugou"),
+            description:
+              "格式 token=xxx; userid=xxx。酷狗对匿名请求有云端风控：不填时「歌曲搜索 / 取播放地址 / 歌词」会被拒绝（152 / 20028）；仅本地保存，且只放在请求体中发送",
+            keywords: ["酷狗", "cookie", "登录", "token", "kugou"],
+            componentProps: {
+              type: "password",
+              showPasswordOn: "click" as const,
+              placeholder: "token=xxx; userid=xxx",
+              clearable: true,
+            },
+            value: computed({
+              get: () => settingStore.kugouCookie,
+              set: (v: string) => (settingStore.kugouCookie = String(v ?? "").trim()),
+            }),
+          },
+          {
+            key: "kugouApiTest",
+            label: "测试酷狗 API",
+            type: "button",
+            show: computed(() => settingStore.musicSource === "kugou"),
+            description: "匿名请求酷狗热搜接口（/search/hot），验证 API 服务是否可达",
+            keywords: ["酷狗", "测试", "连通", "kugou"],
+            buttonLabel: "测试连接",
+            action: handleTestKugouApiBase,
+            componentProps: computed(() => ({ loading: kugouTestLoading.value, type: "primary" })),
+          },
+        ],
+      },
+      {
         title: "API 服务",
         items: [
           {
@@ -314,7 +422,8 @@ export const useNetworkSettings = (): SettingConfig => {
             key: "apiSourceTest",
             label: "测试 API 源",
             type: "button",
-            description: "匿名请求所选源的 /login/status；成功后写入「API 源」列表，便于多源快速切换",
+            description:
+              "匿名请求所选源的 /login/status；成功后写入「API 源」列表，便于多源快速切换",
             keywords: ["api", "测试", "连通", "ping"],
             buttonLabel: "测试并记录",
             action: handleTestApiBase,
