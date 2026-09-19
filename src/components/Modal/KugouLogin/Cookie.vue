@@ -1,6 +1,6 @@
-<!-- 酷狗 Cookie 登录弹窗（与网易云「Cookie 登录」体验对齐） -->
+<!-- 酷狗 Cookie 登录（粘贴 token / userid，或整段 Cookie） -->
 <template>
-  <div class="kugou-login">
+  <div class="kugou-cookie">
     <n-alert :bordered="false" title="如何获取酷狗 Cookie">
       <template #icon>
         <SvgIcon name="Help" />
@@ -19,19 +19,15 @@
       :disabled="loading"
     />
     <n-text v-if="currentName" depth="3" class="current">当前登录：{{ currentName }}</n-text>
-    <n-flex class="menu">
-      <n-button type="primary" :loading="loading" @click="login">登录</n-button>
-      <n-button :disabled="loading" @click="emit('close')">取消</n-button>
-    </n-flex>
+    <n-button type="primary" block :loading="loading" @click="login">登录</n-button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { isKugouLogin, loginKugouByCookie, getKugouUser } from "@/utils/kugouAuth";
+import { getKugouUser, isKugouLogin, loginKugouByCookie } from "@/utils/kugouAuth";
 
 const emit = defineEmits<{
-  close: [];
-  success: [];
+  saveLogin: [result: { ok: boolean; message: string }];
 }>();
 
 const cookie = ref<string>("");
@@ -39,6 +35,7 @@ const loading = ref<boolean>(false);
 
 /** 已登录时的昵称（提示用户正在覆盖登录） */
 const currentName = computed<string>(() => {
+  void isKugouLogin();
   if (!isKugouLogin()) return "";
   const user = getKugouUser();
   return user?.nickname || user?.userid || "已登录";
@@ -50,28 +47,23 @@ const login = async () => {
     window.$message.warning("请输入酷狗 Cookie");
     return;
   }
+  if (loading.value) return;
   loading.value = true;
-  const { ok, message } = await loginKugouByCookie(cookie.value);
+  const result = await loginKugouByCookie(cookie.value);
   loading.value = false;
-  if (!ok) {
-    window.$message.error(message);
-    return;
-  }
-  window.$message.success(message);
-  emit("success");
-  emit("close");
+  emit("saveLogin", result);
 };
 </script>
 
 <style lang="scss" scoped>
-.kugou-login {
+.kugou-cookie {
   .n-input {
-    margin-top: 16px;
+    margin: 16px 0 12px 0;
     width: 100%;
   }
   .current {
     display: block;
-    margin-top: 8px;
+    margin-bottom: 8px;
     font-size: 12px;
   }
   code {
@@ -84,12 +76,6 @@ const login = async () => {
     border-radius: 8px;
     margin: 4px 0;
     font-family: auto;
-  }
-  .menu {
-    margin-top: 16px;
-    .n-button {
-      flex: 1;
-    }
   }
 }
 </style>

@@ -183,6 +183,46 @@ export const kugouArtistSongs = (
 export const kugouAlbumSongs = (albumId: number | string, page = 1, pagesize = 30) =>
   kugouApi("/album/songs", { id: albumId, page, pagesize });
 
+/* ------------------------------------------------------------------ 登录 / 会话 */
+
+/** 发送手机验证码（业务号 5 = 登录） */
+export const kugouCaptchaSent = (mobile: string) => kugouApi("/captcha/sent", { mobile });
+
+/** 手机验证码登录 */
+export const kugouLoginCellphone = (mobile: string, code: string) =>
+  kugouApi("/login/cellphone", { mobile, code });
+
+/** 账号密码登录 */
+export const kugouLoginByAccount = (username: string, password: string) =>
+  kugouApi("/login", { username, password });
+
+/**
+ * 刷新登录（上游 `/login/token`，使用当前 Cookie 的 `token` / `userid` 换新令牌）
+ *
+ * 与网易云的 `refreshLogin` 对应；失败一般返回 `20017`（登录态缺失）。
+ */
+export const kugouLoginToken = () => kugouApi("/login/token");
+
+/** 获取扫码登录二维码 key（响应直接带二维码图片 base64：`data.qrcode_img`） */
+export const kugouLoginQrKey = () => kugouApi("/login/qr/key");
+
+/** 由 key 生成二维码（`qrimg=1` 时返回 `data.base64`） */
+export const kugouLoginQrCreate = (key: string, qrimg = true) =>
+  kugouApi("/login/qr/create", { key, qrimg });
+
+/** 扫码状态检查（`status=4` 时响应体带 `token` / `userid`） */
+export const kugouLoginQrCheck = (key: string) => kugouApi("/login/qr/check", { key });
+
+/** 登录风控验证（`v_type=23` 短信 / `32` 图形，需 `eventid`、`sid`、`edt`、`verifycode`） */
+export const kugouVerifyUserInfo = (params: {
+  eventid?: string;
+  sid?: string;
+  edt?: string;
+  verifycode: string;
+  v_type?: number;
+  platid?: number;
+}) => kugouApi("/verify/user/info", params);
+
 /** 当前登录用户信息（需 Cookie 中的 `token` / `userid`；未登录返回 20018） */
 export const kugouUserDetail = () => kugouApi("/user/detail");
 

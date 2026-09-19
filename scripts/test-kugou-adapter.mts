@@ -19,6 +19,9 @@ import {
   kugouErrorText,
   kugouHashToId,
   kugouImage,
+  kugouLoginToSession,
+  kugouQrStatus,
+  kugouQrStatusText,
   kugouRawToRef,
   kugouSongDetailByIds,
   mapKugouAlbums,
@@ -26,6 +29,7 @@ import {
   mapKugouPlaylists,
   mapKugouSearchBody,
   mapKugouSongs,
+  mergeKugouCookieText,
   pickKugouPlayUrl,
   resolveKugouSong,
 } from "../src/api/kugou/core";
@@ -157,6 +161,60 @@ check(
   { count: 0, hasMessage: true },
 );
 
+console.log("\n=== ①b 登录 / 会话（纯逻辑）");
+check(
+  "Cookie 合并：空基串",
+  mergeKugouCookieText("", { token: "T", userid: "9" }),
+  "token=T; userid=9;",
+);
+check(
+  "Cookie 合并：覆盖同名并保留其它字段",
+  mergeKugouCookieText("dfid=abc; token=old;", { token: "new" }),
+  "dfid=abc; token=new;",
+);
+check(
+  "Cookie 合并：跳过 userid=0",
+  mergeKugouCookieText("", { userid: "0", token: "T" }),
+  "token=T;",
+);
+check("错误码 20017 翻译", kugouErrorText({ error_code: 20017 }).includes("20017"), true);
+
+const session = kugouLoginToSession(
+  {
+    status: 1,
+    data: {
+      token: "TOKEN_X",
+      userid: 12345,
+      nickname: "测试用户",
+      pic: "http://imge.kugou.com/{size}/avatar.jpg",
+      vip_type: 1,
+    },
+  },
+  "dfid=abc;",
+);
+check("登录响应 → 会话：token / userid", [session?.token, session?.userid], ["TOKEN_X", "12345"]);
+check(
+  "登录响应 → 会话：Cookie 含旧字段 + 新 token",
+  session?.cookie.includes("dfid=abc") && session?.cookie.includes("token=TOKEN_X;"),
+  true,
+);
+check(
+  "登录响应 → 会话：昵称 / 头像 / VIP",
+  [session?.nickname, session?.avatar?.includes("/240/"), session?.vipType],
+  ["测试用户", true, 1],
+);
+check("登录响应缺 token → null", kugouLoginToSession({ status: 1, data: { userid: 1 } }), null);
+check(
+  "扫码状态解析",
+  [kugouQrStatus({ data: { status: 4 } }), kugouQrStatus({ data: { status: 1 } })],
+  [4, 1],
+);
+check(
+  "扫码状态文案",
+  kugouQrStatusText(4).includes("成功") && kugouQrStatusText(0).includes("过期"),
+  true,
+);
+
 console.log("\n=== ② 线上联调（真实酷狗 API）");
 try {
   const hot = await post("/search/hot");
@@ -212,6 +270,26 @@ try {
     `   ℹ️ 取链 http=${songUrl.http} err=${songUrl.body?.error_code ?? songUrl.body?.errcode ?? "-"} url=${pickedUrl ? "有" : "无"}（无 Cookie 时预期被风控）`,
   );
   checkTrue("取链失败可被识别（不抛异常）", pickedUrl === "" || pickedUrl.startsWith("http"));
+
+  // 登录相关端点（匿名可用性 / 错误码，不做真实登录）
+  const qrKey = await post("/login/qr/key");
+  const qrCode = String(qrKey.body?.data?.qrcode ?? "");
+  checkTrue(
+    "扫码 key 可用（含二维码 base64）",
+    !!qrCode && String(qrKey.body?.data?.qrcode_img).startsWith("data:image"),
+  );
+  if (qrCode) {
+    const qrCheck = await post("/login/qr/check", { key: qrCode });
+    checkTrue("扫码状态可查询（未扫码 → 1）", kugouQrStatus(qrCheck.body) === 1);
+  }
+  const refresh = await post("/login/token", {});
+  checkTrue(
+    "刷新登录未登录时报 20017 且可读",
+    (refresh.body?.error_code ?? refresh.body?.errcode) === 20017 &&
+      kugouErrorText(refresh.body).includes("20017"),
+  );
+  const captcha = await post("/captcha/sent", { mobile: "1" });
+  checkTrue("发送验证码接口可达（非法手机号不抛异常）", typeof captcha.http === "number");
 } catch (error) {
   skipped += 1;
   console.log(`⚠️ SKIP 线上联调：${(error as Error)?.message || "网络不可达"}`);

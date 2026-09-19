@@ -113,7 +113,12 @@ import {
   removeAccount,
 } from "@/utils/auth";
 import { useMobile } from "@/composables/useMobile";
-import { isKugouLogin, kugouLogout, refreshKugouUser } from "@/utils/kugouAuth";
+import {
+  isKugouLogin,
+  kugouLogout,
+  refreshKugouLoginIfNeeded,
+  refreshKugouUser,
+} from "@/utils/kugouAuth";
 
 const router = useRouter();
 const dataStore = useDataStore();
@@ -208,6 +213,8 @@ const checkLoginStatus = async () => {
   // 酷狗源：校验酷狗 Cookie 是否仍有效（不触碰网易云登录态）
   if (isKugouMode.value) {
     if (!kugouLoggedIn.value) return;
+    // 与网易云一致：超过 3 天未刷新则自动刷新登录（换新令牌）
+    await refreshKugouLoginIfNeeded();
     const user = await refreshKugouUser();
     if (!user) {
       window.$message.warning("酷狗登录已过期，请重新登录", { duration: 2000 });

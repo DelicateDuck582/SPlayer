@@ -78,18 +78,33 @@
 
 > 设置项按当前音乐源**自适应显示**：选中「酷狗音乐」时只出现酷狗相关项，选中「网易云音乐」时只出现网易云 API 项，避免同一分组里出现「用不上的开关」。
 
-### 4.4 账号登录（Cookie 登录，对齐网易云体验）
+### 4.4 账号登录（多方式，对齐网易云体验）
 
-- **入口**：左下角用户区**点头像**。当前音乐源为酷狗时：
-  - 未登录 → 打开「酷狗 Cookie 登录」弹窗；已登录 → 展开账号菜单（昵称 / 等级 / VIP / 酷狗源标记 / 退出登录）。
-  - 网易云源仍是原来的扫码 / 验证码 / UID / Cookie 登录，两套登录态**互不影响**。
-- **弹窗**：`src/components/Modal/KugouLogin.vue`（提示如何从酷狗网页端 DevTools 复制 `token` + `userid`，支持整段粘贴）。
-- **登录态实现**：
-  - `src/utils/kugouAuth.ts` —— `parseKugouCookie` / `normalizeKugouCookie` / `isKugouLogin` / `loginKugouByCookie` / `refreshKugouUser` / `kugouLogout`；
-  - `loginKugouByCookie` 会**先校验再保存**：本地暂存 Cookie → 请求 `/user/detail` → 成功才写入 `settingStore.kugouCookie` + `settingStore.kugouUser`，失败**回滚**（不会把无效 Cookie 留在本机）；
-  - 用户信息字段：昵称 / 头像 / VIP / 等级（`kugouUserToProfile` 兼容多种字段命名）；页面加载时若已登录会静默 `refreshKugouUser()` 校验，失效则提示重新登录；
-  - 相关端点：`/user/detail`、`/user/vip/detail`、`/user/playlist`、`/user/history`；未登录时 `/user/detail` 返回 `20018`，已加入错误码翻译。
-- **安全**：Cookie 仍只存 localStorage，且只在**请求体**中发送；退出登录会同时清空 `kugouCookie` 与 `kugouUser`。
+登录入口：**左下角用户区头像**（当前音乐源为酷狗时）/「设置 → 网络 → 音乐源 → 酷狗账号」。弹窗内含 4 个 Tab：
+
+| Tab | 端点 | 说明 |
+| --- | --- | --- |
+| 扫码登录 | `/login/qr/key` → `/login/qr/check` | `key` 接口**直接返回二维码 base64**（`data.qrcode_img`），2s 轮询状态：0 过期 / 1 待扫码 / 2 待确认 / **4 成功（响应体带 `token` + `userid`）**；过期可一键刷新 |
+| 验证码登录 | `/captcha/sent` → `/login/cellphone` | 「发送验证码」按钮带 60s 倒计时；手机号做 11 位校验 |
+| 账号密码 | `/login` | 酷狗对账密登录有风控，失败时引导改用扫码 / Cookie |
+| Cookie 登录 | — | 粘贴 `token` + `userid`（或整段 Cookie）后调用 `/user/detail` 校验 |
+
+- **刷新登录**：底部「刷新登录」按钮 → `/login/token`（用现有 `token`/`userid` 换新令牌并写回 Cookie）；**启动时若距上次登录超过 3 天会自动刷新一次**（与网易云的 `refreshLoginData` 行为一致）。
+- **登录态实现**：`src/utils/kugouAuth.ts` —— `parseKugouCookie` / `normalizeKugouCookie` / `isKugouLogin` / `loginKugouByCookie` / `sendKugouCaptcha` / `loginKugouByCellphone` / `loginKugouByAccount` / `checkKugouQrLogin` / `saveKugouSession` / `refreshKugouLogin` / `refreshKugouLoginIfNeeded` / `kugouLogout`。
+- **先校验后保存**：任何登录方式都先本地暂存 → 调 `/user/detail` 校验 → 成功才写入 `settingStore.kugouCookie` + `kugouUser`，失败**回滚**。
+- **浏览器可取凭据的原因**：上游模块会把解密后的 `secu_params`（含 `token`/`userid`）合并进**响应体**，因此不依赖 JS 不可读的 `Set-Cookie`。
+- **用户信息**：昵称 / 头像 / VIP / 等级（`kugouUserToProfile` 兼容多种字段命名）；`lastLoginTime` 单独存放于 `kugouLastLoginTime`，与网易云的 `lastLoginTime` 互不干扰。
+- **安全**：Cookie 只存 localStorage，且只在**请求体**中发送；退出登录会同时清空 Cookie、用户信息与登录时间。
+
+### 4.5 与网易云登录的关系
+
+| 维度 | 网易云 | 酷狗 |
+| --- | --- | --- |
+| 登录方式 | 扫码 / 验证码 / UID / Cookie | 扫码 / 验证码 / 账号密码 / Cookie |
+| 凭据存放 | `MUSIC_U` 等 Cookie（`utils/cookie.ts`） | `settingStore.kugouCookie`（仅请求体发送） |
+| 刷新登录 | `refreshLogin` + `lastLoginTime`（3 天） | `/login/token` + `kugouLastLoginTime`（3 天） |
+| 用户信息 | `dataStore.userData` | `settingStore.kugouUser` |
+| 互影响 | 无 —— 切换音乐源时用户区自动展示对应账号 | 无 |
 
 ## 五、能力矩阵（2026-09-19 实测）
 
@@ -105,6 +120,10 @@
 | 取播放地址 | `/song/url` | ❌ `20028 本次请求需要验证` | 需酷狗登录 Cookie；数据中心 IP 仍可能被风控 |
 | 歌词 | `/search/lyric` + `/lyric` | ❌ 受限 | 同上；两步流程已实现 |
 | 歌单详情 / 歌单歌曲 | `/playlist/detail`、`/playlist/track/all` | ❌ `20028 / 20010` | 同上 |
+| 扫码登录（取 key / 查状态） | `/login/qr/key`、`/login/qr/check` | ✅ 可用 | 实测：key 接口**直接返回二维码 base64**；未扫码时状态 = 1；状态 4 时响应体带 `token` + `userid` |
+| 刷新登录 | `/login/token` | ⚠️ 需登录态 | 未登录返回 `20017`（已翻译为可读提示） |
+| 发送手机验证码 | `/captcha/sent` | ⚠️ 需合法手机号 | 非法手机号返回错误码且不抛异常；短信由酷狗下发 |
+| 手机验证码 / 账号密码登录 | `/login/cellphone`、`/login` | ⚠️ 可能触发风控验证 | 风控验证端点 `/verify/user/info` 已封装备用 |
 
 **结论**：匿名状态下「搜索（歌曲/歌手/专辑/歌单）+ 榜单 / 新歌 / 歌单广场浏览」可用；**播放取链与歌词需要酷狗登录 Cookie**（`token` / `userid`）。这是酷狗云端风控，与部署方式无关（已在 Vercel 数据中心 IP 上复现）。
 
@@ -174,7 +193,8 @@ pnpm security:secret-scan # 0 命中
    - 在 Vercel 项目加 `KUGOU_API_PROXY=<公网 HTTP 代理>` 让服务端出站走代理；
    - 或把 API 部署到能访问酷狗的机器，并在设置里改「酷狗 API 服务地址」。
 3. 分页：`hasMore` 依据 `total` 与当前页长度计算；酷狗部分接口 `total` 可能不精确，极端情况下会「提前没有更多」。
-4. 未接入的能力：MV / 视频、评论、电台、每日推荐（需登录态）、酷狗登录流程（二维码 / 手机号）—— 端点已封装，可在后续页面按需调用。
+4. 未接入的能力：MV / 视频、评论、电台、每日推荐（需登录态）—— 端点已封装，可在后续页面按需调用。
+5. 登录方式可用性：**扫码登录**对数据中心 IP 也稳定可用（推荐）；**手机验证码 / 账号密码登录**可能被酷狗风控拦截（返回 `152` / `20010`，或要求在 `/verify/user/info` 完成短信/图形验证），此时建议改用扫码或 Cookie 登录。
 5. 酷狗「榜单 / 新歌速递 / 歌单广场」已封装但暂无独立页面入口，可作为下一步（接入现有 Discover 或新增「酷狗」浏览页）。
 6. 历史遗留：本项目曾用 `feat/api-enhanced` 分支部署自定义域；切到 `NEWAPI` 后自定义域才是新版本。
 

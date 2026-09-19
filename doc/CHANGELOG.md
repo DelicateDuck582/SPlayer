@@ -66,7 +66,18 @@
 | 用户信息 | `settingStore.kugouUser`（昵称 / 头像 / VIP / 等级）；`core.ts` 新增 `kugouUserToProfile`（兼容多种字段命名）与错误码 `20018` 翻译；新增端点 `/user/detail`、`/user/vip/detail`、`/user/playlist`、`/user/history` |
 | 用户区 | `Layout/User.vue` 按当前音乐源展示对应账号：酷狗源显示酷狗头像/昵称/等级/VIP + 「酷狗源」标记，网易云源保持原样；退出登录按源分别处理，两套登录态互不影响 |
 
-**验证（第二轮）**：`vue-tsc` EXIT=0、`pnpm test:kugou` 29/29（改用项目域名 `https://kugou-api-eight.vercel.app` 复测）、Prettier 通过、`electron-vite build` 通过。
+**第三轮：完整登录体系（扫码 / 验证码 / 账号密码 / Cookie）与刷新登录**
+
+| 范围 | 内容 |
+| --- | --- |
+| 端点 | 新增 `/login/qr/key`、`/login/qr/create`、`/login/qr/check`、`/captcha/sent`、`/login/cellphone`、`/login`、`/login/token`（刷新登录）、`/verify/user/info`（风控验证） |
+| 登录弹窗 | 重构为 `Modal/KugouLogin/`（`index` + `QRCode` + `Phone` + `Account` + `Cookie`），4 个 Tab 与网易云登录对齐；底部新增「刷新登录」 |
+| 会话 | `core.ts` 新增 `kugouLoginToSession` / `mergeKugouCookieText` / `kugouQrStatus(Text)`；**从响应体取 `token`/`userid`**（上游会把解密后的 `secu_params` 合并进 body，浏览器不依赖 `Set-Cookie`） |
+| 刷新登录 | `refreshKugouLogin()`（`/login/token`）+ `refreshKugouLoginIfNeeded()`：**距上次登录超过 3 天时启动自动刷新一次**，与网易云 `refreshLoginData` 行为一致；设置页新增「刷新酷狗登录」按钮（含上次登录时间） |
+| 验证码 | 「发送验证码」带 60s 倒计时 + 11 位手机号校验；`verify_user_info` 已封装以应对风控 |
+| 测试 | `pnpm test:kugou` 扩至 **43/43**：新增会话映射 / Cookie 合并 / 扫码状态用例，以及扫码 key、扫码状态、刷新登录（20017）、发送验证码端点实测 |
+
+**验证（第三轮）**：`pnpm test:kugou` 43/43、`vue-tsc` EXIT=0、Prettier 通过、`electron-vite build` 通过。
 
 <a id="v2026-09-19-web-audit"></a>
 

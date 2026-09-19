@@ -175,7 +175,7 @@ export const openUserLogin = async (
  * @param onSuccess 登录成功回调
  */
 export const openKugouLogin = async (onSuccess?: () => void) => {
-  const { default: KugouLogin } = await import("@/components/Modal/KugouLogin.vue");
+  const { default: KugouLogin } = await import("@/components/Modal/KugouLogin/index.vue");
   const modal = window.$modal.create({
     preset: "card",
     transformOrigin: "center",

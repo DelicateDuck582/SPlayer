@@ -57,6 +57,8 @@ export const kugouErrorText = (body: KugouResponse | null | undefined): string =
       return "酷狗要求验证（20028）：请在「设置 → 网络 → 音乐源」中填写酷狗登录 Cookie 后重试";
     case 20010:
       return "酷狗返回未授权（20010）：登录态失效或需要会员权限";
+    case 20017:
+      return "酷狗登录态缺失或已失效（20017）：请重新登录";
     case 20018:
       return "酷狗登录态无效或已过期（20018）：请重新获取 Cookie 后登录";
     case 404:
@@ -222,6 +224,117 @@ export const kugouUserToProfile = (
     vipType: Number(data?.vip_type ?? data?.vipType ?? data?.vip ?? 0) || 0,
     level: Number(data?.grade ?? data?.level ?? data?.user_grade ?? 0) || 0,
   };
+};
+
+/* ------------------------------------------------------------ 登录 / 会话（多方式登录） */
+
+/** 酷狗登录会话（Cookie 登录 / 验证码登录 / 账号密码登录 / 扫码登录 / 刷新登录后得到） */
+export interface KugouLoginSession {
+  /** 登录令牌（Cookie 里的 `token`） */
+  token: string;
+  /** 用户 id（Cookie 里的 `userid`） */
+  userid: string;
+  /** 合并后可直接保存的 Cookie 文本 */
+  cookie: string;
+  /** 昵称（部分登录接口会直接返回） */
+  nickname?: string;
+  /** 头像（部分登录接口会直接返回） */
+  avatar?: string;
+  /** VIP 类型 */
+  vipType?: number;
+}
+
+/** 登录响应中要落进 Cookie 的字段白名单（与上游模块写回的 Set-Cookie 对应） */
+const KUGOU_SESSION_COOKIE_FIELDS = [
+  "token",
+  "userid",
+  "t1",
+  "vip_type",
+  "vip_token",
+  "dfid",
+] as const;
+
+/**
+ * 合并 Cookie 字段到已有 Cookie 文本（同名覆盖，空值跳过）
+ *
+ * @param baseCookie 已有 Cookie 文本（如用户粘贴的整段 Cookie）
+ * @param fields 待写入字段
+ */
+export const mergeKugouCookieText = (
+  baseCookie: string,
+  fields: Record<string, string | number | undefined>,
+): string => {
+  const map = new Map<string, string>();
+  String(baseCookie ?? "")
+    .split(";")
+    .forEach((item) => {
+      const index = item.indexOf("=");
+      if (index <= 0) return;
+      const key = item.slice(0, index).trim();
+      const value = item.slice(index + 1).trim();
+      if (key) map.set(key, value);
+    });
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    const text = String(value).trim();
+    if (!text || (key === "userid" && text === "0") || (key === "token" && text === "0")) return;
+    map.set(key, text);
+  });
+  return `${[...map.entries()].map(([key, value]) => `${key}=${value}`).join("; ")};`;
+};
+
+/**
+ * 酷狗登录响应 → 登录会话
+ *
+ * 说明：上游模块会把解密后的 `secu_params`（含 `token` / `userid`）合并进 `body.data`，
+ * 因此浏览器端可以**直接从响应体**取到凭据（`Set-Cookie` 是 JS 不可读的禁头）。
+ *
+ * @param body 登录接口响应
+ * @param baseCookie 现有 Cookie 文本（保留其中其它字段）
+ * @returns 会话；未登录成功（缺 token / userid）时为 `null`
+ */
+export const kugouLoginToSession = (
+  body: KugouResponse | null | undefined,
+  baseCookie = "",
+): KugouLoginSession | null => {
+  const data: any = body?.data ?? {};
+  const token = String(data?.token ?? data?.Token ?? "").trim();
+  const userid = String(data?.userid ?? data?.user_id ?? data?.userId ?? "").trim();
+  if (!token || !userid) return null;
+  const fields: Record<string, string | number | undefined> = {};
+  KUGOU_SESSION_COOKIE_FIELDS.forEach((key) => {
+    fields[key] = data?.[key];
+  });
+  fields["token"] = token;
+  fields["userid"] = userid;
+  return {
+    token,
+    userid,
+    cookie: mergeKugouCookieText(baseCookie, fields),
+    nickname: String(data?.nickname ?? data?.nick_name ?? "").trim() || undefined,
+    avatar: kugouImage(data?.pic ?? data?.avatar ?? "", 240) || undefined,
+    vipType: Number(data?.vip_type ?? data?.vipType ?? 0) || 0,
+  };
+};
+
+/** 扫码登录状态：0 二维码过期 / 1 待扫码 / 2 待确认 / 4 授权登录成功 */
+export const kugouQrStatus = (body: KugouResponse | null | undefined): number =>
+  Number(body?.data?.status ?? body?.status ?? 0) || 0;
+
+/** 扫码登录状态文案 */
+export const kugouQrStatusText = (status: number): string => {
+  switch (status) {
+    case 0:
+      return "二维码已过期，请点击刷新";
+    case 1:
+      return "请使用酷狗 App 扫码";
+    case 2:
+      return "已扫码，请在手机上确认登录";
+    case 4:
+      return "登录成功";
+    default:
+      return "等待扫码";
+  }
 };
 
 /* --------------------------------------------------------------- 播放地址与歌词工具 */

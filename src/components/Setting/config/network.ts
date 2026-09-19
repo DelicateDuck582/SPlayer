@@ -21,7 +21,13 @@ import {
   testKugouApiBase,
 } from "@/api/kugou";
 import { openKugouLogin } from "@/utils/modal";
-import { getKugouCookieValue, isKugouLogin, kugouLogout } from "@/utils/kugouAuth";
+import {
+  getKugouCookieValue,
+  getKugouLastLoginTime,
+  isKugouLogin,
+  kugouLogout,
+  refreshKugouLogin,
+} from "@/utils/kugouAuth";
 
 export const useNetworkSettings = (): SettingConfig => {
   const settingStore = useSettingStore();
@@ -85,6 +91,16 @@ export const useNetworkSettings = (): SettingConfig => {
 
   // --- 音乐源 / 酷狗 API（运行时切换，无需重新构建） ---
   const kugouTestLoading = ref<boolean>(false);
+  const kugouRefreshLoading = ref<boolean>(false);
+
+  /** 刷新酷狗登录（`/login/token` 换新令牌） */
+  const handleRefreshKugou = async () => {
+    kugouRefreshLoading.value = true;
+    const { ok, message } = await refreshKugouLogin();
+    kugouRefreshLoading.value = false;
+    if (ok) window.$message.success(message);
+    else window.$message.error(message);
+  };
 
   /** 应用酷狗 API 地址：空值表示使用构建时默认地址 */
   const applyKugouApiBase = (value: string) => {
@@ -370,12 +386,27 @@ export const useNetworkSettings = (): SettingConfig => {
             description: computed(() =>
               isKugouLogin()
                 ? `已登录：${settingStore.kugouUser?.nickname || getKugouCookieValue("userid") || "酷狗用户"}（可重新登录 / 切换账号）`
-                : "未登录：点击后用 Cookie 登录（与点击左侧头像登录等效）",
+                : "未登录：支持扫码 / 手机验证码 / 账号密码 / Cookie 登录（与点击左侧头像登录等效）",
             ),
-            keywords: ["酷狗", "登录", "账号", "cookie", "kugou", "头像"],
+            keywords: ["酷狗", "登录", "账号", "cookie", "扫码", "验证码", "kugou", "头像"],
             buttonLabel: "登录 / 切换账号",
             action: () => openKugouLogin(),
             componentProps: { type: "primary" },
+          },
+          {
+            key: "kugouRefreshLogin",
+            label: "刷新酷狗登录",
+            type: "button",
+            show: computed(() => settingStore.musicSource === "kugou" && isKugouLogin()),
+            description: computed(() => {
+              const last = getKugouLastLoginTime();
+              const timeText = last ? `上次登录：${new Date(last).toLocaleString()}；` : "";
+              return `${timeText}调用 /login/token 换取新令牌（超过 3 天会在启动时自动刷新一次）`;
+            }),
+            keywords: ["酷狗", "刷新", "登录", "token", "refresh", "续期"],
+            buttonLabel: "刷新登录",
+            action: handleRefreshKugou,
+            componentProps: computed(() => ({ loading: kugouRefreshLoading.value })),
           },
           {
             key: "kugouLogout",
