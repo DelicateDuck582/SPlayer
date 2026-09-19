@@ -79,6 +79,18 @@
 
 **验证（第三轮）**：`pnpm test:kugou` 43/43、`vue-tsc` EXIT=0、Prettier 通过、`electron-vite build` 通过。
 
+**第四轮：自定义域不可达的兜底与排障（登录二维码失败修复）**
+
+| 问题 | 处理 |
+| --- | --- |
+| 现象 | 线上日志：`kugou-api.duckgame-play.top/search/hot`、`/login/qr/key` 全部 `net::ERR_CONNECTION_CLOSED`，导致「搜索关键词」「登录二维码」失败 |
+| 根因 | 该子域在 Cloudflare（`chan/tadeo.ns.cloudflare.com`）**没有指向 Vercel 的有效记录**（`ERR_CONNECTION_CLOSED` 而非 `ERR_NAME_NOT_RESOLVED`，典型是记录指向了已停用的旧 IP `76.76.21.21`） |
+| 客户端兜底 | `kugouApi` 在主地址**网络层失败**时自动重试 Vercel 项目域名 `https://kugou-api-eight.vercel.app`（`KUGOU_API_FALLBACK_BASE`，可用 `VITE_KUGOU_API_FALLBACK_URL` 覆盖），并提示一次「已临时使用备用地址，请检查 DNS」 |
+| 排障体验 | `testKugouApiBase()` 会同时探测主/备地址并区分「服务不可用」与「DNS 没配好」；扫码组件在连接失败时直接给出可操作提示 |
+| 文档 | `doc/KUGOU-API.md` 第三节更新为 Vercel 官方推荐记录（CNAME `2c31bb9d9db3037d.vercel-dns-017.com`；或 A `64.29.17.1` / `216.198.79.1`）与 Cloudflare 注意事项 |
+
+**验证（第四轮）**：`vue-tsc` EXIT=0、Prettier 通过。
+
 <a id="v2026-09-19-web-audit"></a>
 
 ## 2026-09-19 Web 端（Vercel）安全 / 密钥 / 性能审计与修复

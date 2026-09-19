@@ -35,13 +35,23 @@
 
 ## 三、需要手动补的 DNS 记录（唯一一步）
 
-`duckgame-play.top` 的 DNS 不在 Vercel（无通配符解析，实测 `kugou-api` 子域为 NXDOMAIN），请在域名商处新增：
+`duckgame-play.top` 的 DNS 托管在 **Cloudflare**（NS：`chan.ns.cloudflare.com` / `tadeo.ns.cloudflare.com`）。
+Vercel 侧该域名的配置为 `configuredBy: CNAME`，**官方推荐记录**（来自 Vercel API `recommendedCNAME` / `recommendedIPv4`）为：
 
-| 类型 | 主机记录 | 记录值 |
-| --- | --- | --- |
-| CNAME | `KuGou-API`（大小写均可，Vercel 已按小写登记） | `kugou-api-eight.vercel.app` |
+| 类型 | 主机记录 | 记录值 | 说明 |
+| --- | --- | --- | --- |
+| **CNAME（推荐）** | `kugou-api` | `2c31bb9d9db3037d.vercel-dns-017.com` | Cloudflare 里保持 **DNS only**（不要开小云朵代理） |
+| 或 A（两条） | `kugou-api` | `64.29.17.1`、`216.198.79.1` | 两条都要加 |
 
-添加后 `https://kugou-api.duckgame-play.top/search/hot` 应返回 JSON，Vercel 项目 → Domains 会显示已生效。
+**排障**：浏览器报 `Failed to load resource: net::ERR_CONNECTION_CLOSED`（而不是 `ERR_NAME_NOT_RESOLVED`）通常意味着**记录指到了已失效的旧 IP**（典型是 `76.76.21.21`，Vercel 已停用该地址）。
+请到 Cloudflare 删除 `kugou-api` 下冲突的 A/AAAA 记录后再按上表添加。验证方式：
+
+```powershell
+Resolve-DnsName kugou-api.duckgame-play.top   # 应看到 CNAME → 2c31bb9d9db3037d.vercel-dns-017.com 及其 A 记录
+```
+
+添加成功前，播放器端**仍可用**：客户端在「主地址网络层失败」时会自动兜底到 Vercel 项目域名 `https://kugou-api-eight.vercel.app`（`KUGOU_API_FALLBACK_BASE`，可用 `VITE_KUGOU_API_FALLBACK_URL` 覆盖），并提示一次「已临时使用备用地址」；也可在「设置 → 网络 → 音乐源 → 酷狗 API 服务地址」手动填该地址。
+
 （若 DNS 服务商是 Cloudflare，请保持 **DNS only**，不要开小云朵代理。）
 
 ## 四、SPlayer 侧改动

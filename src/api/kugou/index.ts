@@ -46,6 +46,22 @@ export const DEFAULT_KUGOU_API_BASE: string = String(
   (import.meta as any).env?.["VITE_KUGOU_API_URL"] || "https://kugou-api.duckgame-play.top",
 ).replace(/\/+$/, "");
 
+/**
+ * 备用地址（Vercel 项目域名）
+ *
+ * 自定义域解析未生效（DNS 未配置 / 记录错误）时，浏览器会报 `ERR_CONNECTION_CLOSED`；
+ * 此时自动用该备用地址兜底一次，避免「整个酷狗源不可用」，并提示用户检查 DNS。
+ */
+export const KUGOU_API_FALLBACK_BASE = String(
+  (import.meta as any).env?.["VITE_KUGOU_API_FALLBACK_URL"] || "https://kugou-api-eight.vercel.app",
+).replace(/\/+$/, "");
+
+/** 是否已提示过「已切换备用地址」（避免逐请求刷屏） */
+let fallbackNotified = false;
+
+/** 判断是否为网络层失败（无响应：DNS 解析失败 / 连接被关闭 / 跨域被拦等） */
+const isNetworkFailure = (error: unknown): boolean => !(error as any)?.response;
+
 /** 规范化酷狗 API 地址（去首尾空白与结尾斜杠） */
 export const normalizeKugouApiBase = (url: unknown): string =>
   String(url ?? "")
@@ -104,31 +120,67 @@ export const kugouApi = async <T = any>(
   }
   const body: Record<string, unknown> = { ...params };
   if (cookie) body.cookie = cookie;
-  const { data } = await kugouServer.post(path, body, { baseURL: getKugouApiBase() });
-  return data as KugouResponse<T>;
+  const base = getKugouApiBase();
+  const post = async (baseURL: string): Promise<KugouResponse<T>> =>
+    (await kugouServer.post(path, body, { baseURL })).data as KugouResponse<T>;
+
+  try {
+    return await post(base);
+  } catch (error) {
+    // 网络层失败（DNS 未生效 / 连接被关闭等）且当前不是备用地址时，兜底重试一次，
+    // 避免自定义域未配置好导致整个酷狗源不可用
+    if (!isNetworkFailure(error) || base === KUGOU_API_FALLBACK_BASE) throw error;
+    const result = await post(KUGOU_API_FALLBACK_BASE);
+    if (!fallbackNotified) {
+      fallbackNotified = true;
+      if (typeof window !== "undefined" && window.$message) {
+        window.$message.warning(
+          `酷狗 API 主地址不可用，已临时使用备用地址 ${KUGOU_API_FALLBACK_BASE}（请检查自定义域 DNS 记录）`,
+          { duration: 5000 },
+        );
+      }
+    }
+    return result;
+  }
 };
 
 /**
  * 探测酷狗 API 可用性（匿名请求热搜，不消耗登录态）
+ *
+ * 主地址网络层不可用时会再探测备用地址（Vercel 项目域名），便于区分
+ * 「服务挂了」与「自定义域 DNS 没配好」。
  * @param base 待测地址；留空则测当前生效地址
  */
 export const testKugouApiBase = async (
   base?: string,
 ): Promise<{ ok: boolean; message: string }> => {
   const target = normalizeKugouApiBase(base) || getKugouApiBase();
-  try {
-    const { data } = await kugouServer.post("/search/hot", {}, { baseURL: target, timeout: 10000 });
-    const body = data as KugouResponse;
-    const ok = Number(body?.status ?? body?.errcode ?? 0) === 1;
-    return ok
-      ? { ok: true, message: `连接成功：${target}` }
-      : { ok: false, message: `接口返回异常（${kugouErrorText(body)}）：${target}` };
-  } catch (error) {
+  const probe = async (url: string): Promise<{ ok: boolean; message: string }> => {
+    try {
+      const { data } = await kugouServer.post("/search/hot", {}, { baseURL: url, timeout: 10000 });
+      const body = data as KugouResponse;
+      const ok = Number(body?.status ?? body?.errcode ?? 0) === 1;
+      return ok
+        ? { ok: true, message: `连接成功：${url}` }
+        : { ok: false, message: `接口返回异常（${kugouErrorText(body)}）：${url}` };
+    } catch (error) {
+      return {
+        ok: false,
+        message: `连接失败：${(error as Error)?.message || "未知错误"}（${url}）`,
+      };
+    }
+  };
+
+  const primary = await probe(target);
+  if (primary.ok || target === KUGOU_API_FALLBACK_BASE) return primary;
+  const fallback = await probe(KUGOU_API_FALLBACK_BASE);
+  if (fallback.ok) {
     return {
-      ok: false,
-      message: `连接失败：${(error as Error)?.message || "未知错误"}（${target}）`,
+      ok: true,
+      message: `主地址不可用（${primary.message}）；已可用备用地址：${KUGOU_API_FALLBACK_BASE}，请检查自定义域 DNS`,
     };
   }
+  return primary;
 };
 
 /* ------------------------------------------------------------------ 原始端点 */

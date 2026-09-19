@@ -86,6 +86,13 @@ const createQr = async () => {
     qrImage.value = image;
     tip.value = image ? "请使用酷狗 App 扫码" : "二维码获取失败，请点击刷新重试";
     if (image) startPolling();
+  } catch (error) {
+    // 常见原因：API 地址不可达（自定义域 DNS 未生效）、网络异常
+    const isNetworkFailure = !(error as any)?.response;
+    tip.value = isNetworkFailure
+      ? "无法连接酷狗 API 服务：请检查网络，或在「设置 → 网络 → 音乐源 → 酷狗 API 服务地址」改用可用地址"
+      : "二维码获取失败，请点击刷新重试";
+    console.warn("酷狗二维码获取失败：", (error as Error)?.message);
   } finally {
     loading.value = false;
   }
