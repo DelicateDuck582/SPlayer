@@ -122,13 +122,10 @@ export default defineConfig(({ mode }) => {
             // 以免制造跨包循环依赖；改动后需做一次生产构建 + 页面渲染验证。
             manualChunks: (id: string) => {
               if (id.includes("node_modules")) {
-                if (
-                  id.includes("naive-ui") ||
-                  id.includes("vueuc") ||
-                  id.includes("@css-render")
-                ) {
+                if (id.includes("naive-ui") || id.includes("vueuc") || id.includes("@css-render")) {
                   return "vendor-ui";
                 }
+                if (id.includes("@applemusic-like-lyrics/core")) return "amll-core";
                 if (id.includes("@applemusic-like-lyrics")) return "vendor-amll";
                 if (id.includes("@vueuse")) return "vendor-vueuse";
                 if (id.includes("lodash-es") || id.includes("axios") || id.includes("dayjs")) {

@@ -1,7 +1,7 @@
 <template>
   <div class="player-lyric">
     <!-- 歌词内容 -->
-    <AMLyric v-if="settingStore.useAMLyrics" :currentTime="playSeek" />
+    <AMLyricAsync v-if="settingStore.useAMLyrics" :currentTime="playSeek" />
     <DefaultLyric v-else :currentTime="playSeek" />
     <!-- 歌词菜单 -->
     <n-flex :class="['lyric-menu', { show: statusStore.playerMetaShow }]" justify="center" vertical>
@@ -98,6 +98,15 @@ const musicStore = useMusicStore();
 const settingStore = useSettingStore();
 const statusStore = useStatusStore();
 const player = usePlayerController();
+
+/**
+ * AMLL 歌词组件按需加载
+ *
+ * `@applemusic-like-lyrics/core` 体积较大（独立 chunk，gzip 数十 KB），
+ * 而默认配置 `useAMLyrics = false`（用内置歌词）占多数场景；
+ * 改为异步组件后，只有真正开启 AMLL 歌词时才会下载该 chunk。
+ */
+const AMLyricAsync = defineAsyncComponent(() => import("./AMLyric.vue"));
 
 /**
  * 当前歌曲 id

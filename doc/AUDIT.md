@@ -187,7 +187,7 @@
 | --- | --- | --- | --- |
 | W1 | 登出后凭据残留：除 `MUSIC_U` / `__csrf` 外的登录 Cookie 及其 `localStorage` 副本、云盘上传队列（NOS 直传地址 + 上传令牌）均未清理 | `auth.ts toLogout()` 原实现只删两个 Cookie；`cookie.ts setCookies()` 会把登录返回的所有 Cookie 写入 `document.cookie` 与 `localStorage["cookie-*"]`；`clearUploadQueue()` 此前仅被 Cloud.vue 的「放弃任务」按钮调用 | ✅ 已修复：`toLogout()` 清空全部 `cookie-*`（含 document.cookie）并 `clearUploadQueue()` |
 | W2 | CSP 仅 `frame-ancestors 'self'` | `vercel.json` headers；线上实测响应头缺少 `object-src` / `base-uri` / `form-action` 限制 | ✅ 已加固为 `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`（不影响脚本 / 连接 / 图片，自定义 JS 与播放不受影响） |
-| W3 | **部署保护开启**：未登录 Vercel 的访客访问任一域名（含 production 域）均 302 到 `vercel.com/sso-api` | 无头探测 `music.ciallo.sale`、`beta-music.ciallo.sale`、部署 URL 均 302；带 `x-robots-tag: noindex` | ⚠️ 待决策：Project → Settings → Deployment Protection 关闭，或「仅保护 Preview」；在此之前外部无法抓取线上产物做进一步审计 |
+| W3 | **部署保护开启**：未登录 Vercel 的访客访问任一域名（含 production 域）均 302 到 `vercel.com/sso-api` | 无头探测 `music.ciallo.sale`、`beta-music.ciallo.sale`、部署 URL 均 302；带 `x-robots-tag: noindex`；Vercel API 显示 `ssoProtection.deploymentType = "all_except_custom_domains"` | ✅ 已关闭（PATCH `ssoProtection=null`、`passwordProtection=null`）；关闭后实测 `music.ciallo.sale` / `music.duckgame-play.top` 返回 200 且响应头齐全（见下方「线上实测」） |
 | W4 | 登录 Cookie 经 `X-Netease-Cookie` 头发往构建时注入的 API 域名（默认 `music-api2.duckgame-play.top`），该域名可读取用户凭据 | `request.ts`：`COOKIE_HEADER`、`DEFAULT_API_BASE = import.meta.env["VITE_API_URL"]`；API 侧 `Access-Control-Allow-Origin: *` | ⚠️ 设计取舍（自建 API 架构）：仅使用自建 / 可信 API 即可；已在文档标注 |
 | W5 | 自定义 JS（`useCustomCode` → `new Function(customJs)`）在导入设置后立即执行；导入弹窗未单独提示「配置含自定义 JS」 | `useCustomCode.executeCustomJs()`；`general.ts importSettings()` 写入 `setting-store` 后 `location.reload()` | ⚠️ 观察项：导入他人配置存在执行风险；如需可加二次确认（本轮未改交互） |
 | W6 | XSS 面 | 全仓 `v-html` 9 处：更新日志 = `marked` + `sanitizeHtml()`；设置项描述为本地静态文案；`SvgIcon` 为内联图标；`AMLLServer.vue` 那处在注释模板内（编译时被忽略）；`CommentList` 纯文本渲染，无 `innerHTML` 注入 | ✅ 未发现可利用注入点 |
@@ -211,11 +211,24 @@
 | WP4 | 长列表渲染 | 列表页沿用既有 `VirtualScroll`；本轮新增页面均为分页 / 限量（20–30 条），无一次性全量渲染 |
 | WP5 | 定时器与监听器 | 全仓 `setInterval` 5 处均有配对 `clearInterval`；`src/views/**` 无 `addEventListener`，无未清理的视图级监听 |
 | WP6 | 串行请求 / 深拷贝 | `src/views/**` 无「for 循环内 await」（串行 N+1）；解析类工具为一次遍历，无深拷贝 |
+| WP7 | 首屏是否加载了「按需才用」的大依赖 | 🔧 已修复：`@applemusic-like-lyrics/core`（AMLL 渲染引擎，raw 399KB / gzip 119KB）原本被自动导入的组件静态引入 → 打进首屏。改为 `defineAsyncComponent` 并把 `manualChunks` 中 `core` 独立为 `amll-core` 后，**首屏 gzip 695.8KB → 581.4KB（-16.4%）**，`amll-core` 不再出现在 `index.html` |
+
+## 线上实测（部署保护关闭后）
+
+| 项 | 结果 |
+| --- | --- |
+| `http → https` | 308 重定向 ✓ |
+| 安全响应头（`music.ciallo.sale` / `music.duckgame-play.top`） | CSP `frame-ancestors 'self'`、HSTS `max-age=63072000`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（地理/麦克风/相机/支付禁用）→ **无缺失项** |
+| 压缩 / 缓存 | `content-encoding: br`（Brotli）✓；`/assets/*`、`/fonts|icons|wasm|images/*` 为 `max-age=31536000, immutable` ✓；`x-vercel-cache: HIT` |
+| 产物密钥 / sourcemap | **0 命中**（HTML、JS、CSS 全量扫描） |
+| HTML 内联脚本 / 内联 `http://` | 0 处 / 0 处 ✓ |
+| 首屏 JS+CSS | 解压后 2.26MB（其中 `vendor-amll` 399KB 已在 `beta` 分支被 WP2 优化掉） |
 
 ## 复审建议
 
-1. **部署保护**：关闭生产域名保护（或仅保护 Preview），否则访客无法访问；关闭后建议复测一次响应头与产物。
+1. **部署保护**：✅ 已关闭（`ssoProtection=null`）；若之后想保护预览部署，可在 Vercel 选择仅保护 Preview，避免生产域名被拦。
 2. **主站分支**：`music.ciallo.sale` 仍为 `feat/api-enhanced`；若要让主站也带上 2026-09-19 的整合成果，可合并 `NEWAPI` 或把该域名的 gitBranch 改为 `NEWAPI`（`beta-music.ciallo.sale` 已是后者）。
-3. **CSP 进一步收紧**：可在 Report-Only 下先加 `default-src` / `connect-src` 观察；注意自定义 JS 依赖 `unsafe-eval`。
-4. **`.env` 治理**：把 `.env` 从索引移除（保留本地文件）并在 Vercel 配好环境变量，避免将来误提交密钥。
+3. **首屏体积**：`vendor-ui`（naive-ui，gzip 286KB）与 `stores`（gzip 212KB）仍是首屏大头；后续可按路由拆分 naive-ui 组件或把 stores 中的非首屏依赖改为动态 import。AMLL core（gzip 119KB）本轮已移出首屏。
+4. **CSP 进一步收紧**：线上在 Report-Only 下先加 `default-src` / `connect-src` 观察；注意自定义 JS 依赖 `unsafe-eval`。
+5. **`.env` 治理**：把 `.env` 从索引移除（保留本地文件）并在 Vercel 配好环境变量，避免将来误提交密钥。
 

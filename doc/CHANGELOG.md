@@ -38,6 +38,7 @@
 | W1 | **登出后凭据残留**：除 `MUSIC_U` / `__csrf` 外的登录 Cookie 及其 `localStorage` 副本，以及云盘上传队列（含 NOS 直传地址与**上传令牌**）都留在本地 | `toLogout()` 只删两个 Cookie；`setCookies()` 会把登录返回的**所有** Cookie 写进 `document.cookie` 与 `localStorage["cookie-*"]`；`clearUploadQueue()` 此前只被「放弃任务」按钮调用 | 登出时清空全部 `cookie-*`（同时删除 document.cookie）并 `clearUploadQueue()` |
 | W2 | CSP 仅 `frame-ancestors 'self'`，缺少对象 / 表单 / 基准 URL 限制 | `vercel.json` 的 headers 配置 | 补 `object-src 'none'; base-uri 'self'; form-action 'self'`（不限制脚本、连接与图片，保持自定义 JS、播放与图片加载可用） |
 | WP1 | 消息中心首屏打 **4 个**接口（会话 + 评论 + 转发 + 通知），其中 3 个用户可能根本不看 | `getMessageData()` 一次性 `Promise.allSettled([getSessions(), getNotices()])` | 首屏只拉会话；评论 / 转发 / 通知改为**首次切到对应 Tab 时懒加载**（失败不置位，可重试；沿用既有 `loading` 转圈） |
+| WP2 | **首屏加载了 AMLL 渲染引擎**：`@applemusic-like-lyrics/core` 被打进首屏 chunk（raw 399KB / gzip 119KB），而它只在「AMLL 歌词」或「流体背景」开启时才用（默认都关闭） | `PlayerLyric/index.vue`、`PlayerBackground.vue` 通过 unplugin 自动导入组件 → 静态 import core；且 `manualChunks` 把 `core` 与 `lyric` 合成同一个 `vendor-amll` chunk，即使改成懒加载也不省字节 | ① 两个组件改为 `defineAsyncComponent(() => import(...))`（仅在使用时下载）② `manualChunks` 拆分：`@applemusic-like-lyrics/core` → `amll-core`，其余 → `vendor-amll`。**首屏 gzip 695.8KB → 581.4KB（-114KB / -16.4%）**，`amll-core`(378KB) 已不在 `index.html` 引用中 |
 
 **核查结论（未发现可修复项）**
 
@@ -56,7 +57,8 @@
 | `music.ciallo.sale`、`music.duckgame-play.top` | `feat/api-enhanced` | **旧分支** → 看不到 2026-09-19 整合的新页面（这就是「功能少」的原因） |
 
 - 项目已连接 Git（`DelicateDuck582/SPlayer`，productionBranch=`dev`），推送到 `NEWAPI` 会自动构建并刷新 `beta-music.ciallo.sale`。
-- ⚠️ **部署保护（Vercel Authentication）当前开启**：未登录 Vercel 的访客访问上述域名都会 302 到 `vercel.com/sso-api`；如需公开访问，应在 Project → Settings → Deployment Protection 中关闭（或仅保护 Preview）。
+- ✅ **部署保护已关闭**（通过 Vercel API 置 `ssoProtection=null` / `passwordProtection=null`）：关闭前所有域名（含自定义域）都会 302 到 `vercel.com/sso-api`，无法公开访问、也无法外部审计产物。
+- **解封后的线上实测**（`music.ciallo.sale`，旧分支产物）：`http → https` 308 重定向 ✓；安全头齐全（CSP `frame-ancestors 'self'`、HSTS `max-age=63072000`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy`、`Permissions-Policy`）**无缺失项**；Brotli 压缩 ✓；`/assets/*` 为 `immutable` 长缓存 ✓；**线上产物密钥 / sourcemap 扫描 0 命中**；首屏 JS+CSS 解压后 2.26MB（其中 `vendor-amll` 399KB 正是 WP2 优化掉的部分）。
 - ⚠️ 登录凭据经 `X-Netease-Cookie` 头发往构建时注入的 API 域名（自建 API 架构的既有取舍），建议只使用自建 / 可信 API 源。
 
 **验证**：`vue-tsc`（`tsconfig.web.json`）EXIT=0；Prettier 通过；`pnpm test:route-guards` 13/13；`pnpm security:selfcheck` 43/43；`pnpm test:message-content` 10/10；域绑定与部署 sha 经 Vercel API 核对。

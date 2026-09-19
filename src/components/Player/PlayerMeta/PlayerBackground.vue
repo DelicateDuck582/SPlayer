@@ -16,7 +16,7 @@
         alt="cover"
       />
       <!-- 流体效果 -->
-      <BackgroundRender
+      <AnimatedBackgroundRender
         v-else-if="settingStore.playerBackgroundType === 'animation'"
         :album="musicStore.songCover"
         :fps="settingStore.playerBackgroundFps ?? 60"
@@ -37,6 +37,16 @@ const musicStore = useMusicStore();
 const settingStore = useSettingStore();
 const statusStore = useStatusStore();
 const player = usePlayerController();
+
+/**
+ * AMLL 流体背景按需加载
+ *
+ * 依赖 `@applemusic-like-lyrics/core`（独立 chunk，gzip 数十 KB）：
+ * 只有用户把播放背景设为「流体效果」时才需要，改为异步组件后不再进入首屏依赖图。
+ */
+const AnimatedBackgroundRender = defineAsyncComponent(
+  () => import("@/components/AMLL/BackgroundRender.vue"),
+);
 
 // 低频音量
 const lowFreqVolume = ref(1.0);
