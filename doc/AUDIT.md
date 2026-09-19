@@ -226,7 +226,7 @@
 
 ## 复审建议
 
-1. **预览链接治理**：`*.vercel.app` 已由 `vercel.json` 的 Host 级重定向关闭（307 → 自定义域）。若要**连历史部署 URL 也一并失效**，需要把自定义域变成「production 域名」（即让主站分支成为 production 分支 + 用 production 部署）+ 开启 Standard Protection——这同时能让新功能上主站，等你确认后再做。
+1. **预览链接治理**：`*.vercel.app` 已由 `vercel.json` 的 Host 级重定向关闭（307 → 自定义域）——实测新部署 URL、分支别名、项目主域名全部 307，三个自定义域 200。**限制**：历史已构建的旧部署 URL（如 `s-player12-llxiym56f-…`）仍可直接访问，因为 Vercel 部署不可变、规则随构建生效。若要**连历史部署也一并失效**，需要把自定义域升为「production 域」（让主站分支成为 production 分支 + 用 production 部署）后再开 Standard Protection——这同时能让新功能上主站，等你确认后再做。
 2. **主站分支**：`music.ciallo.sale` 仍为 `feat/api-enhanced`；若要让主站也带上 2026-09-19 的整合成果，可合并 `NEWAPI` 或把该域名的 gitBranch 改为 `NEWAPI`（`beta-music.ciallo.sale` 已是后者）。
 3. **首屏体积**：`vendor-ui`（naive-ui，gzip 286KB）与 `stores`（gzip 212KB）仍是首屏大头；后续可按路由拆分 naive-ui 组件或把 stores 中的非首屏依赖改为动态 import。AMLL core（gzip 119KB）本轮已移出首屏。
 4. **CSP 进一步收紧**：线上在 Report-Only 下先加 `default-src` / `connect-src` 观察；注意自定义 JS 依赖 `unsafe-eval`。
