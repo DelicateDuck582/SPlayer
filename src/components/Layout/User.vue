@@ -38,14 +38,16 @@
         <n-text class="nickname text-hidden">{{ displayName }}</n-text>
         <n-flex align="center" size="small">
           <n-tag :bordered="false" size="small" round type="warning">Lv.{{ displayLevel }}</n-tag>
-          <n-tag v-if="isKugouMode" :bordered="false" size="small" round type="info">酷狗源</n-tag>
+          <n-tag v-if="isThirdPartyMode" :bordered="false" size="small" round type="info">
+            {{ sourceTag }}
+          </n-tag>
           <!-- VIP -->
           <img v-if="loggedIn && displayVip" class="vip-img" src="/images/vip.png?asset" />
         </n-flex>
       </n-flex>
       <n-divider />
       <!-- 喜欢数量（仅网易云源） -->
-      <div v-if="!isKugouMode && dataStore.loginType !== 'uid'" class="like-num">
+      <div v-if="!isThirdPartyMode && dataStore.loginType !== 'uid'" class="like-num">
         <div
           v-for="(item, index) in userLikeData"
           :key="index"
@@ -56,7 +58,7 @@
           <n-text :depth="3">{{ item.label }}</n-text>
         </div>
       </div>
-      <n-flex v-else-if="!isKugouMode" align="center" vertical>
+      <n-flex v-else-if="!isThirdPartyMode" align="center" vertical>
         <n-text>UID 登录模式</n-text>
         <n-text :depth="3">部分功能暂不可用</n-text>
       </n-flex>
@@ -64,7 +66,7 @@
       <!-- 多账号 -->
       <div
         class="account-list"
-        v-if="!isKugouMode && dataStore.userLoginStatus && dataStore.loginType !== 'uid'"
+        v-if="!isThirdPartyMode && dataStore.userLoginStatus && dataStore.loginType !== 'uid'"
       >
         <n-text class="subtitle" :depth="3">切换账号</n-text>
         <div
@@ -86,7 +88,7 @@
           添加账号
         </n-button>
       </div>
-      <n-divider v-if="loggedIn && !isKugouMode" />
+      <n-divider v-if="loggedIn && !isThirdPartyMode" />
       <!-- 退出登录 -->
       <n-button :focusable="false" class="logout" strong secondary round @click="isLogout">
         <template #icon>
@@ -100,7 +102,7 @@
 
 <script setup lang="ts">
 import { useDataStore, useSettingStore } from "@/stores";
-import { openKugouLogin, openUserLogin } from "@/utils/modal";
+import { openKugouLogin, openQqLogin, openUserLogin } from "@/utils/modal";
 import { getLoginState } from "@/api/login";
 import {
   updateUserData,
@@ -119,6 +121,7 @@ import {
   refreshKugouLoginIfNeeded,
   refreshKugouUser,
 } from "@/utils/kugouAuth";
+import { isQqLogin, qqLogout, refreshQqUser } from "@/utils/qqAuth";
 
 const router = useRouter();
 const dataStore = useDataStore();
@@ -129,8 +132,17 @@ const { isDesktop } = useMobile();
 // 用户菜单展示
 const userMenuShow = ref<boolean>(false);
 
-/** 当前音乐源是否为酷狗（酷狗账号走独立 Cookie 登录，与网易云登录态互不影响） */
-const isKugouMode = computed<boolean>(() => settingStore.musicSource === "kugou");
+/** 当前音乐源 */
+const sourceMode = computed<string>(() => settingStore.musicSource);
+
+/** 是否第三方源（酷狗 / QQ：账号体系独立于网易云） */
+const isThirdPartyMode = computed<boolean>(() => sourceMode.value !== "netease");
+
+/** 当前音乐源是否为酷狗 */
+const isKugouMode = computed<boolean>(() => sourceMode.value === "kugou");
+
+/** 当前音乐源是否为 QQ 音乐 */
+const isQqMode = computed<boolean>(() => sourceMode.value === "qq");
 
 /** 酷狗是否已登录（读取 kugouCookie 以建立响应式依赖） */
 const kugouLoggedIn = computed<boolean>(() => {
@@ -138,45 +150,72 @@ const kugouLoggedIn = computed<boolean>(() => {
   return isKugouLogin();
 });
 
+/** QQ 音乐是否已登录（读取 qqCookie 以建立响应式依赖） */
+const qqLoggedIn = computed<boolean>(() => {
+  void settingStore.qqCookie;
+  return isQqLogin();
+});
+
+/** 第三方源是否已登录（按当前源取值） */
+const thirdPartyLoggedIn = computed<boolean>(() =>
+  isKugouMode.value ? kugouLoggedIn.value : qqLoggedIn.value,
+);
+
 /** 是否已登录（按当前音乐源取值） */
 const loggedIn = computed<boolean>(() =>
-  isKugouMode.value ? kugouLoggedIn.value : dataStore.userLoginStatus,
+  isThirdPartyMode.value ? thirdPartyLoggedIn.value : dataStore.userLoginStatus,
 );
 
 /** 展示用头像 */
-const displayAvatar = computed<string>(() =>
-  isKugouMode.value ? settingStore.kugouUser?.avatar || "" : dataStore.userData?.avatarUrl || "",
-);
+const displayAvatar = computed<string>(() => {
+  if (isKugouMode.value) return settingStore.kugouUser?.avatar || "";
+  if (isQqMode.value) return settingStore.qqUser?.avatar || "";
+  return dataStore.userData?.avatarUrl || "";
+});
 
 /** 展示用昵称 */
 const displayName = computed<string>(() => {
-  if (isKugouMode.value) {
-    if (!kugouLoggedIn.value) return "未登录";
-    return settingStore.kugouUser?.nickname || settingStore.kugouUser?.userid || "酷狗用户";
+  if (isThirdPartyMode.value) {
+    if (!thirdPartyLoggedIn.value) return "未登录";
+    if (isKugouMode.value) {
+      return settingStore.kugouUser?.nickname || settingStore.kugouUser?.userid || "酷狗用户";
+    }
+    return settingStore.qqUser?.nickname || settingStore.qqUser?.uin || "QQ 音乐用户";
   }
   return dataStore.userLoginStatus ? dataStore.userData.name || "未知用户名" : "未登录";
 });
 
-/** 展示用等级 */
-const displayLevel = computed<number>(() =>
-  isKugouMode.value ? (settingStore.kugouUser?.level ?? 0) : (dataStore.userData.level ?? 0),
-);
+/** 展示用等级（QQ 音乐接口暂无等级字段，恒为 0） */
+const displayLevel = computed<number>(() => {
+  if (isKugouMode.value) return settingStore.kugouUser?.level ?? 0;
+  if (isQqMode.value) return 0;
+  return dataStore.userData.level ?? 0;
+});
 
 /** 是否 VIP */
-const displayVip = computed<boolean>(() =>
-  isKugouMode.value
-    ? (settingStore.kugouUser?.vipType ?? 0) !== 0
-    : dataStore.userData.vipType !== 0,
-);
+const displayVip = computed<boolean>(() => {
+  if (isKugouMode.value) return (settingStore.kugouUser?.vipType ?? 0) !== 0;
+  if (isQqMode.value) return (settingStore.qqUser?.vipType ?? 0) !== 0;
+  return dataStore.userData.vipType !== 0;
+});
+
+/** 源标记文案 */
+const sourceTag = computed<string>(() => (isQqMode.value ? "QQ 音乐源" : "酷狗源"));
+
+/** 打开当前第三方源的登录弹窗 */
+const openThirdPartyLogin = () => {
+  if (isQqMode.value) openQqLogin(() => refreshQqUser());
+  else openKugouLogin(() => refreshKugouUser());
+};
 
 // 开启用户菜单
 const openMenu = () => {
-  // 酷狗源：未登录 → 打开酷狗 Cookie 登录弹窗；已登录 → 展开账号菜单
-  if (isKugouMode.value) {
-    if (kugouLoggedIn.value) {
+  // 第三方源：未登录 → 打开对应平台登录弹窗；已登录 → 展开账号菜单
+  if (isThirdPartyMode.value) {
+    if (thirdPartyLoggedIn.value) {
       userMenuShow.value = !userMenuShow.value;
     } else {
-      openKugouLogin(() => refreshKugouUser());
+      openThirdPartyLogin();
     }
     return;
   }
@@ -210,15 +249,23 @@ const userLikeData = computed(() => {
 
 // 检查登录状态
 const checkLoginStatus = async () => {
-  // 酷狗源：校验酷狗 Cookie 是否仍有效（不触碰网易云登录态）
-  if (isKugouMode.value) {
-    if (!kugouLoggedIn.value) return;
-    // 与网易云一致：超过 3 天未刷新则自动刷新登录（换新令牌）
-    await refreshKugouLoginIfNeeded();
-    const user = await refreshKugouUser();
-    if (!user) {
-      window.$message.warning("酷狗登录已过期，请重新登录", { duration: 2000 });
-      openKugouLogin(() => refreshKugouUser());
+  // 第三方源：校验对应平台的 Cookie 是否仍有效（不触碰网易云登录态）
+  if (isThirdPartyMode.value) {
+    if (!thirdPartyLoggedIn.value) return;
+    if (isKugouMode.value) {
+      // 与网易云一致：超过 3 天未刷新则自动刷新登录（换新令牌）
+      await refreshKugouLoginIfNeeded();
+      const user = await refreshKugouUser();
+      if (!user) {
+        window.$message.warning("酷狗登录已过期，请重新登录", { duration: 2000 });
+        openThirdPartyLogin();
+      }
+      return;
+    }
+    const qqUser = await refreshQqUser();
+    if (!qqUser) {
+      window.$message.warning("QQ 音乐登录已失效，请重新登录", { duration: 2000 });
+      openThirdPartyLogin();
     }
     return;
   }
@@ -297,20 +344,22 @@ const handleAddAccount = async () => {
 
 // 退出登录
 const isLogout = () => {
-  // 酷狗源：退出酷狗登录（不影响网易云登录态）
-  if (isKugouMode.value) {
-    if (!kugouLoggedIn.value) {
-      openKugouLogin(() => refreshKugouUser());
+  // 第三方源：退出对应平台登录（不影响网易云登录态）
+  if (isThirdPartyMode.value) {
+    if (!thirdPartyLoggedIn.value) {
+      openThirdPartyLogin();
       return;
     }
+    const sourceName = isQqMode.value ? "QQ 音乐" : "酷狗";
     window.$dialog.warning({
-      title: "退出酷狗登录",
-      content: "确认清除本机保存的酷狗 Cookie 与账号信息？",
+      title: `退出${sourceName}登录`,
+      content: `确认清除本机保存的${sourceName} Cookie 与账号信息？`,
       positiveText: "确认登出",
       negativeText: "取消",
       onPositiveClick: () => {
         userMenuShow.value = false;
-        kugouLogout();
+        if (isQqMode.value) qqLogout();
+        else kugouLogout();
       },
     });
     return;

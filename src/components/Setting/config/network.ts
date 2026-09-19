@@ -20,7 +20,8 @@ import {
   normalizeKugouApiBase,
   testKugouApiBase,
 } from "@/api/kugou";
-import { openKugouLogin } from "@/utils/modal";
+import { DEFAULT_QQ_API_BASE, getQqApiBase, normalizeQqApiBase, testQqApiBase } from "@/api/qq";
+import { openKugouLogin, openQqLogin } from "@/utils/modal";
 import {
   getKugouCookieValue,
   getKugouLastLoginTime,
@@ -28,6 +29,13 @@ import {
   kugouLogout,
   refreshKugouLogin,
 } from "@/utils/kugouAuth";
+import {
+  getQqCookieValue,
+  isQqLogin,
+  normalizeQqCookie,
+  qqLogout,
+  refreshQqUser,
+} from "@/utils/qqAuth";
 
 export const useNetworkSettings = (): SettingConfig => {
   const settingStore = useSettingStore();
@@ -92,6 +100,27 @@ export const useNetworkSettings = (): SettingConfig => {
   // --- 音乐源 / 酷狗 API（运行时切换，无需重新构建） ---
   const kugouTestLoading = ref<boolean>(false);
   const kugouRefreshLoading = ref<boolean>(false);
+
+  /** 应用 QQ 音乐 API 地址：空值表示使用构建时默认地址 */
+  const applyQqApiBase = (value: string) => {
+    settingStore.qqApiBase = normalizeQqApiBase(value);
+    window.$message.success(
+      settingStore.qqApiBase
+        ? `已切换 QQ 音乐 API：${settingStore.qqApiBase}`
+        : `已恢复默认 QQ 音乐 API：${DEFAULT_QQ_API_BASE}`,
+    );
+  };
+
+  const qqTestLoading = ref<boolean>(false);
+
+  /** 测试 QQ 音乐 API 连通性（匿名请求热搜） */
+  const handleTestQqApiBase = async () => {
+    qqTestLoading.value = true;
+    const { ok, message } = await testQqApiBase(settingStore.qqApiBase);
+    qqTestLoading.value = false;
+    if (ok) window.$message.success(message);
+    else window.$message.error(message);
+  };
 
   /** 刷新酷狗登录（`/login/token` 换新令牌） */
   const handleRefreshKugou = async () => {
@@ -318,25 +347,25 @@ export const useNetworkSettings = (): SettingConfig => {
             key: "musicSource",
             label: "音乐源",
             type: "select",
-            description: computed(() =>
-              settingStore.musicSource === "kugou"
-                ? `当前：酷狗音乐（API：${getKugouApiBase()}）`
-                : `当前：网易云音乐（API：${getApiBase()}）`,
-            ),
+            description: computed(() => {
+              if (settingStore.musicSource === "kugou")
+                return `当前：酷狗音乐（API：${getKugouApiBase()}）`;
+              if (settingStore.musicSource === "qq")
+                return `当前：QQ 音乐（API：${getQqApiBase()}）`;
+              return `当前：网易云音乐（API：${getApiBase()}）`;
+            }),
             options: [
               { label: "网易云音乐", value: "netease" },
               { label: "酷狗音乐", value: "kugou" },
+              { label: "QQ 音乐", value: "qq" },
             ],
-            keywords: ["源", "音乐源", "酷狗", "网易云", "kugou", "切换"],
+            keywords: ["源", "音乐源", "酷狗", "网易云", "QQ", "kugou", "qq", "切换"],
             value: computed({
               get: () => settingStore.musicSource,
-              set: (v: "netease" | "kugou") => {
+              set: (v: "netease" | "kugou" | "qq") => {
                 settingStore.musicSource = v;
-                window.$message.success(
-                  v === "kugou"
-                    ? "已切换音乐源：酷狗音乐（搜索 / 取链 / 歌词走酷狗）"
-                    : "已切换音乐源：网易云音乐",
-                );
+                const name = v === "kugou" ? "酷狗音乐" : v === "qq" ? "QQ 音乐" : "网易云音乐";
+                window.$message.success(`已切换音乐源：${name}`);
               },
             }),
           },
@@ -428,6 +457,77 @@ export const useNetworkSettings = (): SettingConfig => {
             buttonLabel: "测试连接",
             action: handleTestKugouApiBase,
             componentProps: computed(() => ({ loading: kugouTestLoading.value, type: "primary" })),
+          },
+          {
+            key: "qqApiBase",
+            label: "QQ 音乐 API 地址",
+            type: "text-input",
+            show: computed(() => settingStore.musicSource === "qq"),
+            description: computed(
+              () =>
+                `留空使用默认地址（${DEFAULT_QQ_API_BASE || "未配置"}）；当前生效：${getQqApiBase()}`,
+            ),
+            keywords: ["QQ", "qq", "音乐", "api", "地址"],
+            componentProps: { placeholder: "https://qq-api.duckgame-play.top", clearable: true },
+            value: computed({
+              get: () => settingStore.qqApiBase,
+              set: (v: string) => applyQqApiBase(v),
+            }),
+          },
+          {
+            key: "qqCookie",
+            label: "QQ 音乐 Cookie（可选）",
+            type: "text-input",
+            show: computed(() => settingStore.musicSource === "qq"),
+            description:
+              "格式 uin=xxx; qqmusic_key=xxx（旧版为 qm_keyst）。未登录时搜索/歌词/榜单可用，但播放直链与用户数据需要登录态；凭据仅本地保存，且只经 X-Custom-Cookie 请求头发送",
+            keywords: ["QQ", "qq", "cookie", "uin", "qqmusic_key"],
+            componentProps: {
+              type: "password",
+              showPasswordOn: "click" as const,
+              placeholder: "uin=o123456; qqmusic_key=xxx",
+              clearable: true,
+            },
+            value: computed({
+              get: () => settingStore.qqCookie,
+              set: (v: string) => (settingStore.qqCookie = normalizeQqCookie(v)),
+            }),
+          },
+          {
+            key: "qqLogin",
+            label: "QQ 音乐账号",
+            type: "button",
+            show: computed(() => settingStore.musicSource === "qq"),
+            description: computed(() =>
+              isQqLogin()
+                ? `已登录：${settingStore.qqUser?.nickname || getQqCookieValue("uin") || "QQ 音乐用户"}（可重新登录 / 切换账号）`
+                : "未登录：支持扫码 / Cookie 登录（与点击左侧头像登录等效）",
+            ),
+            keywords: ["QQ", "qq", "登录", "扫码", "cookie"],
+            buttonLabel: "登录 / 切换账号",
+            action: () => openQqLogin(() => refreshQqUser()),
+            componentProps: { type: "primary" },
+          },
+          {
+            key: "qqLogout",
+            label: "退出 QQ 音乐登录",
+            type: "button",
+            show: computed(() => settingStore.musicSource === "qq" && isQqLogin()),
+            description: "清除本机保存的 QQ 音乐 Cookie 与账号信息（不影响网易云 / 酷狗登录态）",
+            keywords: ["QQ", "qq", "退出", "登出", "logout"],
+            buttonLabel: "退出登录",
+            action: () => qqLogout(),
+          },
+          {
+            key: "qqApiTest",
+            label: "测试 QQ 音乐 API",
+            type: "button",
+            show: computed(() => settingStore.musicSource === "qq"),
+            description: "匿名请求热搜接口（/getHotkey），验证 API 服务是否可达",
+            keywords: ["QQ", "qq", "测试", "连通"],
+            buttonLabel: "测试连接",
+            action: handleTestQqApiBase,
+            componentProps: computed(() => ({ loading: qqTestLoading.value, type: "primary" })),
           },
           // ---- 网易云 API 设置（仅「网易云音乐」源显示）----
           {

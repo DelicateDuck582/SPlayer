@@ -5,6 +5,7 @@ import { defaultAMLLDbServer } from "@/utils/meta";
 import { defineStore } from "pinia";
 // 仅类型导入（编译期擦除），不引入运行时循环依赖
 import type { KugouUserProfile } from "@/api/kugou";
+import type { QqUserProfile } from "@/api/qq";
 import { CURRENT_SETTING_SCHEMA_VERSION, settingMigrations } from "./migrations/settingMigrations";
 import { ThemeColorType } from "@/types/color";
 import type { LyricPriority } from "@/types/lyric";
@@ -156,7 +157,7 @@ export interface SettingState {
    *
    * 切换后：搜索、播放取链、歌词会按源路由；酷狗源需配合 `kugouApiBase`（酷狗 API 服务地址）。
    */
-  musicSource: "netease" | "kugou";
+  musicSource: "netease" | "kugou" | "qq";
   /**
    * 自定义酷狗 API 地址（留空使用构建时默认 `VITE_KUGOU_API_URL`）
    * - 默认：`https://kugou-api.duckgame-play.top`
@@ -175,6 +176,12 @@ export interface SettingState {
    * 与网易云登录态（`dataStore.userData`）互不影响：切到酷狗源时用户区展示这里的数据。
    */
   kugouUser: KugouUserProfile | null;
+  /** QQ 音乐 API 地址（留空使用构建时默认 `VITE_QQ_API_URL`） */
+  qqApiBase: string;
+  /** QQ 音乐 Cookie（`uin` + `qqmusic_key`；仅本地保存，经 `X-Custom-Cookie` 请求头发送） */
+  qqCookie: string;
+  /** QQ 音乐登录用户信息（未登录为 `null`） */
+  qqUser: QqUserProfile | null;
   /** 歌曲音质 */
   songLevel:
     | "standard"
@@ -686,6 +693,9 @@ export const useSettingStore = defineStore("setting", {
     kugouApiBase: "",
     kugouCookie: "",
     kugouUser: null,
+    qqApiBase: "",
+    qqCookie: "",
+    qqUser: null,
     useRealIP: false,
     realIP: "",
     useHeaderCookie: true,

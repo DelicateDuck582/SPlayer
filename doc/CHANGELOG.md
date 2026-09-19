@@ -34,14 +34,14 @@
 
 **改动**
 
-| 范围 | 内容 |
-| --- | --- |
-| 设置 | 新增分组「音乐源」：源选择（网易云 / 酷狗）、酷狗 API 服务地址、酷狗 Cookie（可选，密码框）、测试连接（匿名请求 `/search/hot`） |
-| 状态 | `settingStore` 新增 `musicSource` / `kugouApiBase` / `kugouCookie`（随既有 persist 持久化） |
-| 适配层 | 新增 `src/api/kugou/core.ts`（纯逻辑）与 `src/api/kugou/index.ts`（网络）：约 20 个端点 + **网易云形状兼容层** + **合成 ID 注册表** |
-| 路由 | `src/api/search.ts` 按音乐源分流（`searchResult`/`searchHot`/`searchDefault`/`searchSuggest`）；`src/api/song.ts` 按注册表命中分流（`songUrl`/`songLyric`/`songDetail`） |
-| 测试 | 新增 `scripts/test-kugou-adapter.mts` 与 `pnpm test:kugou`（20 项纯逻辑 + 9 项线上联调） |
-| 文档 | 新增 [KUGOU-API.md](./KUGOU-API.md)：部署记录、DNS 待办、能力矩阵、三审计、限制与后续 |
+| 范围   | 内容                                                                                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 设置   | 新增分组「音乐源」：源选择（网易云 / 酷狗）、酷狗 API 服务地址、酷狗 Cookie（可选，密码框）、测试连接（匿名请求 `/search/hot`）                                          |
+| 状态   | `settingStore` 新增 `musicSource` / `kugouApiBase` / `kugouCookie`（随既有 persist 持久化）                                                                              |
+| 适配层 | 新增 `src/api/kugou/core.ts`（纯逻辑）与 `src/api/kugou/index.ts`（网络）：约 20 个端点 + **网易云形状兼容层** + **合成 ID 注册表**                                      |
+| 路由   | `src/api/search.ts` 按音乐源分流（`searchResult`/`searchHot`/`searchDefault`/`searchSuggest`）；`src/api/song.ts` 按注册表命中分流（`songUrl`/`songLyric`/`songDetail`） |
+| 测试   | 新增 `scripts/test-kugou-adapter.mts` 与 `pnpm test:kugou`（20 项纯逻辑 + 9 项线上联调）                                                                                 |
+| 文档   | 新增 [KUGOU-API.md](./KUGOU-API.md)：部署记录、DNS 待办、能力矩阵、三审计、限制与后续                                                                                    |
 
 **关键实现要点**
 
@@ -58,38 +58,59 @@
 
 **第二轮：设置整合 + 酷狗 Cookie 登录**
 
-| 范围 | 内容 |
-| --- | --- |
-| 设置整合 | 原「API 服务」分组并入「音乐源」分组：选中网易云时才显示「API 源 / 自定义地址 / 测试 / 恢复默认」，选中酷狗时只显示酷狗项，界面不再出现无关开关 |
-| 账号登录 | 新增 `src/components/Modal/KugouLogin.vue` 与 `src/utils/modal.ts#openKugouLogin`：**点击左下角头像**即可用 Cookie 登录（与网易云登录体验一致） |
-| 登录态 | 新增 `src/utils/kugouAuth.ts`：Cookie 解析 / 规范化、`isKugouLogin`、`loginKugouByCookie`（先校验后保存、失败回滚）、`refreshKugouUser`（启动时校验有效性）、`kugouLogout` |
+| 范围     | 内容                                                                                                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 设置整合 | 原「API 服务」分组并入「音乐源」分组：选中网易云时才显示「API 源 / 自定义地址 / 测试 / 恢复默认」，选中酷狗时只显示酷狗项，界面不再出现无关开关                                                                    |
+| 账号登录 | 新增 `src/components/Modal/KugouLogin.vue` 与 `src/utils/modal.ts#openKugouLogin`：**点击左下角头像**即可用 Cookie 登录（与网易云登录体验一致）                                                                    |
+| 登录态   | 新增 `src/utils/kugouAuth.ts`：Cookie 解析 / 规范化、`isKugouLogin`、`loginKugouByCookie`（先校验后保存、失败回滚）、`refreshKugouUser`（启动时校验有效性）、`kugouLogout`                                         |
 | 用户信息 | `settingStore.kugouUser`（昵称 / 头像 / VIP / 等级）；`core.ts` 新增 `kugouUserToProfile`（兼容多种字段命名）与错误码 `20018` 翻译；新增端点 `/user/detail`、`/user/vip/detail`、`/user/playlist`、`/user/history` |
-| 用户区 | `Layout/User.vue` 按当前音乐源展示对应账号：酷狗源显示酷狗头像/昵称/等级/VIP + 「酷狗源」标记，网易云源保持原样；退出登录按源分别处理，两套登录态互不影响 |
+| 用户区   | `Layout/User.vue` 按当前音乐源展示对应账号：酷狗源显示酷狗头像/昵称/等级/VIP + 「酷狗源」标记，网易云源保持原样；退出登录按源分别处理，两套登录态互不影响                                                          |
 
 **第三轮：完整登录体系（扫码 / 验证码 / 账号密码 / Cookie）与刷新登录**
 
-| 范围 | 内容 |
-| --- | --- |
-| 端点 | 新增 `/login/qr/key`、`/login/qr/create`、`/login/qr/check`、`/captcha/sent`、`/login/cellphone`、`/login`、`/login/token`（刷新登录）、`/verify/user/info`（风控验证） |
-| 登录弹窗 | 重构为 `Modal/KugouLogin/`（`index` + `QRCode` + `Phone` + `Account` + `Cookie`），4 个 Tab 与网易云登录对齐；底部新增「刷新登录」 |
-| 会话 | `core.ts` 新增 `kugouLoginToSession` / `mergeKugouCookieText` / `kugouQrStatus(Text)`；**从响应体取 `token`/`userid`**（上游会把解密后的 `secu_params` 合并进 body，浏览器不依赖 `Set-Cookie`） |
+| 范围     | 内容                                                                                                                                                                                                      |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 端点     | 新增 `/login/qr/key`、`/login/qr/create`、`/login/qr/check`、`/captcha/sent`、`/login/cellphone`、`/login`、`/login/token`（刷新登录）、`/verify/user/info`（风控验证）                                   |
+| 登录弹窗 | 重构为 `Modal/KugouLogin/`（`index` + `QRCode` + `Phone` + `Account` + `Cookie`），4 个 Tab 与网易云登录对齐；底部新增「刷新登录」                                                                        |
+| 会话     | `core.ts` 新增 `kugouLoginToSession` / `mergeKugouCookieText` / `kugouQrStatus(Text)`；**从响应体取 `token`/`userid`**（上游会把解密后的 `secu_params` 合并进 body，浏览器不依赖 `Set-Cookie`）           |
 | 刷新登录 | `refreshKugouLogin()`（`/login/token`）+ `refreshKugouLoginIfNeeded()`：**距上次登录超过 3 天时启动自动刷新一次**，与网易云 `refreshLoginData` 行为一致；设置页新增「刷新酷狗登录」按钮（含上次登录时间） |
-| 验证码 | 「发送验证码」带 60s 倒计时 + 11 位手机号校验；`verify_user_info` 已封装以应对风控 |
-| 测试 | `pnpm test:kugou` 扩至 **43/43**：新增会话映射 / Cookie 合并 / 扫码状态用例，以及扫码 key、扫码状态、刷新登录（20017）、发送验证码端点实测 |
+| 验证码   | 「发送验证码」带 60s 倒计时 + 11 位手机号校验；`verify_user_info` 已封装以应对风控                                                                                                                        |
+| 测试     | `pnpm test:kugou` 扩至 **43/43**：新增会话映射 / Cookie 合并 / 扫码状态用例，以及扫码 key、扫码状态、刷新登录（20017）、发送验证码端点实测                                                                |
 
 **验证（第三轮）**：`pnpm test:kugou` 43/43、`vue-tsc` EXIT=0、Prettier 通过、`electron-vite build` 通过。
 
 **第四轮：自定义域不可达的兜底与排障（登录二维码失败修复）**
 
-| 问题 | 处理 |
-| --- | --- |
-| 现象 | 线上日志：`kugou-api.duckgame-play.top/search/hot`、`/login/qr/key` 全部 `net::ERR_CONNECTION_CLOSED`，导致「搜索关键词」「登录二维码」失败 |
-| 根因 | 该子域在 Cloudflare（`chan/tadeo.ns.cloudflare.com`）**没有指向 Vercel 的有效记录**（`ERR_CONNECTION_CLOSED` 而非 `ERR_NAME_NOT_RESOLVED`，典型是记录指向了已停用的旧 IP `76.76.21.21`） |
+| 问题       | 处理                                                                                                                                                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 现象       | 线上日志：`kugou-api.duckgame-play.top/search/hot`、`/login/qr/key` 全部 `net::ERR_CONNECTION_CLOSED`，导致「搜索关键词」「登录二维码」失败                                                                          |
+| 根因       | 该子域在 Cloudflare（`chan/tadeo.ns.cloudflare.com`）**没有指向 Vercel 的有效记录**（`ERR_CONNECTION_CLOSED` 而非 `ERR_NAME_NOT_RESOLVED`，典型是记录指向了已停用的旧 IP `76.76.21.21`）                             |
 | 客户端兜底 | `kugouApi` 在主地址**网络层失败**时自动重试 Vercel 项目域名 `https://kugou-api-eight.vercel.app`（`KUGOU_API_FALLBACK_BASE`，可用 `VITE_KUGOU_API_FALLBACK_URL` 覆盖），并提示一次「已临时使用备用地址，请检查 DNS」 |
-| 排障体验 | `testKugouApiBase()` 会同时探测主/备地址并区分「服务不可用」与「DNS 没配好」；扫码组件在连接失败时直接给出可操作提示 |
-| 文档 | `doc/KUGOU-API.md` 第三节更新为 Vercel 官方推荐记录（CNAME `2c31bb9d9db3037d.vercel-dns-017.com`；或 A `64.29.17.1` / `216.198.79.1`）与 Cloudflare 注意事项 |
+| 排障体验   | `testKugouApiBase()` 会同时探测主/备地址并区分「服务不可用」与「DNS 没配好」；扫码组件在连接失败时直接给出可操作提示                                                                                                 |
+| 文档       | `doc/KUGOU-API.md` 第三节更新为 Vercel 官方推荐记录（CNAME `2c31bb9d9db3037d.vercel-dns-017.com`；或 A `64.29.17.1` / `216.198.79.1`）与 Cloudflare 注意事项                                                         |
 
 **验证（第四轮）**：`vue-tsc` EXIT=0、Prettier 通过。
+
+<a id="v2026-09-19-qq"></a>
+
+## 2026-09-19 QQ 音乐源接入（qq-music-api 部署 + 适配层 + 四类审计）
+
+> 详细部署记录、能力矩阵与审计见 [QQ-API.md](./QQ-API.md)。
+
+| 范围         | 内容                                                                                                                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 部署         | Vercel 项目 `qq-music-api`（生产别名 `qq-music-api-ten-pi.vercel.app`）；域名 `qq-api.duckgame-play.top` 已添加（**待补 Cloudflare CNAME**）；环境变量 `QQ_MUSIC_API_CONFIG_DIR=/tmp/...`；关闭部署保护                                          |
+| 上游坑与绕过 | 仓库 `api/index.ts` 在 ESM 下的**无扩展名相对导入**导致 Vercel 全站 500（`ERR_MODULE_NOT_FOUND: /var/task/src/koaApp`）→ 本地 esbuild 打成自包含 ESM（banner 注入 `require` 解决 CJS 依赖）+ CLI 部署绕过，**未改动 API 仓库**                   |
+| 适配层       | 新增 `src/api/qq/core.ts`（纯逻辑）+ `src/api/qq/index.ts`（独立 axios 客户端，约 25 个端点）：合成 ID（`songmid` → 52 bit）、注册表、QQ → 网易云形状映射、Cookie 会话解析、扫码状态                                                             |
+| 登录         | `src/utils/qqAuth.ts` + `src/components/Modal/QqLogin.vue` + `openQqLogin()`：扫码（`/getQQLoginQr` + `/checkQQLoginQr`，2.5s 轮询）与 Cookie 登录（`uin` + `qqmusic_key`），**先校验后保存、失败回滚**；入口与网易云 / 酷狗一致（点左下角头像） |
+| 设置         | 「音乐源」新增「QQ 音乐」选项与对应设置项（API 地址 / Cookie / 登录 / 退出 / 测试连接），仍按源自适应显示；`settingStore` 新增 `qqApiBase` / `qqCookie` / `qqUser`                                                                               |
+| 路由         | `search.ts`（按源）与 `song.ts`（按注册表命中）接入 QQ；未命中时保持原网易云逻辑                                                                                                                                                                 |
+| 用户区       | `Layout/User.vue` 三源通用：按源展示头像 / 昵称 / 等级 / VIP / 源标记，登录与退出按源分流                                                                                                                                                        |
+| 测试         | 新增 `scripts/test-qq-adapter.mts` + `pnpm test:qq`：**32/32**（纯逻辑 24 + 线上联调 8：热搜 / 搜索 / 歌词 / 歌单 / 榜单 / 扫码二维码 / 取链登录态提示）                                                                                         |
+
+**四类审计要点**：安全（Cookie 仅经 `X-Custom-Cookie` 请求头、白名单化合并、独立实例不串源、错误信息不回流）、代码（ESM 入口缺陷绕过、只读 FS 配置目录）、逻辑（`code` 语义多路判定、扫码状态以会话可解析为准、注册表判定避免误请求、榜单歌曲标注仅展示）、性能（按需加载不进首屏、详情 0 请求、不套重试避免风控放大）。
+
+**验证**：`pnpm test:qq` 32/32、`vue-tsc` EXIT=0、Prettier 通过。
 
 <a id="v2026-09-19-web-audit"></a>
 
@@ -99,27 +120,27 @@
 
 **已修复**
 
-| 编号 | 问题 | 根因 / 证据 | 修复 |
-| --- | --- | --- | --- |
-| W1 | **登出后凭据残留**：除 `MUSIC_U` / `__csrf` 外的登录 Cookie 及其 `localStorage` 副本，以及云盘上传队列（含 NOS 直传地址与**上传令牌**）都留在本地 | `toLogout()` 只删两个 Cookie；`setCookies()` 会把登录返回的**所有** Cookie 写进 `document.cookie` 与 `localStorage["cookie-*"]`；`clearUploadQueue()` 此前只被「放弃任务」按钮调用 | 登出时清空全部 `cookie-*`（同时删除 document.cookie）并 `clearUploadQueue()` |
-| W2 | CSP 仅 `frame-ancestors 'self'`，缺少对象 / 表单 / 基准 URL 限制 | `vercel.json` 的 headers 配置 | 补 `object-src 'none'; base-uri 'self'; form-action 'self'`（不限制脚本、连接与图片，保持自定义 JS、播放与图片加载可用） |
-| WP1 | 消息中心首屏打 **4 个**接口（会话 + 评论 + 转发 + 通知），其中 3 个用户可能根本不看 | `getMessageData()` 一次性 `Promise.allSettled([getSessions(), getNotices()])` | 首屏只拉会话；评论 / 转发 / 通知改为**首次切到对应 Tab 时懒加载**（失败不置位，可重试；沿用既有 `loading` 转圈） |
-| WP2 | **首屏加载了 AMLL 渲染引擎**：`@applemusic-like-lyrics/core` 被打进首屏 chunk（raw 399KB / gzip 119KB），而它只在「AMLL 歌词」或「流体背景」开启时才用（默认都关闭） | `PlayerLyric/index.vue`、`PlayerBackground.vue` 通过 unplugin 自动导入组件 → 静态 import core；且 `manualChunks` 把 `core` 与 `lyric` 合成同一个 `vendor-amll` chunk，即使改成懒加载也不省字节 | ① 两个组件改为 `defineAsyncComponent(() => import(...))`（仅在使用时下载）② `manualChunks` 拆分：`@applemusic-like-lyrics/core` → `amll-core`，其余 → `vendor-amll`。**首屏 gzip 695.8KB → 581.4KB（-114KB / -16.4%）**，`amll-core`(378KB) 已不在 `index.html` 引用中 |
+| 编号 | 问题                                                                                                                                                                 | 根因 / 证据                                                                                                                                                                                    | 修复                                                                                                                                                                                                                                                                   |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W1   | **登出后凭据残留**：除 `MUSIC_U` / `__csrf` 外的登录 Cookie 及其 `localStorage` 副本，以及云盘上传队列（含 NOS 直传地址与**上传令牌**）都留在本地                    | `toLogout()` 只删两个 Cookie；`setCookies()` 会把登录返回的**所有** Cookie 写进 `document.cookie` 与 `localStorage["cookie-*"]`；`clearUploadQueue()` 此前只被「放弃任务」按钮调用             | 登出时清空全部 `cookie-*`（同时删除 document.cookie）并 `clearUploadQueue()`                                                                                                                                                                                           |
+| W2   | CSP 仅 `frame-ancestors 'self'`，缺少对象 / 表单 / 基准 URL 限制                                                                                                     | `vercel.json` 的 headers 配置                                                                                                                                                                  | 补 `object-src 'none'; base-uri 'self'; form-action 'self'`（不限制脚本、连接与图片，保持自定义 JS、播放与图片加载可用）                                                                                                                                               |
+| WP1  | 消息中心首屏打 **4 个**接口（会话 + 评论 + 转发 + 通知），其中 3 个用户可能根本不看                                                                                  | `getMessageData()` 一次性 `Promise.allSettled([getSessions(), getNotices()])`                                                                                                                  | 首屏只拉会话；评论 / 转发 / 通知改为**首次切到对应 Tab 时懒加载**（失败不置位，可重试；沿用既有 `loading` 转圈）                                                                                                                                                       |
+| WP2  | **首屏加载了 AMLL 渲染引擎**：`@applemusic-like-lyrics/core` 被打进首屏 chunk（raw 399KB / gzip 119KB），而它只在「AMLL 歌词」或「流体背景」开启时才用（默认都关闭） | `PlayerLyric/index.vue`、`PlayerBackground.vue` 通过 unplugin 自动导入组件 → 静态 import core；且 `manualChunks` 把 `core` 与 `lyric` 合成同一个 `vendor-amll` chunk，即使改成懒加载也不省字节 | ① 两个组件改为 `defineAsyncComponent(() => import(...))`（仅在使用时下载）② `manualChunks` 拆分：`@applemusic-like-lyrics/core` → `amll-core`，其余 → `vendor-amll`。**首屏 gzip 695.8KB → 581.4KB（-114KB / -16.4%）**，`amll-core`(378KB) 已不在 `index.html` 引用中 |
 
 **核查结论（未发现可修复项）**
 
-| 面 | 结论 |
-| --- | --- |
-| 密钥 | `pnpm security:secret-scan`：652 个文本文件 **0 命中**；`.env` 仅端口与公开 API 地址（无密钥）；`.gitignore` 已忽略 `.env*` 与 `.vercel`；构建未输出 sourcemap |
-| XSS | 全仓 `v-html` 9 处：更新日志经 `marked` + `sanitizeHtml()`；设置项描述为本地静态文案；`AMLLServer.vue` 那处在注释模板内（不生效）；评论列表纯文本渲染 |
-| Electron 侧 | 自定义协议 / 下载地址白名单由 `pnpm security:selfcheck` 覆盖，**43/43 通过**（含内网地址、IPv4-mapped IPv6、元数据地址拦截） |
-| 性能 | 浏览类接口走 `neteaseBrowse()`（不带 `timestamp`，可命中 API 侧缓存）；路由级懒加载；`/assets/*` 与静态目录 `immutable` 长缓存；列表页沿用 `VirtualScroll`；全仓 `setInterval` 5 处均有 `clearInterval`，新增视图无未清理监听器 |
+| 面          | 结论                                                                                                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 密钥        | `pnpm security:secret-scan`：652 个文本文件 **0 命中**；`.env` 仅端口与公开 API 地址（无密钥）；`.gitignore` 已忽略 `.env*` 与 `.vercel`；构建未输出 sourcemap                                                                  |
+| XSS         | 全仓 `v-html` 9 处：更新日志经 `marked` + `sanitizeHtml()`；设置项描述为本地静态文案；`AMLLServer.vue` 那处在注释模板内（不生效）；评论列表纯文本渲染                                                                           |
+| Electron 侧 | 自定义协议 / 下载地址白名单由 `pnpm security:selfcheck` 覆盖，**43/43 通过**（含内网地址、IPv4-mapped IPv6、元数据地址拦截）                                                                                                    |
+| 性能        | 浏览类接口走 `neteaseBrowse()`（不带 `timestamp`，可命中 API 侧缓存）；路由级懒加载；`/assets/*` 与静态目录 `immutable` 长缓存；列表页沿用 `VirtualScroll`；全仓 `setInterval` 5 处均有 `clearInterval`，新增视图无未清理监听器 |
 
 **部署现状（Vercel API 核查，非代码问题）**
 
-| 域名 | gitBranch | 当前指向 |
-| --- | --- | --- |
-| `beta-music.ciallo.sale` | `NEWAPI` | 最新 NEWAPI 部署（含本次与昨夜全部提交） |
+| 域名                                           | gitBranch           | 当前指向                                                              |
+| ---------------------------------------------- | ------------------- | --------------------------------------------------------------------- |
+| `beta-music.ciallo.sale`                       | `NEWAPI`            | 最新 NEWAPI 部署（含本次与昨夜全部提交）                              |
 | `music.ciallo.sale`、`music.duckgame-play.top` | `feat/api-enhanced` | **旧分支** → 看不到 2026-09-19 整合的新页面（这就是「功能少」的原因） |
 
 - 项目已连接 Git（`DelicateDuck582/SPlayer`，productionBranch=`dev`），推送到 `NEWAPI` 会自动构建并刷新 `beta-music.ciallo.sale`。
@@ -140,27 +161,27 @@
 
 **修复**
 
-| 编号 | 问题 | 根因 | 修复 |
-| --- | --- | --- | --- |
-| F1 | 点「开启控制台」致命错误 | `Nav.vue` 的 `dev-tools` 菜单项仅在 `isDev` 下显示，网页开发模式同样满足 → 调用 `window.electron.ipcRenderer` 时 Electron 主进程不存在 | 菜单项改为 `isDev && isElectron`，调用处补 `isElectron` 守卫 |
-| F2 | 私人漫游偶发打不开 | 列表为空（刚登录 / 长时间未使用 / 上次刷新失败）时直接报错返回 | 点击时若为空先自动 `refreshPersonalFM()` 再播放，失败给出明确提示（含「检查 API 服务」） |
-| F3 | 消息中心不显示 / 输入框异常 / 发送需重新确认 | 上游字段层级多样（`msgs`/`data.msgs`、`fromUser`/`user`、`lastMsg`/`lastMessage`、`msg`/`text`）导致映射落空；输入框为单行且 `@keyup.enter` 在输入法组词时会误发 | 字段多形态兼容；后端 `code≠200` 直接在页面提示（如 301 需要登录）；输入框改 textarea + Enter 发送 / Shift+Enter 换行（避开输入法 229）；发送改**乐观展示**（发送中 → 成功 / 失败可重试并回填），自动滚动到底部、自己/对方消息左右对齐、发送后刷新会话列表 |
-| F4 | 最近播放云端分类全是「未知」 | 资源对象可能位于 `data`/`song`/`video`/`voice`/`dj`/`playlist`/`album` 等不同层级，原实现只取 `item.data` 且兜底文案写死「未知」 | 新增 `pickResource/pickName/pickCover` 多形态提取，名称缺失时兜底显示 `#<id>`；错误可见 |
-| F5 | 数字专辑排版错乱 | 卡片完全没有样式（封面高度不一致、标题长短不齐） | 补齐卡片样式：封面 `1:1` + `object-fit: cover`、标题两行截断、价格/销量同行对齐、栅格改为 `2 / 3 / 5` 列自适应 |
-| F6 | 会员中心数据异常 | VIP / 成长值 / 任务的取值路径与容器类型（数组 vs `data.list`）不完全匹配，且异常时静默 | 修正取值路径与兼容分支、错误可见、新增「刷新」按钮 |
-| F7 | 控制台被 `vue-router` 弃用告警刷屏 | 全局守卫与 10 处 `beforeEnter` 使用已废弃的 `next()` 回调 | 全部改为「返回值」风格（`return false` / `{ path }` / `true`） |
-| F8 | 通知 / 评论 / @我 只有一长串文本 | 未解析消息体内的资源对象（`album` / `song` / `playlist` / `mv` / `video` / `program` / `djRadio`） | 解析并渲染为**卡片**（封面 + 名称 + 多歌手副标题 + 类型标签 + 箭头），点击可跳转对应页面（歌曲则直接播放）；无资源时按纯文本卡片展示 |
-| F9 | 私信输入区不像 IM（单行输入、按钮位置与状态不清晰） | 输入条布局过于简单 | 改为**微信式输入条**：表情快捷插入（Popover，10 个常用表情）、自适应多行输入（1–5 行）、字数提示（>380 字显示）、发送按钮按可发送状态切换主色/禁用；消息气泡左右对齐、自己消息用主题色气泡、**每 5 分钟插入时间分隔**、发送中/失败状态提示，发送后自动聚焦并滚动到底部 |
-| F10 | **音乐日历全是"未知歌手 / 未知作者"** | 上游登录后的日历数据放在 `data.calendarEvents`（形如 `[{ date, songs: [{ id, playCount }] }]`），旧逻辑按"以日期为键"解析 → 把 event 对象当成歌曲 → 歌名/歌手全空 | 重写规整逻辑：优先读 `calendarEvents` / `days` / `list` 等容器，逐条 `coerceDay` 提取 `songs`（兼容 `songs/songList/songDatas/list`、`song` 嵌套、`songId`、`artists/album` 命名、空格日期）；再按 id **分批（每批 200）** 调 `/song/detail` 补全歌名 / 歌手 / 专辑；空壳响应（`calendarEvents: []`）不再产出垃圾日期 |
-| F11 | 听歌足迹「今日收听」可能显示未知歌手 | 详情接口失败时兜底对象只有 `id`+`songName`，缺歌手 | 优先用上游自带的 `artistName` / `albumName` 兜底、按 `songId` 去重、名称缺失时显示 `歌曲 #id` |
-| F12 | **消息正文把原始 JSON / HTML 直接渲染出来**（表现为"一长串"、卡片被撑爆变形） | 上游**分享类私信**的 `msg` 是 JSON 串（形如 `{"type":1,"msg":"分享单曲","song":{...}}`），评论 / 通知正文可能含 HTML，部分字段直接是对象；旧实现用 `String(...)` 直接绑定到文本容器 | 新增 `src/utils/messageContent.ts`：`parseMessageContent()` 统一处理 **JSON 串 / HTML / 对象 / 坏 JSON**，输出「可读纯文本 + 可选资源」；**任何解析异常都退化为纯文本**，不再把结构体泄露到界面；会话预览走 `toPreviewText()` 截断 |
-| F13 | 分享类消息只显示一行文字 | 未识别消息体内的资源 | 解析出 `song/album/playlist/mv/video/program/dj` 时渲染**卡片**（封面 + 名称 + 多歌手/作者 + 类型标签），**私信气泡内同样支持**（微信式分享卡片）；歌曲点击直接播放，其余跳转对应页面 |
-| F14 | 超长文本撑破卡片布局 | 文本容器无换行/高度约束 | 正文 `overflow-wrap: anywhere` + `max-height: 320px` 可滚动；封面与标题统一省略号截断 |
-| F15 | **消息里的图片按原始尺寸渲染，把消息框撑爆** | 富文本里的 `<img>` 之前被整段剥掉（既不显示也无法限尺寸） | 解析阶段提取图片（HTML `<img src/data-src>` + 图片直链，去重、`http→https`、最多 6 张）；渲染时 `max-width: 100%` + `max-height: 200px` + 圆角，**表情图按 `1.4em` 行内显示**，点击可放大预览 |
-| F16 | **输入框区域留白过大**（截图中的大片灰色） | `textarea` 保留 naive-ui 默认的大内边距/最小高度；消息区没有铺满抽屉，内容少时与输入区之间留出大片空白 | 压扁输入条：`textarea` 改 `padding: 5px 12px` + `min-height: 22px` + `resize: none`，表情/发送按钮统一 32px；抽屉 body 与 `n-spin` 容器改为 flex 列布局，消息区 `flex: 1` 撑满并**内容不足时贴底**（`margin-top: auto`）；footer 内边距收紧为 `8px 12px` |
-| F17 | **私信抽屉里「看起来根本没改」**（图片仍按原图撑破聊天栏、输入区依旧留白、消息区没铺满） | `n-drawer` / `n-modal` 由 naive-ui 经 `VLazyTeleport` 渲染到 `body`，而样式全部写在 `<style scoped>` 里并嵌套于 `.message-view` → 编译为 `.message-view[data-v-*] .history { … }`，**在抽屉/弹窗里一条都不命中**（页面内的通知卡片仍正常，因此不易察觉）| 去掉 `scoped`，改为**以组件唯一 class 作作用域根的全局样式**：`.message-view`（页面）/ `.chat-drawer`（抽屉，加在 `n-drawer-content` 上）/ `.msg-preview`（预览弹窗）；`:deep(...)` 全部改为普通选择器（如 `.chat-drawer .n-drawer-body-content-wrapper`），并保留注释说明原因 |
-| F18 | 图片仍**超出聊天栏宽度**、抽屉底部出现**可拖拽的横向滚动条** | 图片只设 `max-width: 100%`，而气泡宽度由内容决定（不定宽），百分比上限不可靠；`.history` / `.n-drawer-body-content-wrapper` 未限制横向溢出（只写 `overflow-y: auto` 时 `overflow-x` 会被计算为 `auto` → 出现横向滚动条）| 图片加**双层上限** `max-width: min(100%, 260px)` + `max-height: 200px`（`object-fit: contain`，表情图仍 `1.4em`）；气泡 `width: fit-content` + `max-width: 76%`、`.msg` 补 `width: 100% / min-width: 0`；`.history` 与抽屉 body/content-wrapper 统一 `overflow-x: hidden` + `min-width: 0`；预览弹窗宽度改 `min(720px, 92vw)`；通知卡片标题补省略号截断、`.notice-item` 补 `min-width: 0` |
-| F19 | **点击消息里的专辑 / 歌单等跳到 `#/403`**（正常带参反被拒） | F7 改守卫风格时**条件写反**：`!to.query.id ? true : { path: "/403" }` —— 原语义是「**缺** id → 403」，写反后成了「**有** id → 403」，波及 `/album`、`/playlist`、`/video`、`/comment`、`/artist`、`/search`、`/song/wiki`、`/streaming-playlist`、`/radio`、`/radio-type` 共 **10 条路由** | 抽出 `src/router/guards.ts` 的 `requireQuery(...keys)`：**正向**判断（字段齐全才放行，缺任一跳 403，避免再写反），10 处路由统一改为 `beforeEnter: requireQuery("id")` / `requireQuery("keyword")` / `requireQuery("id", "name")`；新增回归测试 `pnpm test:route-guards`（语义 9 项 + 源码级断言 4 项） |
+| 编号 | 问题                                                                                     | 根因                                                                                                                                                                                                                                                                                       | 修复                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1   | 点「开启控制台」致命错误                                                                 | `Nav.vue` 的 `dev-tools` 菜单项仅在 `isDev` 下显示，网页开发模式同样满足 → 调用 `window.electron.ipcRenderer` 时 Electron 主进程不存在                                                                                                                                                     | 菜单项改为 `isDev && isElectron`，调用处补 `isElectron` 守卫                                                                                                                                                                                                                                                                                                                              |
+| F2   | 私人漫游偶发打不开                                                                       | 列表为空（刚登录 / 长时间未使用 / 上次刷新失败）时直接报错返回                                                                                                                                                                                                                             | 点击时若为空先自动 `refreshPersonalFM()` 再播放，失败给出明确提示（含「检查 API 服务」）                                                                                                                                                                                                                                                                                                  |
+| F3   | 消息中心不显示 / 输入框异常 / 发送需重新确认                                             | 上游字段层级多样（`msgs`/`data.msgs`、`fromUser`/`user`、`lastMsg`/`lastMessage`、`msg`/`text`）导致映射落空；输入框为单行且 `@keyup.enter` 在输入法组词时会误发                                                                                                                           | 字段多形态兼容；后端 `code≠200` 直接在页面提示（如 301 需要登录）；输入框改 textarea + Enter 发送 / Shift+Enter 换行（避开输入法 229）；发送改**乐观展示**（发送中 → 成功 / 失败可重试并回填），自动滚动到底部、自己/对方消息左右对齐、发送后刷新会话列表                                                                                                                                 |
+| F4   | 最近播放云端分类全是「未知」                                                             | 资源对象可能位于 `data`/`song`/`video`/`voice`/`dj`/`playlist`/`album` 等不同层级，原实现只取 `item.data` 且兜底文案写死「未知」                                                                                                                                                           | 新增 `pickResource/pickName/pickCover` 多形态提取，名称缺失时兜底显示 `#<id>`；错误可见                                                                                                                                                                                                                                                                                                   |
+| F5   | 数字专辑排版错乱                                                                         | 卡片完全没有样式（封面高度不一致、标题长短不齐）                                                                                                                                                                                                                                           | 补齐卡片样式：封面 `1:1` + `object-fit: cover`、标题两行截断、价格/销量同行对齐、栅格改为 `2 / 3 / 5` 列自适应                                                                                                                                                                                                                                                                            |
+| F6   | 会员中心数据异常                                                                         | VIP / 成长值 / 任务的取值路径与容器类型（数组 vs `data.list`）不完全匹配，且异常时静默                                                                                                                                                                                                     | 修正取值路径与兼容分支、错误可见、新增「刷新」按钮                                                                                                                                                                                                                                                                                                                                        |
+| F7   | 控制台被 `vue-router` 弃用告警刷屏                                                       | 全局守卫与 10 处 `beforeEnter` 使用已废弃的 `next()` 回调                                                                                                                                                                                                                                  | 全部改为「返回值」风格（`return false` / `{ path }` / `true`）                                                                                                                                                                                                                                                                                                                            |
+| F8   | 通知 / 评论 / @我 只有一长串文本                                                         | 未解析消息体内的资源对象（`album` / `song` / `playlist` / `mv` / `video` / `program` / `djRadio`）                                                                                                                                                                                         | 解析并渲染为**卡片**（封面 + 名称 + 多歌手副标题 + 类型标签 + 箭头），点击可跳转对应页面（歌曲则直接播放）；无资源时按纯文本卡片展示                                                                                                                                                                                                                                                      |
+| F9   | 私信输入区不像 IM（单行输入、按钮位置与状态不清晰）                                      | 输入条布局过于简单                                                                                                                                                                                                                                                                         | 改为**微信式输入条**：表情快捷插入（Popover，10 个常用表情）、自适应多行输入（1–5 行）、字数提示（>380 字显示）、发送按钮按可发送状态切换主色/禁用；消息气泡左右对齐、自己消息用主题色气泡、**每 5 分钟插入时间分隔**、发送中/失败状态提示，发送后自动聚焦并滚动到底部                                                                                                                    |
+| F10  | **音乐日历全是"未知歌手 / 未知作者"**                                                    | 上游登录后的日历数据放在 `data.calendarEvents`（形如 `[{ date, songs: [{ id, playCount }] }]`），旧逻辑按"以日期为键"解析 → 把 event 对象当成歌曲 → 歌名/歌手全空                                                                                                                          | 重写规整逻辑：优先读 `calendarEvents` / `days` / `list` 等容器，逐条 `coerceDay` 提取 `songs`（兼容 `songs/songList/songDatas/list`、`song` 嵌套、`songId`、`artists/album` 命名、空格日期）；再按 id **分批（每批 200）** 调 `/song/detail` 补全歌名 / 歌手 / 专辑；空壳响应（`calendarEvents: []`）不再产出垃圾日期                                                                     |
+| F11  | 听歌足迹「今日收听」可能显示未知歌手                                                     | 详情接口失败时兜底对象只有 `id`+`songName`，缺歌手                                                                                                                                                                                                                                         | 优先用上游自带的 `artistName` / `albumName` 兜底、按 `songId` 去重、名称缺失时显示 `歌曲 #id`                                                                                                                                                                                                                                                                                             |
+| F12  | **消息正文把原始 JSON / HTML 直接渲染出来**（表现为"一长串"、卡片被撑爆变形）            | 上游**分享类私信**的 `msg` 是 JSON 串（形如 `{"type":1,"msg":"分享单曲","song":{...}}`），评论 / 通知正文可能含 HTML，部分字段直接是对象；旧实现用 `String(...)` 直接绑定到文本容器                                                                                                        | 新增 `src/utils/messageContent.ts`：`parseMessageContent()` 统一处理 **JSON 串 / HTML / 对象 / 坏 JSON**，输出「可读纯文本 + 可选资源」；**任何解析异常都退化为纯文本**，不再把结构体泄露到界面；会话预览走 `toPreviewText()` 截断                                                                                                                                                        |
+| F13  | 分享类消息只显示一行文字                                                                 | 未识别消息体内的资源                                                                                                                                                                                                                                                                       | 解析出 `song/album/playlist/mv/video/program/dj` 时渲染**卡片**（封面 + 名称 + 多歌手/作者 + 类型标签），**私信气泡内同样支持**（微信式分享卡片）；歌曲点击直接播放，其余跳转对应页面                                                                                                                                                                                                     |
+| F14  | 超长文本撑破卡片布局                                                                     | 文本容器无换行/高度约束                                                                                                                                                                                                                                                                    | 正文 `overflow-wrap: anywhere` + `max-height: 320px` 可滚动；封面与标题统一省略号截断                                                                                                                                                                                                                                                                                                     |
+| F15  | **消息里的图片按原始尺寸渲染，把消息框撑爆**                                             | 富文本里的 `<img>` 之前被整段剥掉（既不显示也无法限尺寸）                                                                                                                                                                                                                                  | 解析阶段提取图片（HTML `<img src/data-src>` + 图片直链，去重、`http→https`、最多 6 张）；渲染时 `max-width: 100%` + `max-height: 200px` + 圆角，**表情图按 `1.4em` 行内显示**，点击可放大预览                                                                                                                                                                                             |
+| F16  | **输入框区域留白过大**（截图中的大片灰色）                                               | `textarea` 保留 naive-ui 默认的大内边距/最小高度；消息区没有铺满抽屉，内容少时与输入区之间留出大片空白                                                                                                                                                                                     | 压扁输入条：`textarea` 改 `padding: 5px 12px` + `min-height: 22px` + `resize: none`，表情/发送按钮统一 32px；抽屉 body 与 `n-spin` 容器改为 flex 列布局，消息区 `flex: 1` 撑满并**内容不足时贴底**（`margin-top: auto`）；footer 内边距收紧为 `8px 12px`                                                                                                                                  |
+| F17  | **私信抽屉里「看起来根本没改」**（图片仍按原图撑破聊天栏、输入区依旧留白、消息区没铺满） | `n-drawer` / `n-modal` 由 naive-ui 经 `VLazyTeleport` 渲染到 `body`，而样式全部写在 `<style scoped>` 里并嵌套于 `.message-view` → 编译为 `.message-view[data-v-*] .history { … }`，**在抽屉/弹窗里一条都不命中**（页面内的通知卡片仍正常，因此不易察觉）                                   | 去掉 `scoped`，改为**以组件唯一 class 作作用域根的全局样式**：`.message-view`（页面）/ `.chat-drawer`（抽屉，加在 `n-drawer-content` 上）/ `.msg-preview`（预览弹窗）；`:deep(...)` 全部改为普通选择器（如 `.chat-drawer .n-drawer-body-content-wrapper`），并保留注释说明原因                                                                                                            |
+| F18  | 图片仍**超出聊天栏宽度**、抽屉底部出现**可拖拽的横向滚动条**                             | 图片只设 `max-width: 100%`，而气泡宽度由内容决定（不定宽），百分比上限不可靠；`.history` / `.n-drawer-body-content-wrapper` 未限制横向溢出（只写 `overflow-y: auto` 时 `overflow-x` 会被计算为 `auto` → 出现横向滚动条）                                                                   | 图片加**双层上限** `max-width: min(100%, 260px)` + `max-height: 200px`（`object-fit: contain`，表情图仍 `1.4em`）；气泡 `width: fit-content` + `max-width: 76%`、`.msg` 补 `width: 100% / min-width: 0`；`.history` 与抽屉 body/content-wrapper 统一 `overflow-x: hidden` + `min-width: 0`；预览弹窗宽度改 `min(720px, 92vw)`；通知卡片标题补省略号截断、`.notice-item` 补 `min-width: 0` |
+| F19  | **点击消息里的专辑 / 歌单等跳到 `#/403`**（正常带参反被拒）                              | F7 改守卫风格时**条件写反**：`!to.query.id ? true : { path: "/403" }` —— 原语义是「**缺** id → 403」，写反后成了「**有** id → 403」，波及 `/album`、`/playlist`、`/video`、`/comment`、`/artist`、`/search`、`/song/wiki`、`/streaming-playlist`、`/radio`、`/radio-type` 共 **10 条路由** | 抽出 `src/router/guards.ts` 的 `requireQuery(...keys)`：**正向**判断（字段齐全才放行，缺任一跳 403，避免再写反），10 处路由统一改为 `beforeEnter: requireQuery("id")` / `requireQuery("keyword")` / `requireQuery("id", "name")`；新增回归测试 `pnpm test:route-guards`（语义 9 项 + 源码级断言 4 项）                                                                                    |
 
 **日志与隐私治理**
 
@@ -170,12 +191,12 @@
 
 **密钥审查（结论）**
 
-| 检查项 | 结果 |
-| --- | --- |
-| 仓库扫描 `pnpm security:secret-scan` | 扫描 648 个文本文件，**0 命中** |
-| 用户提供的 90.5KB 控制台日志 | `MUSIC_U=` / `MUSIC_A_T=` / `__csrf=` / `wsSecret` / `Bearer` / `ghp_` / `sk-` **全部 0 命中** —— 日志中只有 Cookie **名称** |
-| 代码核查 | `src/utils/cookie.ts` 明确只打印 Cookie 名称（注释亦标注「绝不打印值」）；本次再将打印**签名直链**与**接口响应**的日志收敛到开发环境 |
-| 残留风险 | 日志含用户 id（PII，已消除来源）与一条已过期签名直链（已消除来源）；**建议不要把完整控制台日志公开分享** |
+| 检查项                               | 结果                                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 仓库扫描 `pnpm security:secret-scan` | 扫描 648 个文本文件，**0 命中**                                                                                                      |
+| 用户提供的 90.5KB 控制台日志         | `MUSIC_U=` / `MUSIC_A_T=` / `__csrf=` / `wsSecret` / `Bearer` / `ghp_` / `sk-` **全部 0 命中** —— 日志中只有 Cookie **名称**         |
+| 代码核查                             | `src/utils/cookie.ts` 明确只打印 Cookie 名称（注释亦标注「绝不打印值」）；本次再将打印**签名直链**与**接口响应**的日志收敛到开发环境 |
+| 残留风险                             | 日志含用户 id（PII，已消除来源）与一条已过期签名直链（已消除来源）；**建议不要把完整控制台日志公开分享**                             |
 
 **文档与链接**
 
@@ -184,21 +205,21 @@
 
 **验证**
 
-| 检查项 | 结果 |
-| --- | --- |
-| `vue-tsc` / `tsc` / ESLint / Prettier | 全部通过 |
-| 端点清单 `--check` | 通过 |
-| 隔离冒烟（`#/style`（对照）、`#/history`、`#/digital-album`） | 控制台错误数均为 3，与**未改动**对照路由一致 → 未引入新错误 |
-| 3 条残留错误的定性 | 均为本地 web dev 环境 `window.api` / `window.electron` 未注入所致（生产 web 构建此前审计无此类报错）；另有 1 条 `VM2801 ... 'startTime'` 来自浏览器扩展注入脚本，与项目无关 |
-| 控制台默认静默实测 | 无头浏览器访问 `/`（首页）与 `/style`：**项目自身诊断日志命中 0 条**（含 `music data:`、`最终播放信息`、`Fetched ... for user`、`[LyricStripper]` 等全部消失），错误数仍为既有基线 3 条 |
-| 资源卡片提取逻辑（用实测样例） | 用「新专辑通知」真实样例 + 歌单 / MV / 视频 / 纯文本共 5 例逐例校验：**全部符合预期**，其中发现并修复「视频 `vid` 为十六进制字符串被 `Number()` 过滤」的问题；封面统一 `http → https` |
-| 音乐日历解析（用实测响应 + 推断形态） | 6 例逐例校验：① 登录后真实形态（`calendarEvents` + 仅 `id/playCount`，经 `/song/detail` 补全为「Ref:rain / Aimer」）② 匿名空壳（实测返回，必须 0 天）③ `song` 嵌套 ④ 数组形态 + `artists/album` 命名 ⑤ 以日期为键 ⑥ `songId` + 带时间日期 —— **6/6 通过** |
-| 消息体解析回归测试（新增 `pnpm test:message-content`） | **10/10 通过**：JSON 分享歌曲（封面取自 `al/album.picUrl`）、真实通知样例（多歌手副标题 `HorseSea1 / 可不 / 初音ミク`）、HTML 去标签、嵌套对象 `msg.song`、坏 JSON 退化为纯文本、空值、歌单分享、**HTML 大图提取（限尺寸渲染）**、图片直链、对象内嵌图片 |
-| 消息页 SFC 编译校验 | 通过 Vite 实际编译 `/src/views/Message.vue`（模板 + SCSS）与 `src/utils/messageContent.ts`，无编译错误（该页需登录，视觉需人工确认） |
-| **抽屉布局 / 图片尺寸实测**（系统 Chrome 无头，复刻 naive-ui 真实 DOM 与盒模型） | 「修复前」对照：图片按 **1200×800** 原图渲染、`.n-drawer-body-content-wrapper` 横向溢出 **759px**（= 底部可拖拽的横向滚动条）、`.history` 横向溢出 783px；「修复后」：图片 **260×173**、两处横向溢出 **0**、消息区高度撑满（667px）；窄屏（360px）复测：图片 **252×168**、横向溢出 **0** |
-| 本轮样式校验 | `<style>` 块用工程本地 `sass` 单独编译通过，产物选择器确认为 `.chat-drawer .n-drawer-body-content-wrapper` / `.message-view .msg-images .msg-image` 等（即确实命中抽屉/弹窗）；Prettier 通过；`vue-tsc -p tsconfig.web.json` EXIT=0 |
-| 路由守卫回归测试（新增 `pnpm test:route-guards`） | **13/13 通过**：带 `id` 放行、缺 `id` / 空串 / `null` 403、`id + name` 组合、`keyword` 组合；源码级断言 `routes.ts` 无 `!to.query.`、无 `next()` 回调风格、`requireQuery` 用法恰为 10 处、无裸 `beforeEnter: (to) =>` |
-| **路由端到端验证**（本机 web dev `127.0.0.1:14558` + 无头 Chrome，Vite HMR 已加载修复） | `#/album?id=123` ✅ 放行、`#/album` ⛔ 403；`#/playlist?id=123` ✅ 放行、`#/playlist` ⛔ 403 —— 与预期语义完全一致（修复前**带参一律 403**） |
+| 检查项                                                                                  | 结果                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vue-tsc` / `tsc` / ESLint / Prettier                                                   | 全部通过                                                                                                                                                                                                                                                                                 |
+| 端点清单 `--check`                                                                      | 通过                                                                                                                                                                                                                                                                                     |
+| 隔离冒烟（`#/style`（对照）、`#/history`、`#/digital-album`）                           | 控制台错误数均为 3，与**未改动**对照路由一致 → 未引入新错误                                                                                                                                                                                                                              |
+| 3 条残留错误的定性                                                                      | 均为本地 web dev 环境 `window.api` / `window.electron` 未注入所致（生产 web 构建此前审计无此类报错）；另有 1 条 `VM2801 ... 'startTime'` 来自浏览器扩展注入脚本，与项目无关                                                                                                              |
+| 控制台默认静默实测                                                                      | 无头浏览器访问 `/`（首页）与 `/style`：**项目自身诊断日志命中 0 条**（含 `music data:`、`最终播放信息`、`Fetched ... for user`、`[LyricStripper]` 等全部消失），错误数仍为既有基线 3 条                                                                                                  |
+| 资源卡片提取逻辑（用实测样例）                                                          | 用「新专辑通知」真实样例 + 歌单 / MV / 视频 / 纯文本共 5 例逐例校验：**全部符合预期**，其中发现并修复「视频 `vid` 为十六进制字符串被 `Number()` 过滤」的问题；封面统一 `http → https`                                                                                                    |
+| 音乐日历解析（用实测响应 + 推断形态）                                                   | 6 例逐例校验：① 登录后真实形态（`calendarEvents` + 仅 `id/playCount`，经 `/song/detail` 补全为「Ref:rain / Aimer」）② 匿名空壳（实测返回，必须 0 天）③ `song` 嵌套 ④ 数组形态 + `artists/album` 命名 ⑤ 以日期为键 ⑥ `songId` + 带时间日期 —— **6/6 通过**                                |
+| 消息体解析回归测试（新增 `pnpm test:message-content`）                                  | **10/10 通过**：JSON 分享歌曲（封面取自 `al/album.picUrl`）、真实通知样例（多歌手副标题 `HorseSea1 / 可不 / 初音ミク`）、HTML 去标签、嵌套对象 `msg.song`、坏 JSON 退化为纯文本、空值、歌单分享、**HTML 大图提取（限尺寸渲染）**、图片直链、对象内嵌图片                                 |
+| 消息页 SFC 编译校验                                                                     | 通过 Vite 实际编译 `/src/views/Message.vue`（模板 + SCSS）与 `src/utils/messageContent.ts`，无编译错误（该页需登录，视觉需人工确认）                                                                                                                                                     |
+| **抽屉布局 / 图片尺寸实测**（系统 Chrome 无头，复刻 naive-ui 真实 DOM 与盒模型）        | 「修复前」对照：图片按 **1200×800** 原图渲染、`.n-drawer-body-content-wrapper` 横向溢出 **759px**（= 底部可拖拽的横向滚动条）、`.history` 横向溢出 783px；「修复后」：图片 **260×173**、两处横向溢出 **0**、消息区高度撑满（667px）；窄屏（360px）复测：图片 **252×168**、横向溢出 **0** |
+| 本轮样式校验                                                                            | `<style>` 块用工程本地 `sass` 单独编译通过，产物选择器确认为 `.chat-drawer .n-drawer-body-content-wrapper` / `.message-view .msg-images .msg-image` 等（即确实命中抽屉/弹窗）；Prettier 通过；`vue-tsc -p tsconfig.web.json` EXIT=0                                                      |
+| 路由守卫回归测试（新增 `pnpm test:route-guards`）                                       | **13/13 通过**：带 `id` 放行、缺 `id` / 空串 / `null` 403、`id + name` 组合、`keyword` 组合；源码级断言 `routes.ts` 无 `!to.query.`、无 `next()` 回调风格、`requireQuery` 用法恰为 10 处、无裸 `beforeEnter: (to) =>`                                                                    |
+| **路由端到端验证**（本机 web dev `127.0.0.1:14558` + 无头 Chrome，Vite HMR 已加载修复） | `#/album?id=123` ✅ 放行、`#/album` ⛔ 403；`#/playlist?id=123` ✅ 放行、`#/playlist` ⛔ 403 —— 与预期语义完全一致（修复前**带参一律 403**）                                                                                                                                             |
 
 **影响范围**：19 个文件（6 个页面/组件修复、4 个路由/菜单、7 个日志治理、2 处文档与链接）；F17 / F18 再改 `src/views/Message.vue`（抽屉样式作用域 + 图片尺寸）+ 2 处文档；F19 再改 `src/router/routes.ts`、新增 `src/router/guards.ts`、`scripts/test-route-guards.mts` 与 `package.json` 脚本 + 2 处文档。
 
@@ -220,12 +241,12 @@
 
 **刻意未接入（附依据）**
 
-| 能力 | 未接入原因 |
-| --- | --- |
-| 听歌识曲 `/audio/match` | 需要音频指纹；上游 demo 依赖第三方 `第三方音频指纹库（来源与许可未明确）`（`afp.js` 57KB + `afp.wasm` 301KB，许可未明确）→ 不把来源不明的二进制纳入仓库 |
-| 播客声音 `/voicelist/*`、`/voice/*` | 实测匿名请求返回空（`total=0` / `code=400`），无法验证；接口已封装，待有权限时接入 |
-| 音乐人中心 `/musician/*` | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证 |
-| 一起听、Mlog、楼层评论、歌单导入、数字专辑购买链路 | 需要实时房间或额外交互链路，单独评估 |
+| 能力                                               | 未接入原因                                                                                                                                              |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 听歌识曲 `/audio/match`                            | 需要音频指纹；上游 demo 依赖第三方 `第三方音频指纹库（来源与许可未明确）`（`afp.js` 57KB + `afp.wasm` 301KB，许可未明确）→ 不把来源不明的二进制纳入仓库 |
+| 播客声音 `/voicelist/*`、`/voice/*`                | 实测匿名请求返回空（`total=0` / `code=400`），无法验证；接口已封装，待有权限时接入                                                                      |
+| 音乐人中心 `/musician/*`                           | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证                                                                                                       |
+| 一起听、Mlog、楼层评论、歌单导入、数字专辑购买链路 | 需要实时房间或额外交互链路，单独评估                                                                                                                    |
 
 **审计与修复**（完整证据见 [doc/AUDIT.md](./AUDIT.md) 的 2026-09-19 增量章节）
 
@@ -244,17 +265,17 @@
 
 **验证**（本地 dev + 本地 npm 版 API 源 `http://127.0.0.1:3210`）
 
-| 检查项 | 结果 |
-| --- | --- |
-| `vue-tsc --noEmit`（web） | 通过（8.6s） |
-| ESLint（TS；仓库配置不覆盖 `.vue`） | 通过 |
-| Prettier | 通过 |
-| 端点清单 `--check` | 通过（377 条，幂等） |
-| `#/video-square` | 渲染 107 个标签 + 7 张视频卡片（推荐流真实数据） |
-| `#/digital-album` | 4 个 Tab，30 张数字专辑（真实名称 / 价格 / 销量） |
-| `#/radio-board` | 4 个 Tab，30 个电台（真实主播 / 期数 / 订阅数） |
-| `#/history` | 6 个 Tab（歌曲 / 歌单 / 专辑 / 视频 / 声音 / 播客） |
-| 控制台错误对照 | 新页面与未改动对照路由均为 3 条既有错误 → 本分支未新增错误 |
+| 检查项                              | 结果                                                       |
+| ----------------------------------- | ---------------------------------------------------------- |
+| `vue-tsc --noEmit`（web）           | 通过（8.6s）                                               |
+| ESLint（TS；仓库配置不覆盖 `.vue`） | 通过                                                       |
+| Prettier                            | 通过                                                       |
+| 端点清单 `--check`                  | 通过（377 条，幂等）                                       |
+| `#/video-square`                    | 渲染 107 个标签 + 7 张视频卡片（推荐流真实数据）           |
+| `#/digital-album`                   | 4 个 Tab，30 张数字专辑（真实名称 / 价格 / 销量）          |
+| `#/radio-board`                     | 4 个 Tab，30 个电台（真实主播 / 期数 / 订阅数）            |
+| `#/history`                         | 6 个 Tab（歌曲 / 歌单 / 专辑 / 视频 / 声音 / 播客）        |
+| 控制台错误对照                      | 新页面与未改动对照路由均为 3 条既有错误 → 本分支未新增错误 |
 
 **影响范围**：新增 3 个页面与 3 条路由；扩展 `History.vue`；`src/api/netease` 增补封装与 `neteaseBrowse`；未改动既有功能逻辑。
 
@@ -285,15 +306,15 @@
 
 **验证**（本地 dev + 本地 npm 版 API 源 `http://127.0.0.1:3210`，无头浏览器真实页面）
 
-| 检查项 | 结果 |
-| --- | --- |
-| `vue-tsc --noEmit`（web） | 通过 |
-| ESLint（TS 部分；该仓库 ESLint 不覆盖 `.vue`） | 通过 |
-| 端点清单 `--check` | 与上游一致（377 个端点，100% 带中文说明） |
-| `#/style` | 渲染 28 类一级曲风、342 个曲风标签、曲风歌曲 21 行（真实数据） |
-| `#/mv` | 渲染 40 张 MV 卡片（真实名称/歌手） |
-| `#/user`（无 `uid` 且未登录） | 正确跳转 `/403` |
-| `#/calendar`、`#/listen-data`、`#/vip`、`#/message`（未登录） | 被 `meta.needLogin` 守卫拦截并弹出登录，符合预期 |
+| 检查项                                                        | 结果                                                           |
+| ------------------------------------------------------------- | -------------------------------------------------------------- |
+| `vue-tsc --noEmit`（web）                                     | 通过                                                           |
+| ESLint（TS 部分；该仓库 ESLint 不覆盖 `.vue`）                | 通过                                                           |
+| 端点清单 `--check`                                            | 与上游一致（377 个端点，100% 带中文说明）                      |
+| `#/style`                                                     | 渲染 28 类一级曲风、342 个曲风标签、曲风歌曲 21 行（真实数据） |
+| `#/mv`                                                        | 渲染 40 张 MV 卡片（真实名称/歌手）                            |
+| `#/user`（无 `uid` 且未登录）                                 | 正确跳转 `/403`                                                |
+| `#/calendar`、`#/listen-data`、`#/vip`、`#/message`（未登录） | 被 `meta.needLogin` 守卫拦截并弹出登录，符合预期               |
 
 **未接入 UI（API 已就绪，可直接用 `neteaseApi` 调用）**：听歌识曲（`/audio/match` 需上游 300KB WASM 指纹算法）、数字专辑购买链路、一起听、播客声音上传、Mlog、音乐人/云豆、楼层评论、歌单导入、视频标签时间线等 —— 见 README 的「网易云 API 能力」表格。
 
@@ -350,13 +371,13 @@
 
 **验证**（自建无头体检工具：Electron + iPhone UA + CDP 触屏模拟；本轮新增「详情头几何」「歌曲列表滚动区」「滚动后压缩态」「歌曲行列宽」「CSS 变量与规则命中」探针）
 
-| 视口 | 头部 / 预留 | 按钮行 | 重叠 | 横向溢出 | 滚动区可视高度 |
-| --- | --- | --- | --- | --- | --- |
-| 390×844 | 210 / 210 | 单行 | 0 | 0 | 462px |
-| 360×640 | 210 / 210 | 单行 | 0 | 0 | 258px |
-| 320×568 | 210 / 210 | 单行 | 0 | 0 | 186px |
-| 844×390（横屏） | 120 / 120 | 单行 | 0 | 0 | **120px**（修复前 0px） |
-| 1280×800（桌面） | 240 / 240 | 单行 | 0 | 0 | 388px |
+| 视口             | 头部 / 预留 | 按钮行 | 重叠 | 横向溢出 | 滚动区可视高度          |
+| ---------------- | ----------- | ------ | ---- | -------- | ----------------------- |
+| 390×844          | 210 / 210   | 单行   | 0    | 0        | 462px                   |
+| 360×640          | 210 / 210   | 单行   | 0    | 0        | 258px                   |
+| 320×568          | 210 / 210   | 单行   | 0    | 0        | 186px                   |
+| 844×390（横屏）  | 120 / 120   | 单行   | 0    | 0        | **120px**（修复前 0px） |
+| 1280×800（桌面） | 240 / 240   | 单行   | 0    | 0        | 388px                   |
 
 滚动到压缩态后头部与预留仍然一致（390px → 128/128，横屏 → 96/96，桌面 → 120/120）。首页 / 云盘 / 发现 / 我的收藏（390×844、360×640）回归：横向溢出 0、重叠 0、过小热区 0、弹窗不越界。
 
@@ -500,4 +521,3 @@
 - **API 地址切换**（`.env` → `VITE_API_URL`）：网页端使用的网易云 API 服务切换为持续维护的新版项目（api-enhanced），修复网易云接口改版后部分「收藏」无法同步的问题
 - **CORS 兼容**（`src/utils/request.ts`）：关闭 `withCredentials`。登录态通过 `params.cookie` 显式传递，浏览器无需跨域自动携带凭证，从而兼容新版 API 返回的 `Access-Control-Allow-Origin: *`，避免请求被 CORS 策略拦截
 - **缓存健壮性**（`src/utils/cache.ts`）：`getCacheData` 不再缓存 `null/undefined` 结果，防止接口短暂异常时把空值写入 `sessionStorage` 导致页面持续空白
-

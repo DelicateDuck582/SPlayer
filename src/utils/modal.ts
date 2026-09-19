@@ -197,6 +197,34 @@ export const openKugouLogin = async (onSuccess?: () => void) => {
 };
 
 /**
+ * QQ 音乐登录弹窗（扫码 / Cookie）
+ *
+ * 与网易云登录弹窗（`openUserLogin`）、酷狗登录弹窗（`openKugouLogin`）体验一致。
+ * @param onSuccess 登录成功回调
+ */
+export const openQqLogin = async (onSuccess?: () => void) => {
+  const { default: QqLogin } = await import("@/components/Modal/QqLogin.vue");
+  const modal = window.$modal.create({
+    preset: "card",
+    transformOrigin: "center",
+    autoFocus: false,
+    maskClosable: false,
+    closeOnEsc: true,
+    title: "QQ 音乐登录",
+    style: { width: "440px" },
+    content: () => {
+      return h(QqLogin, {
+        onClose: () => modal.destroy(),
+        onSuccess: () => {
+          modal.destroy();
+          if (onSuccess) onSuccess();
+        },
+      });
+    },
+  });
+};
+
+/**
  * 跳转到歌手
  * @param data 歌手信息
  * @param id 歌手 id

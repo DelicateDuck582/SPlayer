@@ -26,6 +26,7 @@
     "security:secret-scan": "tsx scripts/secret-scan.ts",
     "test:message-content": "tsx scripts/test-message-content.mts",
     "test:kugou": "tsx scripts/test-kugou-adapter.mts",
+    "test:qq": "tsx scripts/test-qq-adapter.mts",
     "test:route-guards": "tsx scripts/test-route-guards.mts",
     "gen:netease-endpoints": "tsx scripts/gen-netease-endpoints.ts",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",

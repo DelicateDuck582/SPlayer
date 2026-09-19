@@ -9,12 +9,14 @@ import {
   kugouSongUrlById,
   resolveKugouSong,
 } from "@/api/kugou";
+import { qqLyricById, qqSongDetailByIds, qqSongUrlById, resolveQqSong } from "@/api/qq";
 
 // 获取歌曲详情
 export const songDetail = (ids: number | number[]) => {
-  // 酷狗歌曲：信息已在适配层注册表中，直接按网易云形状返回，避免误请求网易云 API
+  // 酷狗 / QQ 歌曲：信息已在适配层注册表中，直接按网易云形状返回，避免误请求网易云 API
   const firstId = Array.isArray(ids) ? ids[0] : ids;
   if (resolveKugouSong(firstId)) return Promise.resolve(kugouSongDetailByIds(ids));
+  if (resolveQqSong(firstId)) return Promise.resolve(qqSongDetailByIds(ids));
   return request({
     url: "/song/detail",
     method: "post",
@@ -63,8 +65,9 @@ export const songUrl = (
   options?: SongUrlIpOptions,
 ) => {
   const ipParams = toIpParams(options);
-  // 酷狗歌曲（合成 ID 命中注册表）：走酷狗取链，返回网易云 /song/url/v1 兼容形状
+  // 酷狗 / QQ 歌曲（合成 ID 命中注册表）：走对应平台取链，返回网易云 /song/url/v1 兼容形状
   if (resolveKugouSong(id)) return kugouSongUrlById(id, level);
+  if (resolveQqSong(id)) return qqSongUrlById(id, level);
   // 杜比全景声使用旧版接口，并传入特殊参数
   if (level === "dolby") {
     return request({
@@ -147,8 +150,9 @@ export const unlockSongUrl = async (
 
 // 获取歌曲歌词
 export const songLyric = (id: number) => {
-  // 酷狗歌曲：走酷狗「歌词搜索 → 下载」两步流程，返回网易云 /lyric/new 兼容形状
+  // 酷狗 / QQ 歌曲：走对应平台流程，返回网易云 /lyric/new 兼容形状
   if (resolveKugouSong(id)) return kugouLyricById(id);
+  if (resolveQqSong(id)) return qqLyricById(id);
   return request({
     url: "/lyric/new",
     params: {
