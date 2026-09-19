@@ -169,6 +169,34 @@ export const openUserLogin = async (
 };
 
 /**
+ * 酷狗 Cookie 登录弹窗
+ *
+ * 与网易云登录弹窗（`openUserLogin`）体验一致：点用户区头像即可打开。
+ * @param onSuccess 登录成功回调
+ */
+export const openKugouLogin = async (onSuccess?: () => void) => {
+  const { default: KugouLogin } = await import("@/components/Modal/KugouLogin.vue");
+  const modal = window.$modal.create({
+    preset: "card",
+    transformOrigin: "center",
+    autoFocus: false,
+    maskClosable: false,
+    closeOnEsc: true,
+    title: "酷狗 Cookie 登录",
+    style: { width: "440px" },
+    content: () => {
+      return h(KugouLogin, {
+        onClose: () => modal.destroy(),
+        onSuccess: () => {
+          modal.destroy();
+          if (onSuccess) onSuccess();
+        },
+      });
+    },
+  });
+};
+
+/**
  * 跳转到歌手
  * @param data 歌手信息
  * @param id 歌手 id

@@ -13,8 +13,8 @@
       >
         <div class="avatar">
           <n-avatar
-            v-if="dataStore.userLoginStatus"
-            :src="dataStore.userData?.avatarUrl"
+            v-if="loggedIn"
+            :src="displayAvatar"
             fallback-src="/images/avatar.jpg?asset"
             round
           />
@@ -24,14 +24,10 @@
         </div>
         <n-flex v-if="isDesktop" :wrap="false" class="user-data" size="small">
           <n-text class="name text-hidden">
-            {{ dataStore.userLoginStatus ? dataStore.userData.name || "未知用户名" : "未登录" }}
+            {{ displayName }}
           </n-text>
           <!-- VIP -->
-          <img
-            v-if="dataStore.userLoginStatus && dataStore.userData.vipType !== 0"
-            class="vip-img"
-            src="/images/vip.png?asset"
-          />
+          <img v-if="loggedIn && displayVip" class="vip-img" src="/images/vip.png?asset" />
           <SvgIcon :class="['down', { open: userMenuShow }]" name="DropDown" :depth="3" />
         </n-flex>
       </div>
@@ -39,22 +35,17 @@
     <div class="user-menu" @click="userMenuShow = false">
       <!-- 用户信息 -->
       <n-flex class="user-info" align="center" justify="center" vertical>
-        <n-text class="nickname text-hidden">{{ dataStore.userData.name || "未知用户名" }}</n-text>
+        <n-text class="nickname text-hidden">{{ displayName }}</n-text>
         <n-flex align="center" size="small">
-          <n-tag :bordered="false" size="small" round type="warning">
-            Lv.{{ dataStore.userData.level ?? 0 }}
-          </n-tag>
+          <n-tag :bordered="false" size="small" round type="warning">Lv.{{ displayLevel }}</n-tag>
+          <n-tag v-if="isKugouMode" :bordered="false" size="small" round type="info">酷狗源</n-tag>
           <!-- VIP -->
-          <img
-            v-if="dataStore.userLoginStatus && dataStore.userData.vipType !== 0"
-            class="vip-img"
-            src="/images/vip.png?asset"
-          />
+          <img v-if="loggedIn && displayVip" class="vip-img" src="/images/vip.png?asset" />
         </n-flex>
       </n-flex>
       <n-divider />
-      <!-- 喜欢数量 -->
-      <div v-if="dataStore.loginType !== 'uid'" class="like-num">
+      <!-- 喜欢数量（仅网易云源） -->
+      <div v-if="!isKugouMode && dataStore.loginType !== 'uid'" class="like-num">
         <div
           v-for="(item, index) in userLikeData"
           :key="index"
@@ -65,13 +56,16 @@
           <n-text :depth="3">{{ item.label }}</n-text>
         </div>
       </div>
-      <n-flex v-else align="center" vertical>
+      <n-flex v-else-if="!isKugouMode" align="center" vertical>
         <n-text>UID 登录模式</n-text>
         <n-text :depth="3">部分功能暂不可用</n-text>
       </n-flex>
       <n-divider />
       <!-- 多账号 -->
-      <div class="account-list" v-if="dataStore.userLoginStatus && dataStore.loginType !== 'uid'">
+      <div
+        class="account-list"
+        v-if="!isKugouMode && dataStore.userLoginStatus && dataStore.loginType !== 'uid'"
+      >
         <n-text class="subtitle" :depth="3">切换账号</n-text>
         <div
           v-for="account in otherAccounts"
@@ -92,7 +86,7 @@
           添加账号
         </n-button>
       </div>
-      <n-divider v-if="dataStore.userLoginStatus" />
+      <n-divider v-if="loggedIn && !isKugouMode" />
       <!-- 退出登录 -->
       <n-button :focusable="false" class="logout" strong secondary round @click="isLogout">
         <template #icon>
@@ -105,8 +99,8 @@
 </template>
 
 <script setup lang="ts">
-import { useDataStore } from "@/stores";
-import { openUserLogin } from "@/utils/modal";
+import { useDataStore, useSettingStore } from "@/stores";
+import { openKugouLogin, openUserLogin } from "@/utils/modal";
 import { getLoginState } from "@/api/login";
 import {
   updateUserData,
@@ -119,17 +113,68 @@ import {
   removeAccount,
 } from "@/utils/auth";
 import { useMobile } from "@/composables/useMobile";
+import { isKugouLogin, kugouLogout, refreshKugouUser } from "@/utils/kugouAuth";
 
 const router = useRouter();
 const dataStore = useDataStore();
+const settingStore = useSettingStore();
 
 const { isDesktop } = useMobile();
 
 // 用户菜单展示
 const userMenuShow = ref<boolean>(false);
 
+/** 当前音乐源是否为酷狗（酷狗账号走独立 Cookie 登录，与网易云登录态互不影响） */
+const isKugouMode = computed<boolean>(() => settingStore.musicSource === "kugou");
+
+/** 酷狗是否已登录（读取 kugouCookie 以建立响应式依赖） */
+const kugouLoggedIn = computed<boolean>(() => {
+  void settingStore.kugouCookie;
+  return isKugouLogin();
+});
+
+/** 是否已登录（按当前音乐源取值） */
+const loggedIn = computed<boolean>(() =>
+  isKugouMode.value ? kugouLoggedIn.value : dataStore.userLoginStatus,
+);
+
+/** 展示用头像 */
+const displayAvatar = computed<string>(() =>
+  isKugouMode.value ? settingStore.kugouUser?.avatar || "" : dataStore.userData?.avatarUrl || "",
+);
+
+/** 展示用昵称 */
+const displayName = computed<string>(() => {
+  if (isKugouMode.value) {
+    if (!kugouLoggedIn.value) return "未登录";
+    return settingStore.kugouUser?.nickname || settingStore.kugouUser?.userid || "酷狗用户";
+  }
+  return dataStore.userLoginStatus ? dataStore.userData.name || "未知用户名" : "未登录";
+});
+
+/** 展示用等级 */
+const displayLevel = computed<number>(() =>
+  isKugouMode.value ? (settingStore.kugouUser?.level ?? 0) : (dataStore.userData.level ?? 0),
+);
+
+/** 是否 VIP */
+const displayVip = computed<boolean>(() =>
+  isKugouMode.value
+    ? (settingStore.kugouUser?.vipType ?? 0) !== 0
+    : dataStore.userData.vipType !== 0,
+);
+
 // 开启用户菜单
 const openMenu = () => {
+  // 酷狗源：未登录 → 打开酷狗 Cookie 登录弹窗；已登录 → 展开账号菜单
+  if (isKugouMode.value) {
+    if (kugouLoggedIn.value) {
+      userMenuShow.value = !userMenuShow.value;
+    } else {
+      openKugouLogin(() => refreshKugouUser());
+    }
+    return;
+  }
   if (dataStore.userLoginStatus) {
     userMenuShow.value = !userMenuShow.value;
   } else {
@@ -160,6 +205,16 @@ const userLikeData = computed(() => {
 
 // 检查登录状态
 const checkLoginStatus = async () => {
+  // 酷狗源：校验酷狗 Cookie 是否仍有效（不触碰网易云登录态）
+  if (isKugouMode.value) {
+    if (!kugouLoggedIn.value) return;
+    const user = await refreshKugouUser();
+    if (!user) {
+      window.$message.warning("酷狗登录已过期，请重新登录", { duration: 2000 });
+      openKugouLogin(() => refreshKugouUser());
+    }
+    return;
+  }
   // 若为 UID 登录
   if (dataStore.loginType === "uid") {
     await updateSpecialUserData();
@@ -235,6 +290,24 @@ const handleAddAccount = async () => {
 
 // 退出登录
 const isLogout = () => {
+  // 酷狗源：退出酷狗登录（不影响网易云登录态）
+  if (isKugouMode.value) {
+    if (!kugouLoggedIn.value) {
+      openKugouLogin(() => refreshKugouUser());
+      return;
+    }
+    window.$dialog.warning({
+      title: "退出酷狗登录",
+      content: "确认清除本机保存的酷狗 Cookie 与账号信息？",
+      positiveText: "确认登出",
+      negativeText: "取消",
+      onPositiveClick: () => {
+        userMenuShow.value = false;
+        kugouLogout();
+      },
+    });
+    return;
+  }
   if (!isLogin()) {
     openUserLogin();
     return;

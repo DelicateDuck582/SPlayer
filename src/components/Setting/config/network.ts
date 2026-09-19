@@ -20,6 +20,8 @@ import {
   normalizeKugouApiBase,
   testKugouApiBase,
 } from "@/api/kugou";
+import { openKugouLogin } from "@/utils/modal";
+import { getKugouCookieValue, isKugouLogin, kugouLogout } from "@/utils/kugouAuth";
 
 export const useNetworkSettings = (): SettingConfig => {
   const settingStore = useSettingStore();
@@ -347,7 +349,7 @@ export const useNetworkSettings = (): SettingConfig => {
             type: "text-input",
             show: computed(() => settingStore.musicSource === "kugou"),
             description:
-              "格式 token=xxx; userid=xxx。酷狗对匿名请求有云端风控：不填时「歌曲搜索 / 取播放地址 / 歌词」会被拒绝（152 / 20028）；仅本地保存，且只放在请求体中发送",
+              "格式 token=xxx; userid=xxx。点「查看头像/用户区头像」或下方按钮用 Cookie 登录后会自动填入；酷狗对匿名请求有云端风控：不填时「歌曲搜索 / 取播放地址 / 歌词」会被拒绝（152 / 20028）；仅本地保存，且只放在请求体中发送",
             keywords: ["酷狗", "cookie", "登录", "token", "kugou"],
             componentProps: {
               type: "password",
@@ -361,6 +363,31 @@ export const useNetworkSettings = (): SettingConfig => {
             }),
           },
           {
+            key: "kugouLogin",
+            label: "酷狗账号",
+            type: "button",
+            show: computed(() => settingStore.musicSource === "kugou"),
+            description: computed(() =>
+              isKugouLogin()
+                ? `已登录：${settingStore.kugouUser?.nickname || getKugouCookieValue("userid") || "酷狗用户"}（可重新登录 / 切换账号）`
+                : "未登录：点击后用 Cookie 登录（与点击左侧头像登录等效）",
+            ),
+            keywords: ["酷狗", "登录", "账号", "cookie", "kugou", "头像"],
+            buttonLabel: "登录 / 切换账号",
+            action: () => openKugouLogin(),
+            componentProps: { type: "primary" },
+          },
+          {
+            key: "kugouLogout",
+            label: "退出酷狗登录",
+            type: "button",
+            show: computed(() => settingStore.musicSource === "kugou" && isKugouLogin()),
+            description: "清除本机保存的酷狗 Cookie 与账号信息（不影响网易云登录态）",
+            keywords: ["酷狗", "退出", "登出", "logout", "kugou"],
+            buttonLabel: "退出登录",
+            action: () => kugouLogout(),
+          },
+          {
             key: "kugouApiTest",
             label: "测试酷狗 API",
             type: "button",
@@ -371,14 +398,11 @@ export const useNetworkSettings = (): SettingConfig => {
             action: handleTestKugouApiBase,
             componentProps: computed(() => ({ loading: kugouTestLoading.value, type: "primary" })),
           },
-        ],
-      },
-      {
-        title: "API 服务",
-        items: [
+          // ---- 网易云 API 设置（仅「网易云音乐」源显示）----
           {
             key: "apiSource",
             label: "API 源",
+            show: computed(() => settingStore.musicSource === "netease"),
             type: "select",
             description: computed(
               () => `当前生效：${getApiBase()}${settingStore.apiBaseUrl ? "" : "（默认源）"}`,
@@ -405,6 +429,7 @@ export const useNetworkSettings = (): SettingConfig => {
           {
             key: "apiSourceCustom",
             label: "自定义 API 地址",
+            show: computed(() => settingStore.musicSource === "netease"),
             type: "text-input",
             description:
               "留空使用默认源；可填自建 API（如 api-enhanced）或 npm 版 NeteaseCloudMusicApi 的 Vercel 部署地址；切换后立即生效，无需重启或重建",
@@ -421,6 +446,7 @@ export const useNetworkSettings = (): SettingConfig => {
           {
             key: "apiSourceTest",
             label: "测试 API 源",
+            show: computed(() => settingStore.musicSource === "netease"),
             type: "button",
             description:
               "匿名请求所选源的 /login/status；成功后写入「API 源」列表，便于多源快速切换",
@@ -432,11 +458,13 @@ export const useNetworkSettings = (): SettingConfig => {
           {
             key: "apiSourceReset",
             label: "恢复默认 API 源",
+            show: computed(
+              () => !!settingStore.apiBaseUrl && settingStore.musicSource === "netease",
+            ),
             type: "button",
             description: `回到构建时配置的默认地址（${DEFAULT_API_BASE || "未配置"}）`,
             keywords: ["api", "重置", "默认"],
             buttonLabel: "恢复默认",
-            show: computed(() => !!settingStore.apiBaseUrl),
             action: () => applyApiBase(""),
           },
         ],

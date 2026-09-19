@@ -56,6 +56,18 @@
 
 **已知限制**：酷狗对数据中心 IP 有风控，**播放取链与歌词需填酷狗登录 Cookie**；自定义域 `KuGou-API.duckgame-play.top` 需在域名商补 CNAME（详见 KUGOU-API.md 第三节）。
 
+**第二轮：设置整合 + 酷狗 Cookie 登录**
+
+| 范围 | 内容 |
+| --- | --- |
+| 设置整合 | 原「API 服务」分组并入「音乐源」分组：选中网易云时才显示「API 源 / 自定义地址 / 测试 / 恢复默认」，选中酷狗时只显示酷狗项，界面不再出现无关开关 |
+| 账号登录 | 新增 `src/components/Modal/KugouLogin.vue` 与 `src/utils/modal.ts#openKugouLogin`：**点击左下角头像**即可用 Cookie 登录（与网易云登录体验一致） |
+| 登录态 | 新增 `src/utils/kugouAuth.ts`：Cookie 解析 / 规范化、`isKugouLogin`、`loginKugouByCookie`（先校验后保存、失败回滚）、`refreshKugouUser`（启动时校验有效性）、`kugouLogout` |
+| 用户信息 | `settingStore.kugouUser`（昵称 / 头像 / VIP / 等级）；`core.ts` 新增 `kugouUserToProfile`（兼容多种字段命名）与错误码 `20018` 翻译；新增端点 `/user/detail`、`/user/vip/detail`、`/user/playlist`、`/user/history` |
+| 用户区 | `Layout/User.vue` 按当前音乐源展示对应账号：酷狗源显示酷狗头像/昵称/等级/VIP + 「酷狗源」标记，网易云源保持原样；退出登录按源分别处理，两套登录态互不影响 |
+
+**验证（第二轮）**：`vue-tsc` EXIT=0、`pnpm test:kugou` 29/29（改用项目域名 `https://kugou-api-eight.vercel.app` 复测）、Prettier 通过、`electron-vite build` 通过。
+
 <a id="v2026-09-19-web-audit"></a>
 
 ## 2026-09-19 Web 端（Vercel）安全 / 密钥 / 性能审计与修复

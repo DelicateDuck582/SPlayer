@@ -69,9 +69,27 @@
 | 设置 | 键 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | 音乐源 | `musicSource` | `netease` | `netease`（网易云，默认）/ `kugou`（酷狗） |
+| 网易云 API 源 / 自定义地址 / 测试 / 恢复默认 | `apiBaseUrl` 等 | — | **仅「网易云音乐」源显示**（原「API 服务」分组已并入本分组） |
 | 酷狗 API 服务地址 | `kugouApiBase` | 空（回退 `VITE_KUGOU_API_URL` 或 `https://kugou-api.duckgame-play.top`） | 可运行时切换，无需重建 |
-| 酷狗 Cookie | `kugouCookie` | 空 | `token=xxx; userid=xxx`；仅本地保存、仅放请求体 |
+| 酷狗 Cookie | `kugouCookie` | 空 | `token=xxx; userid=xxx`；Cookie 登录后自动填入，也可手动粘贴 |
+| 酷狗账号（登录 / 切换） | — | — | 打开酷狗 Cookie 登录弹窗（与点头像登录等效） |
+| 退出酷狗登录 | — | — | 清除本机酷狗 Cookie 与账号信息（不影响网易云登录态） |
 | 测试酷狗 API | — | — | 匿名请求 `/search/hot` 验证连通性 |
+
+> 设置项按当前音乐源**自适应显示**：选中「酷狗音乐」时只出现酷狗相关项，选中「网易云音乐」时只出现网易云 API 项，避免同一分组里出现「用不上的开关」。
+
+### 4.4 账号登录（Cookie 登录，对齐网易云体验）
+
+- **入口**：左下角用户区**点头像**。当前音乐源为酷狗时：
+  - 未登录 → 打开「酷狗 Cookie 登录」弹窗；已登录 → 展开账号菜单（昵称 / 等级 / VIP / 酷狗源标记 / 退出登录）。
+  - 网易云源仍是原来的扫码 / 验证码 / UID / Cookie 登录，两套登录态**互不影响**。
+- **弹窗**：`src/components/Modal/KugouLogin.vue`（提示如何从酷狗网页端 DevTools 复制 `token` + `userid`，支持整段粘贴）。
+- **登录态实现**：
+  - `src/utils/kugouAuth.ts` —— `parseKugouCookie` / `normalizeKugouCookie` / `isKugouLogin` / `loginKugouByCookie` / `refreshKugouUser` / `kugouLogout`；
+  - `loginKugouByCookie` 会**先校验再保存**：本地暂存 Cookie → 请求 `/user/detail` → 成功才写入 `settingStore.kugouCookie` + `settingStore.kugouUser`，失败**回滚**（不会把无效 Cookie 留在本机）；
+  - 用户信息字段：昵称 / 头像 / VIP / 等级（`kugouUserToProfile` 兼容多种字段命名）；页面加载时若已登录会静默 `refreshKugouUser()` 校验，失效则提示重新登录；
+  - 相关端点：`/user/detail`、`/user/vip/detail`、`/user/playlist`、`/user/history`；未登录时 `/user/detail` 返回 `20018`，已加入错误码翻译。
+- **安全**：Cookie 仍只存 localStorage，且只在**请求体**中发送；退出登录会同时清空 `kugouCookie` 与 `kugouUser`。
 
 ## 五、能力矩阵（2026-09-19 实测）
 

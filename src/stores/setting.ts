@@ -3,6 +3,8 @@ import { SongUnlockServer } from "@/core/player/SongManager";
 import type { SongLevelType } from "@/types/main";
 import { defaultAMLLDbServer } from "@/utils/meta";
 import { defineStore } from "pinia";
+// 仅类型导入（编译期擦除），不引入运行时循环依赖
+import type { KugouUserProfile } from "@/api/kugou";
 import { CURRENT_SETTING_SCHEMA_VERSION, settingMigrations } from "./migrations/settingMigrations";
 import { ThemeColorType } from "@/types/color";
 import type { LyricPriority } from "@/types/lyric";
@@ -167,6 +169,12 @@ export interface SettingState {
    * 酷狗对匿名请求有风控：未填写时「歌曲搜索 / 取播放地址 / 歌词」等接口会被拒绝。
    */
   kugouCookie: string;
+  /**
+   * 酷狗登录用户信息（Cookie 登录成功后写入；未登录为 `null`）
+   *
+   * 与网易云登录态（`dataStore.userData`）互不影响：切到酷狗源时用户区展示这里的数据。
+   */
+  kugouUser: KugouUserProfile | null;
   /** 歌曲音质 */
   songLevel:
     | "standard"
@@ -677,6 +685,7 @@ export const useSettingStore = defineStore("setting", {
     musicSource: "netease",
     kugouApiBase: "",
     kugouCookie: "",
+    kugouUser: null,
     useRealIP: false,
     realIP: "",
     useHeaderCookie: true,

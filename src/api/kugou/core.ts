@@ -57,6 +57,8 @@ export const kugouErrorText = (body: KugouResponse | null | undefined): string =
       return "酷狗要求验证（20028）：请在「设置 → 网络 → 音乐源」中填写酷狗登录 Cookie 后重试";
     case 20010:
       return "酷狗返回未授权（20010）：登录态失效或需要会员权限";
+    case 20018:
+      return "酷狗登录态无效或已过期（20018）：请重新获取 Cookie 后登录";
     case 404:
       return "酷狗未找到该资源（404）";
     default:
@@ -179,6 +181,47 @@ export const kugouSongDetailByIds = (
     .filter((ref): ref is KugouSongRef => !!ref)
     .map((ref) => kugouRefToNeteaseSong(ref));
   return { code: 200, songs };
+};
+
+/* ------------------------------------------------------------------ 用户信息 */
+
+/** 酷狗用户信息（Cookie 登录后缓存在设置里，用于用户区头像 / 昵称展示） */
+export interface KugouUserProfile {
+  /** 酷狗用户 id（Cookie 里的 `userid`） */
+  userid: string;
+  /** 昵称 */
+  nickname: string;
+  /** 头像（已展开 `{size}` 占位符） */
+  avatar: string;
+  /** VIP 类型：0 非会员 */
+  vipType: number;
+  /** 等级 */
+  level: number;
+}
+
+/**
+ * 酷狗 `/user/detail` 响应 → 统一用户信息
+ *
+ * 兼容多种字段命名（`nickname` / `NickName`、`pic` / `avatar`、`vip_type` / `vipType` …）。
+ * @param body 酷狗 `/user/detail` 响应
+ * @returns 解析出的用户信息；响应无效或未登录时为 `null`
+ */
+export const kugouUserToProfile = (
+  body: KugouResponse | null | undefined,
+): KugouUserProfile | null => {
+  const data: any = body?.data ?? null;
+  if (!data || typeof data !== "object") return null;
+  const userid = String(data?.userid ?? data?.user_id ?? data?.userId ?? data?.uid ?? "");
+  const nickname = String(data?.nickname ?? data?.nick_name ?? data?.NickName ?? data?.name ?? "");
+  const avatar = kugouImage(data?.pic ?? data?.avatar ?? data?.Avatar ?? data?.img ?? "", 240);
+  if (!nickname && !avatar && !userid) return null;
+  return {
+    userid,
+    nickname,
+    avatar,
+    vipType: Number(data?.vip_type ?? data?.vipType ?? data?.vip ?? 0) || 0,
+    level: Number(data?.grade ?? data?.level ?? data?.user_grade ?? 0) || 0,
+  };
 };
 
 /* --------------------------------------------------------------- 播放地址与歌词工具 */

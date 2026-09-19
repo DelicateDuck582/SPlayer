@@ -183,6 +183,19 @@ export const kugouArtistSongs = (
 export const kugouAlbumSongs = (albumId: number | string, page = 1, pagesize = 30) =>
   kugouApi("/album/songs", { id: albumId, page, pagesize });
 
+/** 当前登录用户信息（需 Cookie 中的 `token` / `userid`；未登录返回 20018） */
+export const kugouUserDetail = () => kugouApi("/user/detail");
+
+/** 当前登录用户 VIP 信息 */
+export const kugouUserVipDetail = () => kugouApi("/user/vip/detail");
+
+/** 当前登录用户歌单 */
+export const kugouUserPlaylists = () => kugouApi("/user/playlist");
+
+/** 当前登录用户最近听歌历史 */
+export const kugouUserHistory = (page = 1, pagesize = 30) =>
+  kugouApi("/user/history", { page, pagesize });
+
 /** 歌词搜索（返回候选，含 `/lyric` 所需的 `id` 与 `accesskey`） */
 export const kugouLyricSearch = (keywords: string) =>
   kugouApi("/search/lyric", { keywords, page: 1, pagesize: 10 });
