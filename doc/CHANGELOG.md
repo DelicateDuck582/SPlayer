@@ -8,6 +8,7 @@
 
 ## 目录
 
+- [2026-09-19 Web 端（Vercel）安全 / 密钥 / 性能审计与修复](#v2026-09-19-web-audit)
 - [2026-09-19 实测问题修复 + 日志与密钥治理](#v2026-09-19-fixes)
 - [2026-09-19 网易云 API 能力补齐（第二批）+ 审计修复](#v2026-09-19-newapi2)
 - [2026-09-19 网易云 API 能力补齐（NEWAPI）](#v2026-09-19-newapi)
@@ -23,6 +24,42 @@
 - [2026-09-12 安全加固与性能优化（第一轮审计）](#v2026-09-12-audit1)
 - [2026-09-12 网页端歌曲下载](#v2026-09-12-download)
 - [2026-08-19 适配新版网易云音乐 API](#v2026-08-19-api)
+
+<a id="v2026-09-19-web-audit"></a>
+
+## 2026-09-19 Web 端（Vercel）安全 / 密钥 / 性能审计与修复
+
+**背景**：要求针对「部署在 Vercel 的 web 端」做安全 / 密钥 / 性能审查并修复。核查中发现线上主站仍指向旧分支（见下「部署现状」），也一并澄清。
+
+**已修复**
+
+| 编号 | 问题 | 根因 / 证据 | 修复 |
+| --- | --- | --- | --- |
+| W1 | **登出后凭据残留**：除 `MUSIC_U` / `__csrf` 外的登录 Cookie 及其 `localStorage` 副本，以及云盘上传队列（含 NOS 直传地址与**上传令牌**）都留在本地 | `toLogout()` 只删两个 Cookie；`setCookies()` 会把登录返回的**所有** Cookie 写进 `document.cookie` 与 `localStorage["cookie-*"]`；`clearUploadQueue()` 此前只被「放弃任务」按钮调用 | 登出时清空全部 `cookie-*`（同时删除 document.cookie）并 `clearUploadQueue()` |
+| W2 | CSP 仅 `frame-ancestors 'self'`，缺少对象 / 表单 / 基准 URL 限制 | `vercel.json` 的 headers 配置 | 补 `object-src 'none'; base-uri 'self'; form-action 'self'`（不限制脚本、连接与图片，保持自定义 JS、播放与图片加载可用） |
+| WP1 | 消息中心首屏打 **4 个**接口（会话 + 评论 + 转发 + 通知），其中 3 个用户可能根本不看 | `getMessageData()` 一次性 `Promise.allSettled([getSessions(), getNotices()])` | 首屏只拉会话；评论 / 转发 / 通知改为**首次切到对应 Tab 时懒加载**（失败不置位，可重试；沿用既有 `loading` 转圈） |
+
+**核查结论（未发现可修复项）**
+
+| 面 | 结论 |
+| --- | --- |
+| 密钥 | `pnpm security:secret-scan`：652 个文本文件 **0 命中**；`.env` 仅端口与公开 API 地址（无密钥）；`.gitignore` 已忽略 `.env*` 与 `.vercel`；构建未输出 sourcemap |
+| XSS | 全仓 `v-html` 9 处：更新日志经 `marked` + `sanitizeHtml()`；设置项描述为本地静态文案；`AMLLServer.vue` 那处在注释模板内（不生效）；评论列表纯文本渲染 |
+| Electron 侧 | 自定义协议 / 下载地址白名单由 `pnpm security:selfcheck` 覆盖，**43/43 通过**（含内网地址、IPv4-mapped IPv6、元数据地址拦截） |
+| 性能 | 浏览类接口走 `neteaseBrowse()`（不带 `timestamp`，可命中 API 侧缓存）；路由级懒加载；`/assets/*` 与静态目录 `immutable` 长缓存；列表页沿用 `VirtualScroll`；全仓 `setInterval` 5 处均有 `clearInterval`，新增视图无未清理监听器 |
+
+**部署现状（Vercel API 核查，非代码问题）**
+
+| 域名 | gitBranch | 当前指向 |
+| --- | --- | --- |
+| `beta-music.ciallo.sale` | `NEWAPI` | 最新 NEWAPI 部署（含本次与昨夜全部提交） |
+| `music.ciallo.sale`、`music.duckgame-play.top` | `feat/api-enhanced` | **旧分支** → 看不到 2026-09-19 整合的新页面（这就是「功能少」的原因） |
+
+- 项目已连接 Git（`DelicateDuck582/SPlayer`，productionBranch=`dev`），推送到 `NEWAPI` 会自动构建并刷新 `beta-music.ciallo.sale`。
+- ⚠️ **部署保护（Vercel Authentication）当前开启**：未登录 Vercel 的访客访问上述域名都会 302 到 `vercel.com/sso-api`；如需公开访问，应在 Project → Settings → Deployment Protection 中关闭（或仅保护 Preview）。
+- ⚠️ 登录凭据经 `X-Netease-Cookie` 头发往构建时注入的 API 域名（自建 API 架构的既有取舍），建议只使用自建 / 可信 API 源。
+
+**验证**：`vue-tsc`（`tsconfig.web.json`）EXIT=0；Prettier 通过；`pnpm test:route-guards` 13/13；`pnpm security:selfcheck` 43/43；`pnpm test:message-content` 10/10；域绑定与部署 sha 经 Vercel API 核对。
 
 <a id="v2026-09-19-fixes"></a>
 

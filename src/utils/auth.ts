@@ -25,6 +25,7 @@ import { likeAlbum } from "@/api/album";
 import { radioSub } from "@/api/radio";
 import router from "@/router";
 import { debugLog } from "./log";
+import { clearUploadQueue } from "./uploadQueue";
 
 /**
  * 用户是否登录
@@ -41,9 +42,20 @@ export const isLogin = (): 0 | 1 | 2 => {
 export const toLogout = async (clearUserList = false): Promise<void> => {
   const dataStore = useDataStore();
   await logout();
-  // 去除 cookie
+  // 去除 cookie（含 localStorage 中的副本，见 utils/cookie.ts）
   removeCookie("MUSIC_U");
   removeCookie("__csrf");
+  // 安全：登录时写入的其它 Cookie（MUSIC_A*、NMTID 等）同样在 localStorage 留有 `cookie-*` 副本，
+  // 退出登录必须一并清除，避免凭据在本地残留（切换账号 / 共用设备场景）
+  try {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("cookie-"))
+      .forEach((key) => removeCookie(key.slice("cookie-".length)));
+  } catch {
+    // localStorage 不可用（隐私模式等）时忽略
+  }
+  // 安全：云盘上传队列中包含 NOS 直传地址与上传令牌，登出/切换账号时一并丢弃
+  clearUploadQueue();
   sessionStorage.clear();
   // 清除用户数据
   // 注意：如果是切换账号，不应该清除 userList

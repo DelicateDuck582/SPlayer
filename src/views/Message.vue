@@ -565,16 +565,37 @@ const sendMessage = async () => {
   }
 };
 
-/** 拉取全部数据 */
+/**
+ * 拉取首屏数据（仅私信会话）
+ *
+ * 性能：通知 / 评论 / @我 / 转发 共 3 个接口改为**首次切到对应 Tab 时才请求**
+ * （见下方 watch），避免只看私信也要多打 3 个请求。
+ */
 const getMessageData = async () => {
   loading.value = true;
   errorText.value = "";
   try {
-    await Promise.allSettled([getSessions(), getNotices()]);
+    await getSessions();
   } finally {
     loading.value = false;
   }
 };
+
+/** 通知类数据是否已加载过（懒加载标记） */
+const noticesLoaded = ref<boolean>(false);
+
+// 首次切到通知类 Tab 时再拉取（失败不置位，允许再次切换时重试）
+watch(activeTab, async (tab) => {
+  if (tab === "private" || noticesLoaded.value || loading.value) return;
+  loading.value = true;
+  errorText.value = "";
+  try {
+    await getNotices();
+    noticesLoaded.value = !errorText.value;
+  } finally {
+    loading.value = false;
+  }
+});
 
 onMounted(getMessageData);
 </script>

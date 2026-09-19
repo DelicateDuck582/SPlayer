@@ -172,3 +172,50 @@
 3. **端点层面**：`neteaseApi` 允许调用全部 377 个端点（含 `/login/cellphone`、`/user/replacephone` 等敏感写接口）。当前仅内部使用、且都需要登录态，风险可接受；若未来对外开放该模块，建议按「读/写/敏感」分级并加白名单。
 4. **能力层面**：听歌识曲（`/audio/match`）涉及第三方指纹算法（来源不明二进制），继续维持**不接入**；如后续确需，先明确许可与来源可验证性再评估。
 
+
+---
+
+# 审计报告（2026-09-19 · Web 端（Vercel）安全 / 密钥 / 性能）
+
+> **对象**：Vercel 项目 `s-player12`（`music.ciallo.sale`、`music.duckgame-play.top`、`beta-music.ciallo.sale`）与仓库中新增的 web 相关代码。
+> **方法**：线上 HTTP 探测（状态码 / 重定向 / 安全响应头，经本地代理）、Vercel REST API 核对项目与域名绑定、源码逐项核对（`vercel.json`、`request.ts`、`cookie.ts`、`auth.ts`、`sanitizeHtml.ts`、`useCustomCode.ts`、`uploadQueue.ts`、`Message.vue`）、`security-selfcheck`、`secret-scan`、全仓正则审计（`v-html` / `innerHTML` / `eval` / 定时器 / `localStorage`）。
+> **结论速览**：修复 1 项凭据残留 + 1 项 CSP 加固 + 1 项首屏请求优化；密钥扫描 0 命中；2 项平台配置需你决策（部署保护、主站分支）。
+
+## 安全
+
+| 编号 | 问题 | 证据 | 状态 |
+| --- | --- | --- | --- |
+| W1 | 登出后凭据残留：除 `MUSIC_U` / `__csrf` 外的登录 Cookie 及其 `localStorage` 副本、云盘上传队列（NOS 直传地址 + 上传令牌）均未清理 | `auth.ts toLogout()` 原实现只删两个 Cookie；`cookie.ts setCookies()` 会把登录返回的所有 Cookie 写入 `document.cookie` 与 `localStorage["cookie-*"]`；`clearUploadQueue()` 此前仅被 Cloud.vue 的「放弃任务」按钮调用 | ✅ 已修复：`toLogout()` 清空全部 `cookie-*`（含 document.cookie）并 `clearUploadQueue()` |
+| W2 | CSP 仅 `frame-ancestors 'self'` | `vercel.json` headers；线上实测响应头缺少 `object-src` / `base-uri` / `form-action` 限制 | ✅ 已加固为 `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`（不影响脚本 / 连接 / 图片，自定义 JS 与播放不受影响） |
+| W3 | **部署保护开启**：未登录 Vercel 的访客访问任一域名（含 production 域）均 302 到 `vercel.com/sso-api` | 无头探测 `music.ciallo.sale`、`beta-music.ciallo.sale`、部署 URL 均 302；带 `x-robots-tag: noindex` | ⚠️ 待决策：Project → Settings → Deployment Protection 关闭，或「仅保护 Preview」；在此之前外部无法抓取线上产物做进一步审计 |
+| W4 | 登录 Cookie 经 `X-Netease-Cookie` 头发往构建时注入的 API 域名（默认 `music-api2.duckgame-play.top`），该域名可读取用户凭据 | `request.ts`：`COOKIE_HEADER`、`DEFAULT_API_BASE = import.meta.env["VITE_API_URL"]`；API 侧 `Access-Control-Allow-Origin: *` | ⚠️ 设计取舍（自建 API 架构）：仅使用自建 / 可信 API 即可；已在文档标注 |
+| W5 | 自定义 JS（`useCustomCode` → `new Function(customJs)`）在导入设置后立即执行；导入弹窗未单独提示「配置含自定义 JS」 | `useCustomCode.executeCustomJs()`；`general.ts importSettings()` 写入 `setting-store` 后 `location.reload()` | ⚠️ 观察项：导入他人配置存在执行风险；如需可加二次确认（本轮未改交互） |
+| W6 | XSS 面 | 全仓 `v-html` 9 处：更新日志 = `marked` + `sanitizeHtml()`；设置项描述为本地静态文案；`SvgIcon` 为内联图标；`AMLLServer.vue` 那处在注释模板内（编译时被忽略）；`CommentList` 纯文本渲染，无 `innerHTML` 注入 | ✅ 未发现可利用注入点 |
+
+## 密钥
+
+| 编号 | 检查项 | 方法 | 结论 |
+| --- | --- | --- | --- |
+| WK1 | 仓库是否含凭据 | `pnpm security:secret-scan` | ✅ 652 个文本文件 **0 命中** |
+| WK2 | 构建时注入的 `.env` | 逐行解析（仅输出键名与值长度） | ✅ 仅 `VITE_WEB_PORT` / `VITE_SERVER_PORT` / `VITE_API_URL`（公开值），无密钥。⚠️ 该文件仍被 git 跟踪：若将来需在 `.env` 填密钥，须先 `git rm --cached .env` 并把密钥移到 Vercel 环境变量 |
+| WK3 | 前端产物是否泄漏密钥 | 构建配置（无 sourcemap）+ `.gitignore`（忽略 `.env*`、`.vercel`） | ✅ 无 `.env` 密钥可泄漏；`VITE_*` 均为公开值 |
+| WK4 | 浏览器侧凭据存放 | `localStorage` 存 Cookie 副本 + 设置；上传队列 30 分钟 TTL | ⚠️ → ✅ 已由 W1 补齐登出清理 |
+
+## 性能
+
+| 编号 | 项 | 结论 |
+| --- | --- | --- |
+| WP1 | 消息中心首屏请求数 | ✅ 已优化：4 → 1（通知 / 评论 / @我 / 转发 3 个接口改为首次切 Tab 懒加载，失败可重试） |
+| WP2 | 接口缓存策略 | 浏览类接口走 `neteaseBrowse()`（不带 `timestamp` → 可命中 API 侧 2 分钟缓存）；个性化接口保留时间戳（有意） |
+| WP3 | 资源缓存与压缩 | `vercel.json`：`/assets/*`、`/(fonts|icons|wasm|images)/*` → `immutable`；构建开启压缩产物（gzip/brotli）；路由级懒加载 |
+| WP4 | 长列表渲染 | 列表页沿用既有 `VirtualScroll`；本轮新增页面均为分页 / 限量（20–30 条），无一次性全量渲染 |
+| WP5 | 定时器与监听器 | 全仓 `setInterval` 5 处均有配对 `clearInterval`；`src/views/**` 无 `addEventListener`，无未清理的视图级监听 |
+| WP6 | 串行请求 / 深拷贝 | `src/views/**` 无「for 循环内 await」（串行 N+1）；解析类工具为一次遍历，无深拷贝 |
+
+## 复审建议
+
+1. **部署保护**：关闭生产域名保护（或仅保护 Preview），否则访客无法访问；关闭后建议复测一次响应头与产物。
+2. **主站分支**：`music.ciallo.sale` 仍为 `feat/api-enhanced`；若要让主站也带上 2026-09-19 的整合成果，可合并 `NEWAPI` 或把该域名的 gitBranch 改为 `NEWAPI`（`beta-music.ciallo.sale` 已是后者）。
+3. **CSP 进一步收紧**：可在 Report-Only 下先加 `default-src` / `connect-src` 观察；注意自定义 JS 依赖 `unsafe-eval`。
+4. **`.env` 治理**：把 `.env` 从索引移除（保留本地文件）并在 Vercel 配好环境变量，避免将来误提交密钥。
+
