@@ -3,6 +3,14 @@
   "buildCommand": "SKIP_NATIVE_BUILD=true rimraf dist out && electron-vite build",
   "framework": null,
   "installCommand": "pnpm install --ignore-scripts",
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }],
+      "destination": "https://music.ciallo.sale/$1",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

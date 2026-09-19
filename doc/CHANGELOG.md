@@ -58,6 +58,8 @@
 
 - 项目已连接 Git（`DelicateDuck582/SPlayer`，productionBranch=`dev`），推送到 `NEWAPI` 会自动构建并刷新 `beta-music.ciallo.sale`。
 - ✅ **部署保护已关闭**（通过 Vercel API 置 `ssoProtection=null` / `passwordProtection=null`）：关闭前所有域名（含自定义域）都会 302 到 `vercel.com/sso-api`，无法公开访问、也无法外部审计产物。
+- ✅ **`*.vercel.app` 预览/部署链接已关闭**：Vercel 的 Standard Protection 只豁免 **production 域名**，而本项目两个自定义域都是**分支域**（productionBranch=`dev`，无 production 部署）→ 实测开启保护会连自定义域一起 302，不满足「只留自定义域」。故改为在 `vercel.json` 加 **Host 级重定向**：命中 `.*\.vercel\.app` 的请求 307 跳转到 `https://music.ciallo.sale/$1`，自定义域访问不受影响。
+  > 说明：该规则随部署生效，因此覆盖 `NEWAPI` 分支（`beta-music.ciallo.sale` 及其部署 URL）；主站分支（`feat/api-enhanced`）的部署需合并同一份 `vercel.json` 后才会生效。
 - **解封后的线上实测**（`music.ciallo.sale`，旧分支产物）：`http → https` 308 重定向 ✓；安全头齐全（CSP `frame-ancestors 'self'`、HSTS `max-age=63072000`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy`、`Permissions-Policy`）**无缺失项**；Brotli 压缩 ✓；`/assets/*` 为 `immutable` 长缓存 ✓；**线上产物密钥 / sourcemap 扫描 0 命中**；首屏 JS+CSS 解压后 2.26MB（其中 `vendor-amll` 399KB 正是 WP2 优化掉的部分）。
 - ⚠️ 登录凭据经 `X-Netease-Cookie` 头发往构建时注入的 API 域名（自建 API 架构的既有取舍），建议只使用自建 / 可信 API 源。
 

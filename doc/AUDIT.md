@@ -187,7 +187,7 @@
 | --- | --- | --- | --- |
 | W1 | 登出后凭据残留：除 `MUSIC_U` / `__csrf` 外的登录 Cookie 及其 `localStorage` 副本、云盘上传队列（NOS 直传地址 + 上传令牌）均未清理 | `auth.ts toLogout()` 原实现只删两个 Cookie；`cookie.ts setCookies()` 会把登录返回的所有 Cookie 写入 `document.cookie` 与 `localStorage["cookie-*"]`；`clearUploadQueue()` 此前仅被 Cloud.vue 的「放弃任务」按钮调用 | ✅ 已修复：`toLogout()` 清空全部 `cookie-*`（含 document.cookie）并 `clearUploadQueue()` |
 | W2 | CSP 仅 `frame-ancestors 'self'` | `vercel.json` headers；线上实测响应头缺少 `object-src` / `base-uri` / `form-action` 限制 | ✅ 已加固为 `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`（不影响脚本 / 连接 / 图片，自定义 JS 与播放不受影响） |
-| W3 | **部署保护开启**：未登录 Vercel 的访客访问任一域名（含 production 域）均 302 到 `vercel.com/sso-api` | 无头探测 `music.ciallo.sale`、`beta-music.ciallo.sale`、部署 URL 均 302；带 `x-robots-tag: noindex`；Vercel API 显示 `ssoProtection.deploymentType = "all_except_custom_domains"` | ✅ 已关闭（PATCH `ssoProtection=null`、`passwordProtection=null`）；关闭后实测 `music.ciallo.sale` / `music.duckgame-play.top` 返回 200 且响应头齐全（见下方「线上实测」） |
+| W3 | **部署保护**：未登录 Vercel 的访客访问任一域名（含 production 域）均 302 到 `vercel.com/sso-api` | 无头探测 `music.ciallo.sale`、`beta-music.ciallo.sale`、部署 URL 均 302；带 `x-robots-tag: noindex`；Vercel API 显示 `ssoProtection.deploymentType = "all_except_custom_domains"` | ① **已改为全关**（`ssoProtection=null`）：实测 6 类 URL 全部恢复 200。<br>② 目标改为「只保留自定义域名访问」：**Vercel 的 Standard Protection 在本项目不可用** —— 官方文档明确其只豁免 **production 域名**，而本项目 `music.ciallo.sale`(feat/api-enhanced)、`beta-music.ciallo.sale`(NEWAPI) 都是**分支域**（项目 productionBranch=`dev`，无 production 部署），实测开启后连自定义域一起被 302。<br>③ 因此改用 `vercel.json` 的 **Host 级重定向**：`has: [{ type: "host", value: ".*\\.vercel\\.app" }]` → 307 到 `https://music.ciallo.sale/$1`，即 `*.vercel.app` 预览/部署链接不再作为访问入口，自定义域不受影响 |
 | W4 | 登录 Cookie 经 `X-Netease-Cookie` 头发往构建时注入的 API 域名（默认 `music-api2.duckgame-play.top`），该域名可读取用户凭据 | `request.ts`：`COOKIE_HEADER`、`DEFAULT_API_BASE = import.meta.env["VITE_API_URL"]`；API 侧 `Access-Control-Allow-Origin: *` | ⚠️ 设计取舍（自建 API 架构）：仅使用自建 / 可信 API 即可；已在文档标注 |
 | W5 | 自定义 JS（`useCustomCode` → `new Function(customJs)`）在导入设置后立即执行；导入弹窗未单独提示「配置含自定义 JS」 | `useCustomCode.executeCustomJs()`；`general.ts importSettings()` 写入 `setting-store` 后 `location.reload()` | ⚠️ 观察项：导入他人配置存在执行风险；如需可加二次确认（本轮未改交互） |
 | W6 | XSS 面 | 全仓 `v-html` 9 处：更新日志 = `marked` + `sanitizeHtml()`；设置项描述为本地静态文案；`SvgIcon` 为内联图标；`AMLLServer.vue` 那处在注释模板内（编译时被忽略）；`CommentList` 纯文本渲染，无 `innerHTML` 注入 | ✅ 未发现可利用注入点 |
@@ -226,7 +226,7 @@
 
 ## 复审建议
 
-1. **部署保护**：✅ 已关闭（`ssoProtection=null`）；若之后想保护预览部署，可在 Vercel 选择仅保护 Preview，避免生产域名被拦。
+1. **预览链接治理**：`*.vercel.app` 已由 `vercel.json` 的 Host 级重定向关闭（307 → 自定义域）。若要**连历史部署 URL 也一并失效**，需要把自定义域变成「production 域名」（即让主站分支成为 production 分支 + 用 production 部署）+ 开启 Standard Protection——这同时能让新功能上主站，等你确认后再做。
 2. **主站分支**：`music.ciallo.sale` 仍为 `feat/api-enhanced`；若要让主站也带上 2026-09-19 的整合成果，可合并 `NEWAPI` 或把该域名的 gitBranch 改为 `NEWAPI`（`beta-music.ciallo.sale` 已是后者）。
 3. **首屏体积**：`vendor-ui`（naive-ui，gzip 286KB）与 `stores`（gzip 212KB）仍是首屏大头；后续可按路由拆分 naive-ui 组件或把 stores 中的非首屏依赖改为动态 import。AMLL core（gzip 119KB）本轮已移出首屏。
 4. **CSP 进一步收紧**：线上在 Report-Only 下先加 `default-src` / `connect-src` 观察；注意自定义 JS 依赖 `unsafe-eval`。
