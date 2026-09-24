@@ -159,6 +159,7 @@ declare module 'vue' {
     PlaylistAdd: typeof import('./src/components/Modal/PlaylistAdd.vue')['default']
     PlaylistPageManager: typeof import('./src/components/Modal/Setting/PlaylistPageManager.vue')['default']
     Provider: typeof import('./src/components/Global/Provider.vue')['default']
+    QqLogin: typeof import('./src/components/Modal/QqLogin.vue')['default']
     QRCode: typeof import('./src/components/Modal/KugouLogin/QRCode.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

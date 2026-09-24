@@ -1,11 +1,18 @@
 <template>
   <div class="home-online">
     <!-- 登录功能 -->
-    <div v-if="isSourceLogin()" class="main-rec">
+    <div v-if="isSourceLogin() && showMainRec" class="main-rec">
       <div class="main-rec-grid">
-        <n-flex :size="20" class="rec-list" justify="space-between" vertical>
+        <n-flex
+          v-if="showDailyCard || showLikeCard"
+          :size="20"
+          class="rec-list"
+          justify="space-between"
+          vertical
+        >
           <!-- 每日推荐 -->
           <SongListCard
+            v-if="showDailyCard"
             :data="dailySongsList"
             :title="dailySongsTitle"
             :height="90"
@@ -16,7 +23,7 @@
           />
           <!-- 我喜欢的音乐（仅网易云源） -->
           <SongListCard
-            v-if="isNetEase"
+            v-if="showLikeCard"
             :data="dataStore.likeSongsList.data"
             :height="90"
             title="我喜欢的音乐"
@@ -27,7 +34,7 @@
           />
         </n-flex>
         <!-- 私人FM（仅网易云源） -->
-        <PersonalFM v-if="isNetEase" />
+        <PersonalFM v-if="showFmCard" />
       </div>
     </div>
     <!-- 公共推荐 -->
@@ -71,12 +78,16 @@ import { radioRecommend } from "@/api/radio";
 // 按音乐源 + 登录态取首页推荐（酷狗 / QQ 的专属歌单、每日推荐、新碟、歌手）
 import {
   currentSource,
+  ensureHomePageSections,
   homeAlbums,
   homeArtists,
   homeDailySongs,
   homePersonalPlaylists,
+  isHomeSectionVisible,
   isSourceLogin,
+  sectionTitle,
   sourceLabel,
+  type HomeSectionKey,
 } from "@/api/recommend";
 import { getCacheData } from "@/utils/cache";
 import { formatArtistsList, formatCoverList } from "@/utils/format";
@@ -113,6 +124,9 @@ const dataStore = useDataStore();
 const musicStore = useMusicStore();
 const settingStore = useSettingStore();
 
+// 补全旧版本持久化配置里缺失的首页栏目（新增「每日推荐 / 我喜欢的音乐 / 私人 FM」等键）
+ensureHomePageSections();
+
 /** 是否网易云源（我喜欢的音乐 / 私人 FM / 雷达 / MV / 播客 仅网易云提供） */
 const isNetEase = computed<boolean>(() => currentSource() === "netease");
 
@@ -127,6 +141,15 @@ const dailySongsList = computed<SongType[]>(() =>
 /** 每日推荐说明文案（随源变化） */
 const dailySongsDescription = computed<string>(() =>
   isNetEase.value ? "根据你的音乐口味 · 每日更新" : `${sourceLabel()} 账号的每日推荐`,
+);
+
+/** 主界面顶部卡片显示控制（对应「设置 → 外观 → 主界面设置」） */
+const showDailyCard = computed<boolean>(() => isHomeSectionVisible("daily"));
+const showLikeCard = computed<boolean>(() => isHomeSectionVisible("like") && isNetEase.value);
+const showFmCard = computed<boolean>(() => isHomeSectionVisible("fm") && isNetEase.value);
+/** 顶部区域（登录卡片 + 私人 FM）是否整体显示 */
+const showMainRec = computed<boolean>(
+  () => showDailyCard.value || showLikeCard.value || showFmCard.value,
 );
 
 // 日推标题
@@ -180,26 +203,16 @@ const recData = ref<RecDataType>({
 });
 
 /** 区块标题（随音乐源与登录态变化） */
-const sectionTitle = (key: keyof RecDataType, fallback: string): string => {
-  const source = currentSource();
-  if (key === "playlist") {
-    if (source === "netease") return isLogin() ? "专属歌单" : "推荐歌单";
-    return isSourceLogin() ? `${sourceLabel()}专属歌单` : `${sourceLabel()}推荐歌单`;
-  }
-  if (source !== "netease" && key === "album") return `${sourceLabel()}新碟上架`;
-  if (source !== "netease" && key === "artist") return `${sourceLabel()}歌手推荐`;
-  return fallback;
-};
-
 // 根据设置过滤和排序推荐数据（空区块直接隐藏，避免用通用默认内容冒充个性化推荐）
 const sortedRecData = computed(() => {
   return settingStore.homePageSections
     .filter((section) => section.visible)
     .sort((a, b) => a.order - b.order)
     .map((section) => {
-      const key = section.key as keyof RecDataType;
-      const item = recData.value[key];
-      return item ? { ...item, name: sectionTitle(key, item.name) } : undefined;
+      const item = recData.value[section.key as keyof RecDataType];
+      return item
+        ? { ...item, name: sectionTitle(section.key as HomeSectionKey, item.name) }
+        : undefined;
     })
     .filter((item): item is RecDataType[keyof RecDataType] => !!item && item.list.length > 0);
 });

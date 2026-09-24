@@ -119,10 +119,12 @@ export const useAppearanceSettings = (): SettingConfig => {
           },
           {
             key: "homePageSection",
-            label: "首页栏目",
+            label: "主界面设置",
             type: "button",
-            description: "调整首页各栏目的显示顺序或隐藏不需要的栏目",
+            description:
+              "显示 / 隐藏并排序主界面栏目：每日推荐、我喜欢的音乐、私人 FM、推荐歌单、雷达、歌手推荐、推荐 MV、播客、新碟上架",
             buttonLabel: "配置",
+            keywords: ["主界面", "首页", "栏目", "显示", "隐藏", "推荐", "歌手", "MV", "播客"],
             action: openHomePageSectionManager,
           },
           {

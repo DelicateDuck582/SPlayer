@@ -61,6 +61,89 @@ export const sourceLabel = (): string => {
   return "网易云音乐";
 };
 
+/** 首页栏目键（与 `settingStore.homePageSections[].key` 对齐） */
+export type HomeSectionKey =
+  | "daily"
+  | "like"
+  | "fm"
+  | "playlist"
+  | "radar"
+  | "artist"
+  | "video"
+  | "radio"
+  | "album";
+
+/** 首页栏目默认清单（用于补全旧持久化数据里缺失的键） */
+export const HOME_SECTION_DEFAULTS: Array<{ key: HomeSectionKey; name: string }> = [
+  { key: "daily", name: "每日推荐" },
+  { key: "like", name: "我喜欢的音乐" },
+  { key: "fm", name: "私人 FM" },
+  { key: "playlist", name: "专属歌单" },
+  { key: "radar", name: "雷达歌单" },
+  { key: "artist", name: "歌手推荐" },
+  { key: "video", name: "推荐 MV" },
+  { key: "radio", name: "推荐播客" },
+  { key: "album", name: "新碟上架" },
+];
+
+/**
+ * 补全首页栏目配置
+ *
+ * 旧版本持久化的 `homePageSections` 不含新增栏目（如「每日推荐」「私人 FM」），
+ * 直接按数组渲染会漏项。这里把缺失的键按默认顺序补齐并重新编号。
+ */
+export const ensureHomePageSections = (): void => {
+  try {
+    const store = useSettingStore();
+    const list = store.homePageSections ?? [];
+    HOME_SECTION_DEFAULTS.forEach((item, index) => {
+      if (!list.some((section) => section.key === item.key)) {
+        list.push({ key: item.key, name: item.name, visible: true, order: index });
+      }
+    });
+    list
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .forEach((section, index) => {
+        section.order = index;
+      });
+    store.homePageSections = list;
+  } catch {
+    // pinia 未就绪时忽略
+  }
+};
+
+/**
+ * 首页栏目显示名（随音乐源变化；网易云沿用栏目自身名称）
+ * @param key 栏目键
+ * @param fallback 兜底名称（栏目自身 name）
+ */
+export const sectionTitle = (key: HomeSectionKey, fallback: string): string => {
+  const source = currentSource();
+  if (key === "playlist") {
+    if (source === "netease") return isLogin() ? "专属歌单" : "推荐歌单";
+    return isSourceLogin() ? `${sourceLabel()}专属歌单` : `${sourceLabel()}推荐歌单`;
+  }
+  if (key === "album") {
+    if (source === "netease") return fallback;
+    return `${sourceLabel()}新碟上架`;
+  }
+  if (key === "artist") {
+    if (source === "netease") return fallback;
+    return `${sourceLabel()}歌手推荐`;
+  }
+  return fallback;
+};
+
+/** 指定首页栏目是否可见（未配置时视为可见） */
+export const isHomeSectionVisible = (key: HomeSectionKey): boolean => {
+  try {
+    const section = useSettingStore().homePageSections?.find((item) => item.key === key);
+    return section ? section.visible : true;
+  } catch {
+    return true;
+  }
+};
+
 /** 从多个候选里取第一个数组 */
 const firstArray = (...candidates: unknown[]): any[] =>
   (candidates.find((item) => Array.isArray(item)) as any[]) ?? [];

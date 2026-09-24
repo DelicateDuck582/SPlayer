@@ -463,9 +463,10 @@ export interface SettingState {
   searchInputBehavior: "normal" | "clear" | "sync";
   /** 显示主页问好 */
   showHomeGreeting: boolean;
-  /** 首页栏目顺序和显示配置 */
+  /** 首页栏目顺序和显示配置（主界面设置） */
   homePageSections: Array<{
-    key: "playlist" | "radar" | "artist" | "video" | "radio" | "album";
+    /** daily 每日推荐卡片 / like 我喜欢的音乐 / fm 私人 FM / playlist 推荐歌单 / radar 雷达 / artist 歌手 / video MV / radio 播客 / album 新碟 */
+    key: "daily" | "like" | "fm" | "playlist" | "radar" | "artist" | "video" | "radio" | "album";
     name: string;
     visible: boolean;
     order: number;
@@ -765,12 +766,15 @@ export const useSettingStore = defineStore("setting", {
     searchInputBehavior: "normal",
     showHomeGreeting: true,
     homePageSections: [
-      { key: "playlist", name: "专属歌单", visible: true, order: 0 },
-      { key: "radar", name: "雷达歌单", visible: true, order: 1 },
-      { key: "artist", name: "歌手推荐", visible: true, order: 2 },
-      { key: "video", name: "推荐 MV", visible: true, order: 3 },
-      { key: "radio", name: "推荐播客", visible: true, order: 4 },
-      { key: "album", name: "新碟上架", visible: true, order: 5 },
+      { key: "daily", name: "每日推荐", visible: true, order: 0 },
+      { key: "like", name: "我喜欢的音乐", visible: true, order: 1 },
+      { key: "fm", name: "私人 FM", visible: true, order: 2 },
+      { key: "playlist", name: "专属歌单", visible: true, order: 3 },
+      { key: "radar", name: "雷达歌单", visible: true, order: 4 },
+      { key: "artist", name: "歌手推荐", visible: true, order: 5 },
+      { key: "video", name: "推荐 MV", visible: true, order: 6 },
+      { key: "radio", name: "推荐播客", visible: true, order: 7 },
+      { key: "album", name: "新碟上架", visible: true, order: 8 },
     ],
     userAgreementVersion: "",
     registryProtocol: {
