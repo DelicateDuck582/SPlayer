@@ -2,7 +2,7 @@
  * 酷狗音乐 API 客户端与端点封装
  *
  * 上游服务：KuGouMusicApi（https://github.com/DelicateDuck582/KuGouMusicApi ，MakcRe/KuGouMusicApi 的 fork）
- * 默认部署：https://kugou-api.duckgame-play.top （Vercel 部署与域名分配见 doc/KUGOU-API.md）
+ * 默认部署：https://music-api-kugo.delicateduck.xyz （Vercel 项目 `kugou-api`；部署与域名见 doc/KUGOU-API.md）
  *
  * 文件分工：
  * - `./core`：**纯数据转换**（合成 ID 注册表、酷狗 → 网易云形状映射、错误码翻译），可脱离浏览器/pinia 测试；
@@ -43,7 +43,7 @@ export * from "./core";
 
 /** 构建时默认的酷狗 API 地址（可用 `VITE_KUGOU_API_URL` 覆盖） */
 export const DEFAULT_KUGOU_API_BASE: string = String(
-  (import.meta as any).env?.["VITE_KUGOU_API_URL"] || "https://kugou-api.duckgame-play.top",
+  (import.meta as any).env?.["VITE_KUGOU_API_URL"] || "https://music-api-kugo.delicateduck.xyz",
 ).replace(/\/+$/, "");
 
 /**

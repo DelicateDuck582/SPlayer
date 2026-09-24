@@ -160,7 +160,7 @@ export interface SettingState {
   musicSource: "netease" | "kugou" | "qq";
   /**
    * 自定义酷狗 API 地址（留空使用构建时默认 `VITE_KUGOU_API_URL`）
-   * - 默认：`https://kugou-api.duckgame-play.top`
+   * - 默认：`https://music-api-kugo.delicateduck.xyz`（Vercel 项目 `kugou-api`）
    */
   kugouApiBase: string;
   /**

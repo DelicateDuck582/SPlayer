@@ -91,6 +91,22 @@
 
 **验证（第四轮）**：`vue-tsc` EXIT=0、Prettier 通过。
 
+<a id="v2026-09-25-default-api-domains"></a>
+
+## 2026-09-25 默认 API 地址迁移到自有域（delicateduck.xyz）
+
+| 用途        | 迁移前（默认）                         | 迁移后（默认）                                            | 构建期覆盖变量       |
+| ----------- | -------------------------------------- | --------------------------------------------------------- | -------------------- |
+| 网易云 API  | `https://music-api2.duckgame-play.top` | **`https://music-api2.delicateduck.xyz`**（api-enhanced） | `VITE_API_URL`       |
+| 酷狗 API    | `https://kugou-api.duckgame-play.top`  | **`https://music-api-kugo.delicateduck.xyz`**             | `VITE_KUGOU_API_URL` |
+| QQ 音乐 API | `https://qq-api.duckgame-play.top`     | **`https://qqapi.delicateduck.xyz`**                      | `VITE_QQ_API_URL`    |
+
+- 备用（兜底）地址保持不变（酷狗 `kugou-api-eight.vercel.app`、QQ `qq-music-api-ten-pi.vercel.app`），仅在主地址网络层失败时使用；
+- 四个新地址均已实测可用（`music-api2` / `misic-api3` 的 `/login/status` → `code=200`；`music-api-kugo` 的 `/search/hot` → `status=1`；`qqapi` 的 `/getTopLists` → `code=0`）；
+- 同步更新设置页占位符、类型注释与 [KUGOU-API.md](./KUGOU-API.md) / [QQ-API.md](./QQ-API.md) / [HOME-RECOMMEND.md](./HOME-RECOMMEND.md) 的域名说明（旧域名的部署与 DNS 过程作为历史记录保留）。
+
+**验证**：`vue-tsc` EXIT=0、`electron-vite build` EXIT=0。
+
 <a id="v2026-09-25-main-ui-settings"></a>
 
 ## 2026-09-25 设置：新增「主界面设置」（显示/隐藏与排序主界面栏目）

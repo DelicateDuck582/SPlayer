@@ -380,7 +380,7 @@ export const useNetworkSettings = (): SettingConfig => {
             ),
             keywords: ["酷狗", "api", "地址", "kugou", "vercel"],
             componentProps: {
-              placeholder: "https://kugou-api.duckgame-play.top",
+              placeholder: "https://music-api-kugo.delicateduck.xyz",
               clearable: true,
             },
             value: computed({
@@ -468,7 +468,7 @@ export const useNetworkSettings = (): SettingConfig => {
                 `留空使用默认地址（${DEFAULT_QQ_API_BASE || "未配置"}）；当前生效：${getQqApiBase()}`,
             ),
             keywords: ["QQ", "qq", "音乐", "api", "地址"],
-            componentProps: { placeholder: "https://qq-api.duckgame-play.top", clearable: true },
+            componentProps: { placeholder: "https://qqapi.delicateduck.xyz", clearable: true },
             value: computed({
               get: () => settingStore.qqApiBase,
               set: (v: string) => applyQqApiBase(v),

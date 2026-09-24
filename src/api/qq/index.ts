@@ -29,7 +29,7 @@ export * from "./core";
 
 /** 构建时默认的 QQ 音乐 API 地址（可用 `VITE_QQ_API_URL` 覆盖） */
 export const DEFAULT_QQ_API_BASE: string = String(
-  (import.meta as any).env?.["VITE_QQ_API_URL"] || "https://qq-api.duckgame-play.top",
+  (import.meta as any).env?.["VITE_QQ_API_URL"] || "https://qqapi.delicateduck.xyz",
 ).replace(/\/+$/, "");
 
 /** 备用地址（Vercel 项目域名）：自定义域不可用时自动兜底 */

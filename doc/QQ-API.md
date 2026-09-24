@@ -2,6 +2,18 @@
 
 > 日期：2026-09-19 ｜ 分支：`NEWAPI` ｜ 上游：`https://github.com/DelicateDuck582/qq-music-api`（**未改动仓库**）
 
+## 〇、域名迁移说明（2026-09-25）
+
+客户端的**默认（主）地址**已迁移到 `delicateduck.xyz` 自有域：
+
+| 用途        | 当前默认地址                                          | Vercel 项目       | 备用（兜底）地址                         |
+| ----------- | ----------------------------------------------------- | ----------------- | ---------------------------------------- |
+| QQ 音乐 API | `https://qqapi.delicateduck.xyz`                      | `qq-music-api`    | `https://qq-music-api-ten-pi.vercel.app` |
+| 酷狗 API    | `https://music-api-kugo.delicateduck.xyz`             | `kugou-api`       | `https://kugou-api-eight.vercel.app`     |
+| 网易云 API  | `https://music-api2.delicateduck.xyz`（api-enhanced） | `s-player12` 关联 | 可在「音乐源 → API 源」切换              |
+
+实测（2026-09-25）：`qqapi.delicateduck.xyz/getTopLists` → `{"response":{"code":0,...}}` ✓；旧域名 `qq-api.duckgame-play.top` 的部署与 DNS 过程保留在第三节，作为历史记录。
+
 ## 一、结论
 
 | 目标                                                 | 结果                                                                                                                        |

@@ -8,7 +8,7 @@
    切到其它音乐源或刚登录时，旧结果（往往是匿名 / 上一源的）仍会被命中 —— 看起来就是「通用默认推荐」。
 2. **个性化区域只认网易云登录**：整块由 `isLogin()`（网易云）把关，切到酷狗 / QQ 后个性化区域直接消失。
 3. 网易云侧的「专属歌单」(`/personalized`) 与「私人雷达」(`idMeta.radarPlaylist`) 本身是**登录后个性化**的：
-   登录态经 `X-Netease-Cookie` 请求头发往 `VITE_API_URL`（当前为 `https://music-api2.duckgame-play.top`，api-enhanced）✓，
+   登录态经 `X-Netease-Cookie` 请求头发往 `VITE_API_URL`（当前为 `https://music-api2.delicateduck.xyz`，api-enhanced）✓，
    因此只要登录正常、缓存不吃旧值，就会按你的听歌习惯返回。
 
 ## 二、现在的取数矩阵（`src/api/recommend.ts`）
