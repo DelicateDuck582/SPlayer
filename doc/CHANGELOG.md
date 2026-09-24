@@ -91,6 +91,29 @@
 
 **验证（第四轮）**：`vue-tsc` EXIT=0、Prettier 通过。
 
+<a id="v2026-09-25-home-recommend-source"></a>
+
+## 2026-09-25 首页推荐按音乐源个性化（专属歌单 / 每日推荐 / 新碟 / 歌手）
+
+> 取数假设与实测见 [HOME-RECOMMEND.md](./HOME-RECOMMEND.md)。
+
+**背景**：首页「专属歌单 / 雷达歌单」此前**只走网易云接口**，且
+
+1. 缓存键不含音乐源与登录态（`playlistRec` / `radarRec`…，10~30 分钟），切源或登录后仍命中旧结果 —— 表现为「默认推荐」；
+2. 整个个性化区域由 `isLogin()`（网易云登录）把关，切到酷狗 / QQ 后整块消失。
+
+**改动**
+
+| 范围         | 内容                                                                                                                                                                                                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 新增门面     | `src/api/recommend.ts`：`currentSource` / `isSourceLogin` / `sourceLabel` / `homeDailySongs` / `homePersonalPlaylists` / `homeArtists` / `homeAlbums`，各源结果统一为 `SongType` / `CoverType` / `ArtistType`                                                                                                |
+| 首页         | `HomeOnline.vue`：个性化区域改用 `isSourceLogin()` 把关；「我喜欢的音乐 / 私人 FM / 雷达 / MV / 播客」仅在网易云源显示；**缓存键加「源:登录态」作用域**（`playlistRec:kugou:in`）；空区块直接隐藏（不再用通用默认内容冒充个性化）                                                                            |
+| 区块标题     | 随源变化：`酷狗音乐专属歌单` / `QQ 音乐推荐歌单` / `QQ 音乐新碟上架` 等                                                                                                                                                                                                                                      |
+| 第三方源取数 | 酷狗：每日推荐 `/everyday/recommend`、专属歌单 `/user/playlist`（匿名兜底 `/top/playlist`）、新碟 `/top/album`、歌手 `/artist/lists`；QQ：每日推荐 `/getDailyRecommend`、专属歌单 `/user/getUserPlaylists`（匿名兜底 `/getPersonalRecommend` → `/getSongLists`）、新碟 `/getNewDisks`、歌手 `/getSingerList` |
+| 测试         | 新增 `scripts/test-recommend-source.mts` + `pnpm test:recommend-source`：把每个源的**端点 + 字段路径假设**逐条实测（**9/9**）                                                                                                                                                                                |
+
+**验证**：`pnpm test:recommend-source` 9/9、`vue-tsc` EXIT=0、Prettier 通过。
+
 <a id="v2026-09-19-qq"></a>
 
 ## 2026-09-19 QQ 音乐源接入（qq-music-api 部署 + 适配层 + 四类审计）
