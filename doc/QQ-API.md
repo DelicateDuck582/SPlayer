@@ -143,3 +143,6 @@ pnpm security:selfcheck  # 43/43
 2. 未接入：MV / 评论 / 数字专辑 / 每日推荐（端点已封装备用）。
 3. 榜单 / 新碟等浏览数据暂无独立页面入口，可作为下一步接入 Discover 页面。
 4. 域名 DNS 生效前，可直接在「QQ 音乐 API 地址」填 `https://qq-music-api-ten-pi.vercel.app`。
+5. **上游 `getSearchByKey` 偶发限流**：实测该接口会对数据中心 IP 返回 `HTTP 500 {"error":"服务器内部错误"}`，而 `/getHotkey`、`/getSongLists`、`/getNewDisks` 等仍正常。
+   客户端已做兜底：**仅对 5xx 单次重试（400ms 退避）**、失败时不让调用方拿到未捕获异常（返回空结果 + 原因），并每 60s 最多提示一次「QQ 音乐搜索暂不可用，可稍后重试或切换音乐源」。
+   回归测试也据此区分「上游限流（SKIP）」与「映射错误（FAIL）」，避免误报。

@@ -110,12 +110,31 @@ export const qqApi = async <T = any>(
     return data as QqResponse<T>;
   };
 
+  /**
+   * 带单次重试的请求
+   *
+   * 只对 **5xx** 重试（上游偶发「服务器内部错误」/限流）：短退避一次即可，
+   * 不对 4xx（参数或登录态问题）重试，避免请求放大。
+   */
+  const requestWithRetry = async (baseURL: string): Promise<QqResponse<T>> => {
+    try {
+      return await request(baseURL);
+    } catch (error) {
+      const status = (error as any)?.response?.status;
+      if (status && status >= 500) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return await request(baseURL);
+      }
+      throw error;
+    }
+  };
+
   const base = getQqApiBase();
   try {
-    return await request(base);
+    return await requestWithRetry(base);
   } catch (error) {
     if (!isNetworkFailure(error) || base === QQ_API_FALLBACK_BASE) throw error;
-    const result = await request(QQ_API_FALLBACK_BASE);
+    const result = await requestWithRetry(QQ_API_FALLBACK_BASE);
     if (!fallbackNotified) {
       fallbackNotified = true;
       if (typeof window !== "undefined" && window.$message) {
@@ -137,16 +156,21 @@ export const testQqApiBase = async (base?: string): Promise<{ ok: boolean; messa
   const target = normalizeQqApiBase(base) || getQqApiBase();
   const probe = async (url: string): Promise<{ ok: boolean; message: string }> => {
     try {
-      const { data } = await qqServer.get("/getHotkey", { baseURL: url, timeout: 10000 });
+      // 用「榜单列表」做探测：匿名状态下稳定可用；
+      // 热搜 / 搜索对数据中心 IP 会间歇限流（HTTP 500），不适合作为连通性判据
+      const { data } = await qqServer.get("/getTopLists", { baseURL: url, timeout: 10000 });
       const body = data as QqResponse;
       const ok = Number(body?.response?.code ?? body?.code ?? -1) === 0;
       return ok
         ? { ok: true, message: `连接成功：${url}` }
         : { ok: false, message: `接口返回异常（${qqErrorText(body) || "未知"}）：${url}` };
     } catch (error) {
+      const status = (error as any)?.response?.status;
       return {
         ok: false,
-        message: `连接失败：${(error as Error)?.message || "未知错误"}（${url}）`,
+        message: `连接失败：${
+          status ? `HTTP ${status}` : (error as Error)?.message || "未知错误"
+        }（${url}）`,
       };
     }
   };
@@ -245,6 +269,22 @@ export const qqUserVipInfo = () => qqApi("/user/getVipInfo");
 
 /* ------------------------------------------------------- 网易云兼容层（供既有页面复用） */
 
+/** 搜索不可用提示的节流时间戳（60s 内只提示一次，避免刷屏） */
+let lastSearchWarnAt = 0;
+
+/** QQ 搜索暂不可用时的用户提示（上游 5xx / 限流时给出可操作建议） */
+const notifyQqSearchUnavailable = (reason: string) => {
+  const now = Date.now();
+  if (now - lastSearchWarnAt < 60 * 1000) return;
+  lastSearchWarnAt = now;
+  if (typeof window !== "undefined" && window.$message) {
+    window.$message.warning(
+      `QQ 音乐搜索暂不可用（${reason}）：可稍后重试，或临时切换到其它音乐源搜索`,
+      { duration: 5000 },
+    );
+  }
+};
+
 /**
  * 搜索结果（网易云 `/cloudsearch` 兼容形状）
  * @param neteaseType 网易云搜索类型枚举值（`SearchTypes`）
@@ -270,24 +310,46 @@ export const qqSearchCompat = async (
     };
   }
   const page = Math.floor(offset / Math.max(limit, 1)) + 1;
-  const body = await qqSearchByKey(keywords, { page, limit, remoteplace });
-  const mapped = mapQqSearchBody(body, neteaseType, limit);
-  const errorText = qqErrorText(body);
-  const { songCount, artistCount, albumCount, playlistCount } = mapped.result;
-  if (errorText && !songCount && !artistCount && !albumCount && !playlistCount) {
-    return { ...mapped, message: errorText };
+  try {
+    const body = await qqSearchByKey(keywords, { page, limit, remoteplace });
+    const mapped = mapQqSearchBody(body, neteaseType, limit);
+    const errorText = qqErrorText(body);
+    const { songCount, artistCount, albumCount, playlistCount } = mapped.result;
+    const empty = !songCount && !artistCount && !albumCount && !playlistCount;
+    if (empty && errorText) {
+      notifyQqSearchUnavailable(errorText);
+      return { ...mapped, message: errorText };
+    }
+    return mapped;
+  } catch (error) {
+    // 上游 5xx / 网络异常：不让调用方（搜索页）拿到未捕获异常，返回空结果 + 原因
+    const status = (error as any)?.response?.status;
+    const reason = status ? `HTTP ${status}` : ((error as Error)?.message ?? "网络异常");
+    notifyQqSearchUnavailable(reason);
+    return {
+      code: 200,
+      result: emptyQqSearchResult(),
+      message: `QQ 音乐搜索请求失败（${reason}）`,
+    };
   }
-  return mapped;
 };
 
-/** 热搜（网易云 `/search/hot/detail` 兼容形状） */
+/** 热搜（网易云 `/search/hot/detail` 兼容形状；上游异常时返回空列表，不让页面拿到未捕获异常） */
 export const qqSearchHotCompat = async (): Promise<Record<string, any>> => {
-  const body = await qqHotKey();
-  const list = body?.response?.data?.hotkey ?? [];
-  const words = list
-    .map((item: any) => ({ searchWord: String(item?.k ?? "").trim(), score: 0, content: "" }))
-    .filter((item: any) => item.searchWord);
-  return { code: 200, data: words };
+  try {
+    const body = await qqHotKey();
+    const list = body?.response?.data?.hotkey ?? [];
+    const words = list
+      .map((item: any) => ({ searchWord: String(item?.k ?? "").trim(), score: 0, content: "" }))
+      .filter((item: any) => item.searchWord);
+    if (!words.length) notifyQqSearchUnavailable(qqErrorText(body) || "热搜为空");
+    return { code: 200, data: words };
+  } catch (error) {
+    const status = (error as any)?.response?.status;
+    const reason = status ? `HTTP ${status}` : ((error as Error)?.message ?? "网络异常");
+    notifyQqSearchUnavailable(reason);
+    return { code: 200, data: [] };
+  }
 };
 
 /**
