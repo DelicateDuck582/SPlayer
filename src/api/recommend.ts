@@ -96,9 +96,12 @@ export const ensureHomePageSections = (): void => {
   try {
     const store = useSettingStore();
     const list = store.homePageSections ?? [];
-    HOME_SECTION_DEFAULTS.forEach((item, index) => {
+    // 新栏目追加到末尾（不插队）：以现有最大 order 递增
+    let nextOrder = list.reduce((max, section) => Math.max(max, section.order ?? 0), -1) + 1;
+    HOME_SECTION_DEFAULTS.forEach((item) => {
       if (!list.some((section) => section.key === item.key)) {
-        list.push({ key: item.key, name: item.name, visible: true, order: index });
+        list.push({ key: item.key, name: item.name, visible: true, order: nextOrder });
+        nextOrder += 1;
       }
     });
     list
@@ -202,13 +205,18 @@ export const homeDailySongs = async (): Promise<SongType[]> => {
 
 /* ------------------------------------------------------------------ 专属 / 推荐歌单 */
 
-/** 酷狗：登录用「我的歌单」，匿名用歌单广场 */
+/** 酷狗：登录用「我的歌单」，匿名（或登录接口失败）用歌单广场 */
 const kugouPlaylists = async (limit: number, logged: boolean): Promise<CoverType[]> => {
   if (logged) {
-    const body = await kugouApi("/user/playlist");
-    const list = firstArray(pick(body, "data.info"), pick(body, "data.list"), pick(body, "data"));
-    const mapped = formatCoverList(mapKugouPlaylists(list));
-    if (mapped.length) return mapped;
+    try {
+      const body = await kugouApi("/user/playlist");
+      const list = firstArray(pick(body, "data.info"), pick(body, "data.list"), pick(body, "data"));
+      const mapped = formatCoverList(mapKugouPlaylists(list));
+      if (mapped.length) return mapped;
+    } catch (error) {
+      // 登录态接口失败（网络 / 风控）不应让该区块空掉：继续走广场兜底
+      console.warn("[首页推荐] 酷狗个人歌单获取失败，回退歌单广场：", (error as Error)?.message);
+    }
   }
   const body = await kugouApi("/top/playlist", { page: 1, pagesize: limit });
   const list = firstArray(
@@ -222,15 +230,20 @@ const kugouPlaylists = async (limit: number, logged: boolean): Promise<CoverType
 /** QQ：登录用「我的歌单」，匿名用推荐歌单（`/getPersonalRecommend`），再兜底歌单广场 */
 const qqPlaylists = async (limit: number, logged: boolean): Promise<CoverType[]> => {
   if (logged) {
-    const body = await qqApi("/user/getUserPlaylists");
-    const list = firstArray(
-      pick(body, "response.data.disslist"),
-      pick(body, "response.data.list"),
-      pick(body, "data.disslist"),
-      pick(body, "data.list"),
-    );
-    const mapped = formatCoverList(mapQqPlaylists(list));
-    if (mapped.length) return mapped;
+    try {
+      const body = await qqApi("/user/getUserPlaylists");
+      const list = firstArray(
+        pick(body, "response.data.disslist"),
+        pick(body, "response.data.list"),
+        pick(body, "data.disslist"),
+        pick(body, "data.list"),
+      );
+      const mapped = formatCoverList(mapQqPlaylists(list));
+      if (mapped.length) return mapped;
+    } catch (error) {
+      // 登录态接口失败（未登录 / 上游 4xx-5xx）不应让该区块空掉：继续走推荐歌单与广场兜底
+      console.warn("[首页推荐] QQ 个人歌单获取失败，回退推荐歌单：", (error as Error)?.message);
+    }
   }
   const recommend = await qqApi("/getPersonalRecommend");
   const recommendList = firstArray(

@@ -134,6 +134,15 @@ export default defineConfig(({ mode }) => {
                 return undefined;
               }
               if (id.includes("/src/stores/")) return "stores";
+
+              // 第三方音乐源（酷狗 / QQ）的客户端与登录模块单独成 chunk：
+              // 它们只被「搜索页 / 首页 / 登录弹窗 / 设置页」按需引用，不应进首屏包
+              if (id.includes("/src/api/kugou/index") || id.includes("/src/api/qq/index")) {
+                return "thirdparty-api";
+              }
+              if (id.includes("/src/utils/kugouAuth") || id.includes("/src/utils/qqAuth")) {
+                return "thirdparty-api";
+              }
               return undefined;
             },
           },

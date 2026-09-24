@@ -1,11 +1,21 @@
 import request from "@/utils/request";
-import {
-  isKugouSource,
-  kugouSearchCompat,
-  kugouSearchDefaultCompat,
-  kugouSearchHotCompat,
-} from "@/api/kugou";
-import { isQqSource, qqSearchCompat, qqSearchHotCompat } from "@/api/qq";
+import { useSettingStore } from "@/stores";
+
+/**
+ * 当前音乐源判断（本地读取设置，避免把酷狗 / QQ 适配层打进首屏包）
+ *
+ * 说明：`search.ts` 被首屏组件（顶栏搜索框）引用，因此这里**只做设置读取**；
+ * 真正的第三方搜索实现改在分支内 `await import()`，随搜索页按需加载。
+ */
+const currentMusicSource = (): string => {
+  try {
+    return useSettingStore().musicSource;
+  } catch {
+    return "netease";
+  }
+};
+const isKugouSource = (): boolean => currentMusicSource() === "kugou";
+const isQqSource = (): boolean => currentMusicSource() === "qq";
 
 // 搜索类型枚举
 export enum SearchTypes {
@@ -23,9 +33,15 @@ export enum SearchTypes {
 }
 
 // 热搜（酷狗 / QQ 源分别走对应平台的热搜接口，归一化为网易云形状）
-export const searchHot = () => {
-  if (isKugouSource()) return kugouSearchHotCompat();
-  if (isQqSource()) return qqSearchHotCompat();
+export const searchHot = async () => {
+  if (isKugouSource()) {
+    const { kugouSearchHotCompat } = await import("@/api/kugou");
+    return kugouSearchHotCompat();
+  }
+  if (isQqSource()) {
+    const { qqSearchHotCompat } = await import("@/api/qq");
+    return qqSearchHotCompat();
+  }
   return request({
     url: "/search/hot/detail",
   });
@@ -60,8 +76,11 @@ export const searchMultimatch = (keywords: string) => {
 };
 
 // 默认搜索关键词
-export const searchDefault = () => {
-  if (isKugouSource()) return kugouSearchDefaultCompat();
+export const searchDefault = async () => {
+  if (isKugouSource()) {
+    const { kugouSearchDefaultCompat } = await import("@/api/kugou");
+    return kugouSearchDefaultCompat();
+  }
   // QQ 音乐无「默认关键词」接口：用固定占位，避免误请求网易云
   if (isQqSource())
     return Promise.resolve({
@@ -77,7 +96,7 @@ export const searchDefault = () => {
 };
 
 // 搜索结果
-export const searchResult = (
+export const searchResult = async (
   keywords: string,
   limit: number = 50,
   offset = 0,
@@ -85,8 +104,14 @@ export const searchResult = (
 ) => {
   // 音乐源为酷狗 / QQ 时改走对应平台搜索，结果归一化为网易云 /cloudsearch 形状，
   // 各搜索 Tab（单曲/歌手/专辑/歌单）无需改动即可渲染
-  if (isKugouSource()) return kugouSearchCompat(keywords, limit, offset, type);
-  if (isQqSource()) return qqSearchCompat(keywords, limit, offset, type);
+  if (isKugouSource()) {
+    const { kugouSearchCompat } = await import("@/api/kugou");
+    return kugouSearchCompat(keywords, limit, offset, type);
+  }
+  if (isQqSource()) {
+    const { qqSearchCompat } = await import("@/api/qq");
+    return qqSearchCompat(keywords, limit, offset, type);
+  }
   return request({
     url: "/cloudsearch",
     params: {

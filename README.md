@@ -66,26 +66,7 @@
 ## 📝 更新记录（摘要）
 
 > 每条变更的**背景、实现要点与验证方式**见 [doc/CHANGELOG.md](./doc/CHANGELOG.md)；审计问题、证据与待办见 [doc/AUDIT.md](./doc/AUDIT.md)。
-> 本仓库为个人维护的 fork，所有改动集中在 `feat/api-enhanced` 分支。
-
-| 日期 | 变更摘要 | 详情 |
-| --- | --- | --- |
-| 2026-09-19 | **Web 端（Vercel）安全 / 密钥 / 性能审计**：修复登出后凭据残留（其余 Cookie 的 `localStorage` 副本 + 云盘上传令牌未清）；CSP 加固（补 `object-src` / `base-uri` / `form-action`）；消息中心首屏请求 4→1（通知类接口改懒加载）；**AMLL core 移出首屏（首屏 gzip 695.8KB→581.4KB，-16.4%）**；关闭 Vercel 部署保护（此前所有域名 302 到 SSO）。核查：线上产物密钥 0 命中、安全头无缺失、`v-html` 无可用注入点、定时器均有清理。另发现主站域名仍绑定旧分支（`feat/api-enhanced`） | [CHANGELOG § Web 端审计](./doc/CHANGELOG.md#v2026-09-19-web-audit) · [AUDIT § Web 端审计](./doc/AUDIT.md) |
-| 2026-09-19 | **实测问题修复 + 日志与密钥治理**：修复消息中心（显示/输入框/发送）、最近播放「未知」、数字专辑排版、会员中心、私人漫游偶发打不开、点「开启控制台」致命错误；**修复私信抽屉/图片预览样式因 Teleport 而完全失效（样式改全局根类）、消息图片限尺寸到 260px 且抽屉不再出现横向滚动条**；**修复路由守卫条件写反导致带参页面（专辑/歌单/评论/视频/播客…共 10 条）全部被弹 403**（新增 `requireQuery()` + `pnpm test:route-guards` 回归测试）；消除 `vue-router` 弃用告警洪水；52 处日志收敛到开发环境（含签名直链/接口响应/用户 id）；删除 md 中的作者 npmjs 与上游 API 仓库链接 | [CHANGELOG § 实测问题修复](./doc/CHANGELOG.md#v2026-09-19-fixes) · [AUDIT § 实测与密钥审查](./doc/AUDIT.md#审计报告2026-09-19--实测问题与密钥审查) |
-| 2026-09-19 | **网易云 API 能力补齐（第二批）+ 性能/安全审计修复**：新增 视频广场（含播放）/ 数字专辑 / 电台榜单 页面，`最近播放` 扩展为 6 个 Tab；浏览类接口改走缓存友好的 `neteaseBrowse`、曲风页加缓存、私信改 POST、播放地址协议白名单、写操作登录前置 | [CHANGELOG § 第二批 + 审计](./doc/CHANGELOG.md#v2026-09-19-newapi2) · [AUDIT § 增量审计](./doc/AUDIT.md#审计报告2026-09-19--newapi-分支增量) |
-| 2026-09-19 | **网易云 API 能力补齐**（`NEWAPI` 分支）：377 个官方端点清单 + 类型安全通用调用器；新增 曲风 / MV 广场与播放 / 音乐日历 / 听歌足迹 / 消息中心 / 用户主页 / 会员与云贝签到 共 7 个页面 | [CHANGELOG § API 能力补齐](./doc/CHANGELOG.md#v2026-09-19-newapi) |
-| 2026-09-18 | **API 源运行时切换**：设置 → 网络 → API 服务，可在多个自建 / npm 版 API 之间随时切换（**立即生效、无需重新构建**）；配套独立部署项目 `ncm-api-vercel`（npm 版 `NeteaseCloudMusicApi`，并补 `X-Netease-Cookie` 兼容） | [CHANGELOG § API 源切换](./doc/CHANGELOG.md#v2026-09-18-api-switch) |
-| 2026-09-18 | **移动端第三轮**：歌单头部按钮不再压住简介/元信息（<420px）、横屏列表可正常滑动（滚动区可视高度 0px → 120px）、窄屏歌手名不再被压成 1px | [CHANGELOG § 移动端第三轮](./doc/CHANGELOG.md#v2026-09-18-mobile-header) |
-| 2026-09-13 | **移动端适配**：弹窗按视口夹取、网格轨道改 `minmax(0, 1fr)`（修复发现页 288 个元素横向溢出）、`100vh` → `dvh`、安全区适配、4 处 hover-only 控件触屏常显 | [CHANGELOG § 移动端适配](./doc/CHANGELOG.md#v2026-09-13-mobile) |
-| 2026-09-13 | **自建 / 隐私歌单 401 修复**：`playlistDetail` 移除 `noCookie`，恢复登录态与 `privileges` | [CHANGELOG § 歌单 401](./doc/CHANGELOG.md#v2026-09-13-playlist) |
-| 2026-09-13 | **审计落地（安全 / 性能）**：凭据不再经 URL、API 日志脱敏、CSP 收紧、安全响应头、静态资源 `immutable`、分包、字体、重试策略 | [CHANGELOG § 审计落地](./doc/CHANGELOG.md#v2026-09-13-audit) |
-| 2026-09-12 | **我的云盘支持上传**：分片直传网易云 NOS、断点续传、风控规避、错误映射 | [CHANGELOG § 云盘上传](./doc/CHANGELOG.md#v2026-09-12-cloud) |
-| 2026-09-12 | **播放 / 下载容错**：取链风控自愈、TTML 歌词、解锁源改为服务端匹配 | [CHANGELOG § 播放下载容错](./doc/CHANGELOG.md#v2026-09-12-playback) |
-| 2026-09-12 | **登录凭据改走请求头** `X-Netease-Cookie`（09-13 收敛为唯一路径） | [CHANGELOG § 请求头凭据](./doc/CHANGELOG.md#v2026-09-12-cookieheader) |
-| 2026-09-12 | **安全加固补充**（第二轮审计项全部落地）：登录窗口隔离、CSP、本机 API 来源校验、IPC 加固、内容净化、自检脚本 | [CHANGELOG § 安全加固补充](./doc/CHANGELOG.md#v2026-09-12-audit2) |
-| 2026-09-12 | **安全加固与性能优化**（第一轮审计）：下载链路加固、主进程纵深防御、导航白名单 | [CHANGELOG § 安全加固一](./doc/CHANGELOG.md#v2026-09-12-audit1) |
-| 2026-09-12 | **网页端歌曲下载**：下载入口、下载列表抽屉、流式保存、链接回退 | [CHANGELOG § 歌曲下载](./doc/CHANGELOG.md#v2026-09-12-download) |
-| 2026-08-19 | **适配新版网易云音乐 API**：切换到 api-enhanced、CORS 兼容、缓存健壮性 | [CHANGELOG § API 适配](./doc/CHANGELOG.md#v2026-08-19-api) |
+> 本仓库为个人维护的 fork；近期改动集中在 `NEWAPI` 分支（网易云 API 能力补齐、酷狗 / QQ 音乐源接入、首页按源个性化与主界面设置等）。
 
 ### 已知限制与部署提示（摘要）
 
@@ -181,33 +162,33 @@
 
 ### 已接入界面
 
-| 功能 | 主要端点 | 入口 |
-| --- | --- | --- |
-| 曲风浏览（歌曲 / 歌单 / 歌手） | `/style/list`、`/style/detail`、`/style/song`、`/style/playlist`、`/style/artist` | 侧边栏「曲风」 |
-| MV 广场 / MV 播放 | `/mv/all`、`/mv/detail`、`/mv/url`、`/simi/mv`、`/mv/sub` | 侧边栏「MV 广场」 |
-| 音乐日历 | `/calendar`（缺歌曲信息时自动用 `/song/detail` 补全） | 侧边栏「音乐日历」 |
-| 听歌足迹 | `/listen/data/total`、`/listen/data/realtime/report`、`/listen/data/report`、`/listen/data/year/report`、`/listen/data/today/song` | 侧边栏「听歌足迹」 |
-| 会员中心 | `/vip/info/v2`、`/vip/growthpoint`、`/vip/growthpoint/get`、`/vip/tasks` | 侧边栏「会员中心」 |
-| 云贝与签到 | `/yunbei/info`、`/yunbei/sign`、`/yunbei/tasks`、`/yunbei/task/finish`、`/daily_signin` | 侧边栏「会员中心」 |
-| 消息中心 | `/msg/private`、`/msg/private/history`、`/msg/comments`、`/msg/forwards`、`/msg/notices`、`/send/text` | 侧边栏「消息中心」 |
-| 用户主页 | `/user/detail`、`/user/playlist`、`/user/follows`、`/user/followeds`、`/user/record`、`/follow` | 侧边栏「我的主页」 |
-| 视频广场（含弹窗播放） | `/video/group/list`、`/video/timeline/recommend`、`/video/timeline/all`、`/video/detail`、`/video/url` | 侧边栏「视频广场」 |
-| 数字专辑 / 新碟 | `/album/list`、`/album/list/style`、`/album/new`、`/digitalAlbum/purchased` | 侧边栏「数字专辑」 |
-| 电台榜单 | `/dj/hot`、`/dj/recommend`、`/dj/program/toplist`、`/dj/paygift` | 侧边栏「电台榜单」 |
-| 最近播放分类 | `/record/recent/{playlist,album,video,voice,dj}` | 侧边栏「最近播放」的 6 个 Tab |
+| 功能                           | 主要端点                                                                                                                           | 入口                          |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| 曲风浏览（歌曲 / 歌单 / 歌手） | `/style/list`、`/style/detail`、`/style/song`、`/style/playlist`、`/style/artist`                                                  | 侧边栏「曲风」                |
+| MV 广场 / MV 播放              | `/mv/all`、`/mv/detail`、`/mv/url`、`/simi/mv`、`/mv/sub`                                                                          | 侧边栏「MV 广场」             |
+| 音乐日历                       | `/calendar`（缺歌曲信息时自动用 `/song/detail` 补全）                                                                              | 侧边栏「音乐日历」            |
+| 听歌足迹                       | `/listen/data/total`、`/listen/data/realtime/report`、`/listen/data/report`、`/listen/data/year/report`、`/listen/data/today/song` | 侧边栏「听歌足迹」            |
+| 会员中心                       | `/vip/info/v2`、`/vip/growthpoint`、`/vip/growthpoint/get`、`/vip/tasks`                                                           | 侧边栏「会员中心」            |
+| 云贝与签到                     | `/yunbei/info`、`/yunbei/sign`、`/yunbei/tasks`、`/yunbei/task/finish`、`/daily_signin`                                            | 侧边栏「会员中心」            |
+| 消息中心                       | `/msg/private`、`/msg/private/history`、`/msg/comments`、`/msg/forwards`、`/msg/notices`、`/send/text`                             | 侧边栏「消息中心」            |
+| 用户主页                       | `/user/detail`、`/user/playlist`、`/user/follows`、`/user/followeds`、`/user/record`、`/follow`                                    | 侧边栏「我的主页」            |
+| 视频广场（含弹窗播放）         | `/video/group/list`、`/video/timeline/recommend`、`/video/timeline/all`、`/video/detail`、`/video/url`                             | 侧边栏「视频广场」            |
+| 数字专辑 / 新碟                | `/album/list`、`/album/list/style`、`/album/new`、`/digitalAlbum/purchased`                                                        | 侧边栏「数字专辑」            |
+| 电台榜单                       | `/dj/hot`、`/dj/recommend`、`/dj/program/toplist`、`/dj/paygift`                                                                   | 侧边栏「电台榜单」            |
+| 最近播放分类                   | `/record/recent/{playlist,album,video,voice,dj}`                                                                                   | 侧边栏「最近播放」的 6 个 Tab |
 
 ### 已封装 API、暂未接入界面
 
 > 这些能力已在 `src/api/netease` 封装好（含类型与注释），需要时直接调用即可；其余任意端点也可用 `neteaseApi(path, params)` 调用。
 
-| 能力 | 端点 | 未接入原因 |
-| --- | --- | --- |
-| 听歌识曲 | `/audio/match`、`/check/music` | 需要音频指纹，上游 demo 依赖第三方 `第三方音频指纹库（来源与许可未明确）`（57KB JS + 301KB WASM，许可未明确）→ 不把来源不明的二进制纳入仓库 |
-| 播客声音 | `/voicelist/search`、`/voicelist/list`、`/voice/detail`、`/voice/lyric` | 实测匿名请求返回空（`total=0` / `code=400`），无法验证 |
-| 音乐人中心 | `/musician/data/overview`、`/musician/play/trend`、`/musician/tasks`、`/musician/cloudbean` | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证 |
-| 相似内容 | `/simi/song`、`/simi/artist`、`/simi/playlist`、`/simi/user` | 已封装；MV 页已用 `/simi/mv`，其它入口待设计 |
-| 一起听 / Mlog / 楼层评论 / 歌单导入 / 数字专辑购买 | `/listentogether/*`、`/mlog/*`、`/comment/floor`、`/playlist/import/*`、`/digitalAlbum/ordering` | 需要实时房间或额外交互链路，单独评估 |
-| 其余全部端点 | 与上游 `module/<name>.js` 一一对应（377 个，见 `endpoints.ts`） | 均可用 `neteaseApi` 调用 |
+| 能力                                               | 端点                                                                                             | 未接入原因                                                                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 听歌识曲                                           | `/audio/match`、`/check/music`                                                                   | 需要音频指纹，上游 demo 依赖第三方 `第三方音频指纹库（来源与许可未明确）`（57KB JS + 301KB WASM，许可未明确）→ 不把来源不明的二进制纳入仓库 |
+| 播客声音                                           | `/voicelist/search`、`/voicelist/list`、`/voice/detail`、`/voice/lyric`                          | 实测匿名请求返回空（`total=0` / `code=400`），无法验证                                                                                      |
+| 音乐人中心                                         | `/musician/data/overview`、`/musician/play/trend`、`/musician/tasks`、`/musician/cloudbean`      | 实测未登录 / 非音乐人返回 `400` / `301`，无法验证                                                                                           |
+| 相似内容                                           | `/simi/song`、`/simi/artist`、`/simi/playlist`、`/simi/user`                                     | 已封装；MV 页已用 `/simi/mv`，其它入口待设计                                                                                                |
+| 一起听 / Mlog / 楼层评论 / 歌单导入 / 数字专辑购买 | `/listentogether/*`、`/mlog/*`、`/comment/floor`、`/playlist/import/*`、`/digitalAlbum/ordering` | 需要实时房间或额外交互链路，单独评估                                                                                                        |
+| 其余全部端点                                       | 与上游 `module/<name>.js` 一一对应（377 个，见 `endpoints.ts`）                                  | 均可用 `neteaseApi` 调用                                                                                                                    |
 
 ## 🖼️ 界面展示
 
@@ -414,15 +395,15 @@ docker run -d --name SPlayer -p 25884:25884 imsyy/splayer:latest
 
 本仓库是 [SPlayer](https://github.com/SPlayer-Dev/SPlayer) 的**个人修改版**，非官方发行版。原项目版权与荣誉归原作者所有。
 
-| 项目 | 说明 |
-| --- | --- |
-| 原作者 | [imsyy](https://github.com/imsyy)（[imsyy.top](https://imsyy.top)） |
-| 原项目 | [SPlayer](https://github.com/SPlayer-Dev/SPlayer) |
-| **原链接** | **https://github.com/SPlayer-Dev/SPlayer** |
-| 许可证 | [GNU Affero General Public License v3.0（AGPL-3.0）](https://www.gnu.org/licenses/agpl-3.0.html)，全文见 [LICENSE](./LICENSE) |
-| 本仓库 | [DelicateDuck582/SPlayer](https://github.com/DelicateDuck582/SPlayer)（个人修改版，工作分支 `feat/api-enhanced`） |
-| 与官方的关系 | 无隶属关系，未经原作者审核、授权或背书，不代表原项目及 SPlayer-Next 的立场；请以原项目官方发布为准 |
-| 上游状态 | 原项目已进入维护模式并归档，本仓库不再跟进上游 |
+| 项目         | 说明                                                                                                                          |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| 原作者       | [imsyy](https://github.com/imsyy)（[imsyy.top](https://imsyy.top)）                                                           |
+| 原项目       | [SPlayer](https://github.com/SPlayer-Dev/SPlayer)                                                                             |
+| **原链接**   | **https://github.com/SPlayer-Dev/SPlayer**                                                                                    |
+| 许可证       | [GNU Affero General Public License v3.0（AGPL-3.0）](https://www.gnu.org/licenses/agpl-3.0.html)，全文见 [LICENSE](./LICENSE) |
+| 本仓库       | [DelicateDuck582/SPlayer](https://github.com/DelicateDuck582/SPlayer)（个人修改版，工作分支 `feat/api-enhanced`）             |
+| 与官方的关系 | 无隶属关系，未经原作者审核、授权或背书，不代表原项目及 SPlayer-Next 的立场；请以原项目官方发布为准                            |
+| 上游状态     | 原项目已进入维护模式并归档，本仓库不再跟进上游                                                                                |
 
 - 原有代码的版权归原作者 **imsyy** 及原项目的贡献者们所有，并继续按 **AGPL-3.0** 授权；本仓库未修改程序内的原作版权信息
 - 本仓库新增的修改由本仓库维护者独立完成，**不代表**原作者的观点或立场，也不构成对原项目的官方维护

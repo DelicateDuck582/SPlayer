@@ -115,13 +115,16 @@ import {
   removeAccount,
 } from "@/utils/auth";
 import { useMobile } from "@/composables/useMobile";
-import {
-  isKugouLogin,
-  kugouLogout,
-  refreshKugouLoginIfNeeded,
-  refreshKugouUser,
-} from "@/utils/kugouAuth";
-import { isQqLogin, qqLogout, refreshQqUser } from "@/utils/qqAuth";
+
+/**
+ * 轻量登录态判断：只读设置里的 Cookie 字符串
+ *
+ * 注意：这里**不**引入 `@/utils/kugouAuth` / `@/utils/qqAuth`（它们会连带引入
+ * 第三方 API 客户端与端点封装），避免第三方适配层被打进首屏包；
+ * 需要网络请求的操作（登录校验 / 刷新 / 登出清理）改为按需 `import()`。
+ */
+const hasCookieFields = (cookie: string, fields: string[]): boolean =>
+  fields.every((field) => new RegExp(`(?:^|;\\s*)${field}=[^;]+`).test(String(cookie ?? "")));
 
 const router = useRouter();
 const dataStore = useDataStore();
@@ -144,16 +147,17 @@ const isKugouMode = computed<boolean>(() => sourceMode.value === "kugou");
 /** 当前音乐源是否为 QQ 音乐 */
 const isQqMode = computed<boolean>(() => sourceMode.value === "qq");
 
-/** 酷狗是否已登录（读取 kugouCookie 以建立响应式依赖） */
-const kugouLoggedIn = computed<boolean>(() => {
-  void settingStore.kugouCookie;
-  return isKugouLogin();
-});
+/** 酷狗是否已登录（Cookie 含 token + userid；读取 kugouCookie 建立响应式依赖） */
+const kugouLoggedIn = computed<boolean>(() =>
+  hasCookieFields(settingStore.kugouCookie, ["token", "userid"]),
+);
 
-/** QQ 音乐是否已登录（读取 qqCookie 以建立响应式依赖） */
+/** QQ 音乐是否已登录（Cookie 含 uin + qqmusic_key/qm_keyst） */
 const qqLoggedIn = computed<boolean>(() => {
-  void settingStore.qqCookie;
-  return isQqLogin();
+  const cookie = String(settingStore.qqCookie ?? "");
+  return (
+    hasCookieFields(cookie, ["uin"]) && /(?:^|;\s*)(?:qqmusic_key|qm_keyst)=[^;]+/.test(cookie)
+  );
 });
 
 /** 第三方源是否已登录（按当前源取值） */
@@ -202,10 +206,19 @@ const displayVip = computed<boolean>(() => {
 /** 源标记文案 */
 const sourceTag = computed<string>(() => (isQqMode.value ? "QQ 音乐源" : "酷狗源"));
 
-/** 打开当前第三方源的登录弹窗 */
+/** 打开当前第三方源的登录弹窗（成功后按需加载登录模块刷新用户信息） */
 const openThirdPartyLogin = () => {
-  if (isQqMode.value) openQqLogin(() => refreshQqUser());
-  else openKugouLogin(() => refreshKugouUser());
+  if (isQqMode.value) {
+    openQqLogin(async () => {
+      const { refreshQqUser } = await import("@/utils/qqAuth");
+      await refreshQqUser();
+    });
+  } else {
+    openKugouLogin(async () => {
+      const { refreshKugouUser } = await import("@/utils/kugouAuth");
+      await refreshKugouUser();
+    });
+  }
 };
 
 // 开启用户菜单
@@ -254,6 +267,7 @@ const checkLoginStatus = async () => {
     if (!thirdPartyLoggedIn.value) return;
     if (isKugouMode.value) {
       // 与网易云一致：超过 3 天未刷新则自动刷新登录（换新令牌）
+      const { refreshKugouLoginIfNeeded, refreshKugouUser } = await import("@/utils/kugouAuth");
       await refreshKugouLoginIfNeeded();
       const user = await refreshKugouUser();
       if (!user) {
@@ -262,6 +276,7 @@ const checkLoginStatus = async () => {
       }
       return;
     }
+    const { refreshQqUser } = await import("@/utils/qqAuth");
     const qqUser = await refreshQqUser();
     if (!qqUser) {
       window.$message.warning("QQ 音乐登录已失效，请重新登录", { duration: 2000 });
@@ -356,10 +371,15 @@ const isLogout = () => {
       content: `确认清除本机保存的${sourceName} Cookie 与账号信息？`,
       positiveText: "确认登出",
       negativeText: "取消",
-      onPositiveClick: () => {
+      onPositiveClick: async () => {
         userMenuShow.value = false;
-        if (isQqMode.value) qqLogout();
-        else kugouLogout();
+        if (isQqMode.value) {
+          const { qqLogout } = await import("@/utils/qqAuth");
+          qqLogout();
+        } else {
+          const { kugouLogout } = await import("@/utils/kugouAuth");
+          kugouLogout();
+        }
       },
     });
     return;
