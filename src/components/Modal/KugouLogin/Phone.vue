@@ -27,7 +27,8 @@
     </n-flex>
     <n-button type="primary" block :loading="loading" @click="login">登录</n-button>
     <n-text depth="3" class="tip">
-      验证码由酷狗下发；若返回风控错误（152 / 20010），请改用扫码或 Cookie 登录
+      验证码由酷狗下发（发送成功会提示"验证码已发送"）。若登录失败，提示里会带上酷狗原因（如「验证码错误」「手机格式不正确」）；
+      若提示需要风控验证（152 / 20028），请改用「扫码登录」或「Cookie 登录」。
     </n-text>
   </div>
 </template>

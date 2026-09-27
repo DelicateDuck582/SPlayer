@@ -416,6 +416,35 @@ export const qqLoginToSession = (
   };
 };
 
+/** 网络层错误（axios 抛出）的解析结果 */
+export interface QqErrorInfo {
+  /** HTTP 状态码（网络层失败时为 0） */
+  status: number;
+  /** 可读提示 */
+  message: string;
+}
+
+/**
+ * 从捕获到的异常里提取「HTTP 状态 + 可读提示」
+ *
+ * 上游在业务失败时会返回 4xx/5xx（如 `{"error":"缺少 uin 参数"}`、`{"error":"服务器内部错误"}`），
+ * axios 会直接抛异常；调用方应当用本函数取提示，避免未捕获的 Promise 异常。
+ *
+ * @param error 捕获到的异常
+ * @param fallback 无响应体时的兜底文案
+ */
+export const extractQqError = (error: unknown, fallback = "QQ 音乐接口请求失败"): QqErrorInfo => {
+  const response = (error as any)?.response;
+  if (response) {
+    const text = qqErrorText(response.data as QqResponse);
+    return {
+      status: Number(response.status ?? 0),
+      message: text || `${fallback}（HTTP ${response.status}）`,
+    };
+  }
+  return { status: 0, message: `${fallback}：${(error as Error)?.message || "网络错误"}` };
+};
+
 /** 扫码状态：0 未扫码 / 1 已扫码待确认 / 2 待确认 / 4 成功 / 65 已过期 */
 export const qqQrStatus = (body: QqResponse | null | undefined): number =>
   Number(

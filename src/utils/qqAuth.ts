@@ -9,6 +9,7 @@
  */
 import { useSettingStore } from "@/stores";
 import {
+  extractQqError,
   qqCheckLoginQr,
   qqLoginToSession,
   qqQrStatus,
@@ -183,7 +184,13 @@ export const loginQqByCookie = async (
 export const checkQqQrLogin = async (
   qrsig: string,
 ): Promise<{ status: number; ok: boolean; message: string }> => {
-  const body = await qqCheckLoginQr(qrsig);
+  let body: Awaited<ReturnType<typeof qqCheckLoginQr>>;
+  try {
+    body = await qqCheckLoginQr(qrsig);
+  } catch (error) {
+    // 轮询期间的上游异常（5xx / 限流）不应打断扫码流程：转成提示由弹窗展示
+    return { status: -1, ok: false, message: extractQqError(error, "扫码状态查询失败").message };
+  }
   const status = qqQrStatus(body);
   const session = qqLoginToSession(body, useSettingStore().qqCookie);
   if (!session) return { status, ok: false, message: qqQrStatusText(status) };

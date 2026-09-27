@@ -15,6 +15,7 @@ import {
   KUGOU_BR_BY_LEVEL,
   KUGOU_QUALITY_BY_LEVEL,
   clearKugouSongRefs,
+  extractKugouError,
   firstArray,
   kugouErrorText,
   kugouHashToId,
@@ -178,6 +179,35 @@ check(
   "token=T;",
 );
 check("错误码 20017 翻译", kugouErrorText({ error_code: 20017 }).includes("20017"), true);
+// 上游把原因放在字符串型 data 里（如 {"data":"验证码错误","error_code":20021}），必须透出该文案
+check(
+  "验证码错误（20021）透出上游原因",
+  kugouErrorText({ data: "验证码错误", error_code: 20021 }).includes("验证码"),
+  true,
+);
+check(
+  "参数错误（20010）透出上游原因",
+  kugouErrorText({ data: "手机格式不正确", error_code: 20010 }).includes("手机格式不正确"),
+  true,
+);
+check(
+  "HTTP 502 异常 → 可读提示（含状态码）",
+  (() => {
+    const info = extractKugouError({
+      response: { status: 502, data: { status: 0, error_code: 20021, data: "验证码错误" } },
+    });
+    return [info.status, info.message.includes("验证码")];
+  })(),
+  [502, true],
+);
+check(
+  "网络层失败 → status 0 + 兜底文案",
+  (() => {
+    const info = extractKugouError(new Error("Network Error"), "酷狗登录失败");
+    return [info.status, info.message.includes("酷狗登录失败")];
+  })(),
+  [0, true],
+);
 
 const session = kugouLoginToSession(
   {
@@ -270,6 +300,25 @@ try {
     `   ℹ️ 取链 http=${songUrl.http} err=${songUrl.body?.error_code ?? songUrl.body?.errcode ?? "-"} url=${pickedUrl ? "有" : "无"}（无 Cookie 时预期被风控）`,
   );
   checkTrue("取链失败可被识别（不抛异常）", pickedUrl === "" || pickedUrl.startsWith("http"));
+
+  // 验证码登录链路的「错误可读性」（用**非法手机号 / 假验证码**，不会真的发短信或登录）
+  const badMobile = await post("/login/cellphone", { mobile: "12345", code: "000000" });
+  checkTrue(
+    "非法手机号：502 能转成可读提示（不含 axios 原文）",
+    badMobile.http >= 400 &&
+      !extractKugouError({
+        response: { status: badMobile.http, data: badMobile.body },
+      }).message.includes("Request failed"),
+  );
+  const badCode = await post("/login/cellphone", { mobile: "13800138000", code: "000000" });
+  const badCodeInfo = extractKugouError({ response: { status: badCode.http, data: badCode.body } });
+  console.log(
+    `   ℹ️ 假验证码登录 http=${badCode.http} error_code=${badCode.body?.error_code ?? "-"} → 提示「${badCodeInfo.message.slice(0, 44)}」`,
+  );
+  checkTrue(
+    "验证码错误：给出可读原因（不再抛未捕获异常）",
+    badCodeInfo.message.length > 0 && !badCodeInfo.message.includes("Request failed"),
+  );
 
   // 登录相关端点（匿名可用性 / 错误码，不做真实登录）
   const qrKey = await post("/login/qr/key");

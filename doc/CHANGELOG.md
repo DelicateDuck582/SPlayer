@@ -91,6 +91,27 @@
 
 **验证（第四轮）**：`vue-tsc` EXIT=0、Prettier 通过。
 
+<a id="v2026-09-25-kugou-login-errors"></a>
+
+## 2026-09-25 酷狗登录错误可读性修复（验证码登录 502 不再"无反应"）
+
+**现象**：酷狗「验证码登录」时控制台报 `Uncaught (in promise) AxiosError: Request failed with status code 502`，弹窗无任何提示。
+
+**根因**：上游在业务失败时返回 **HTTP 502**（如 `{"data":"验证码错误","error_code":20021}`），axios 直接抛异常；
+而 `kugouAuth` 的若干方法未捕获异常、`kugouErrorText()` 也未透出字符串型 `data` 里的原因（实测发送验证码是成功的：`status=1, {count:7}`）。
+
+**修复**
+
+| 范围     | 内容                                                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 错误解析 | `core.ts` 新增 `extractKugouError(error)` → `{ status, message }`；`kugouErrorText()` 优先透出字符串型 `data`，并补 `20021`（验证码错误）/`20022`（手机号）文案；QQ 侧对应新增 `extractQqError()` |
+| 登录链路 | `sendKugouCaptcha` / `loginKugouByCellphone` / `loginKugouByAccount` / `checkKugouQrLogin` / `refreshKugouLogin` / `loginKugouByCookie` 全部捕获异常并返回可读提示；`checkQqQrLogin` 同步加固     |
+| 提示文案 | 登录弹窗「验证码登录」页补充说明：失败会带上酷狗原因；如遇风控请改用扫码 / Cookie 登录                                                                                                            |
+| 测试     | `pnpm test:kugou` 由 43 → **49/49**：新增 4 项错误映射纯逻辑断言 + 2 项线上断言（非法手机号 / 假验证码 → 502 转可读提示，**不发送短信、不真实登录**）                                             |
+| 文档     | [KUGOU-API.md](./KUGOU-API.md) 新增「七·五、登录错误码与排障」对照表                                                                                                                              |
+
+**验证**：`pnpm test:kugou` 49/49、`vue-tsc` EXIT=0。
+
 <a id="v2026-09-25-default-api-domains"></a>
 
 ## 2026-09-25 默认 API 地址迁移到自有域（delicateduck.xyz）

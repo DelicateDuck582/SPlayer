@@ -46,17 +46,29 @@ export type KugouSearchType = "song" | "album" | "author" | "special" | "mv" | "
 
 /**
  * 把酷狗错误码翻译成用户可读提示
+ *
+ * 注意：上游常把**具体原因**放在 `data` 字段的字符串里（如 `{"data":"验证码错误","error_code":20021}`），
+ * 因此这里优先透出该文案，再按错误码兜底。
  * @param body 酷狗响应体
  */
 export const kugouErrorText = (body: KugouResponse | null | undefined): string => {
-  const code = body?.error_code ?? body?.errcode;
-  switch (Number(code)) {
+  const code = Number(body?.error_code ?? body?.errcode);
+  // 上游详细原因（字符串型 data / error_msg / error）
+  const detail = [body?.data, body?.error_msg, body?.error]
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .find((item) => !!item);
+
+  switch (code) {
     case 152:
       return "酷狗接口拒绝请求（152 Parameter Error）：该接口需要登录态，且云端出口 IP 被酷狗风控";
+    case 20021:
+      return `酷狗验证码登录失败：${detail || "验证码错误或已过期"}（请重新获取验证码，或改用扫码登录）`;
+    case 20022:
+      return `酷狗验证码登录失败：${detail || "手机号未注册或格式不正确"}`;
     case 20028:
       return "酷狗要求验证（20028）：请在「设置 → 网络 → 音乐源」中填写酷狗登录 Cookie 后重试";
     case 20010:
-      return "酷狗返回未授权（20010）：登录态失效或需要会员权限";
+      return `酷狗拒绝了请求（20010）：${detail || "参数不正确或需要登录态 / 会员权限"}`;
     case 20017:
       return "酷狗登录态缺失或已失效（20017）：请重新登录";
     case 20018:
@@ -64,8 +76,38 @@ export const kugouErrorText = (body: KugouResponse | null | undefined): string =
     case 404:
       return "酷狗未找到该资源（404）";
     default:
-      return String(body?.error_msg ?? body?.error ?? "") || "酷狗接口请求失败";
+      if (detail) return detail;
+      return code ? `酷狗接口请求失败（code=${code}）` : "酷狗接口请求失败";
   }
+};
+
+/** 网络层错误（axios 抛出）的解析结果 */
+export interface KugouErrorInfo {
+  /** HTTP 状态码（网络层失败时为 0） */
+  status: number;
+  /** 可读提示 */
+  message: string;
+}
+
+/**
+ * 从捕获到的异常里提取「HTTP 状态 + 可读提示」
+ *
+ * 上游在业务失败时返回 **HTTP 502** 且响应体带 `error_code` / `data`，
+ * axios 会直接抛异常；调用方（登录 / 取链等）应当用本函数取提示而不要吞掉异常。
+ *
+ * @param error 捕获到的异常
+ * @param fallback 无响应体时的兜底文案
+ */
+export const extractKugouError = (
+  error: unknown,
+  fallback = "酷狗接口请求失败",
+): KugouErrorInfo => {
+  const response = (error as any)?.response;
+  if (response) {
+    const text = kugouErrorText(response.data as KugouResponse);
+    return { status: Number(response.status ?? 0), message: text || fallback };
+  }
+  return { status: 0, message: `${fallback}：${(error as Error)?.message || "网络错误"}` };
 };
 
 /** 展开酷狗图片地址中的 `{size}` 占位符 */
