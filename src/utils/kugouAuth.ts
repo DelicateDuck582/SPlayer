@@ -21,6 +21,7 @@ import {
   kugouUserDetail,
   kugouUserToProfile,
   kugouUserVipDetail,
+  type KugouErrorInfo,
   type KugouLoginSession,
   type KugouUserProfile,
 } from "@/api/kugou";
@@ -176,7 +177,9 @@ export const loginKugouByCookie = async (
   } catch (error) {
     settingStore.kugouCookie = previousCookie;
     settingStore.kugouUser = previousUser;
-    return { ok: false, message: extractKugouError(error, "酷狗登录失败").message };
+    const info = extractKugouError(error, "酷狗登录失败");
+    logKugouLoginFailure("Cookie 登录", info);
+    return { ok: false, message: info.message };
   }
 };
 
@@ -239,6 +242,22 @@ export const saveKugouSession = async (
   return { ok: true, message: `酷狗登录成功：${user.nickname || user.userid}` };
 };
 
+/**
+ * 酷狗登录诊断日志
+ *
+ * 用 `console.warn`（生产不会剥离，仅剥离 `console.log`）输出**上游 HTTP 状态与业务错误码**，
+ * 便于用户反馈「登录失败」时定位是验证码错误、手机号问题还是风控。
+ * @param scene 场景描述
+ * @param info 由 {@link extractKugouError} 解析出的信息
+ */
+const logKugouLoginFailure = (scene: string, info: KugouErrorInfo): void => {
+  console.warn(`[酷狗登录] ${scene} 失败`, {
+    http: info.status,
+    code: info.code,
+    message: info.message,
+  });
+};
+
 /** 发送手机验证码（登录用；上游失败返回 HTTP 502 + error_code，需转成可读提示） */
 export const sendKugouCaptcha = async (
   mobile: string,
@@ -253,7 +272,9 @@ export const sendKugouCaptcha = async (
       ? { ok: true, message: "验证码已发送，请注意查收" }
       : { ok: false, message: kugouErrorText(body) || "验证码发送失败，请稍后重试" };
   } catch (error) {
-    return { ok: false, message: extractKugouError(error, "验证码发送失败").message };
+    const info = extractKugouError(error, "验证码发送失败");
+    logKugouLoginFailure("发送验证码", info);
+    return { ok: false, message: info.message };
   }
 };
 
@@ -270,13 +291,18 @@ export const loginKugouByCellphone = async (
     const body = await kugouLoginCellphone(phone, verifyCode);
     const session = kugouLoginToSession(body, useSettingStore().kugouCookie);
     if (!session) {
-      return { ok: false, message: kugouErrorText(body) || "酷狗登录失败：手机号或验证码不正确" };
+      // HTTP 200 但没拿到 token：同样把上游错误码记下来（如手机号未绑定酷狗）
+      const info = extractKugouError({ response: { status: 200, data: body } }, "酷狗登录失败");
+      logKugouLoginFailure("验证码登录", info);
+      return { ok: false, message: info.message || "酷狗登录失败：手机号或验证码不正确" };
     }
     return saveKugouSession(session);
   } catch (error) {
     // 上游在「验证码错误 / 手机号异常」等业务失败时返回 HTTP 502，必须在这里转成提示，
     // 否则会变成未捕获的 Promise 异常（弹窗无任何反馈）
-    return { ok: false, message: extractKugouError(error, "酷狗登录失败").message };
+    const info = extractKugouError(error, "酷狗登录失败");
+    logKugouLoginFailure("验证码登录", info);
+    return { ok: false, message: info.message };
   }
 };
 
@@ -291,11 +317,15 @@ export const loginKugouByAccount = async (
     const body = await kugouLoginByAccount(account, password);
     const session = kugouLoginToSession(body, useSettingStore().kugouCookie);
     if (!session) {
-      return { ok: false, message: kugouErrorText(body) || "酷狗登录失败：账号或密码不正确" };
+      const info = extractKugouError({ response: { status: 200, data: body } }, "酷狗登录失败");
+      logKugouLoginFailure("账号密码登录", info);
+      return { ok: false, message: info.message || "酷狗登录失败：账号或密码不正确" };
     }
     return saveKugouSession(session);
   } catch (error) {
-    return { ok: false, message: extractKugouError(error, "酷狗登录失败").message };
+    const info = extractKugouError(error, "酷狗登录失败");
+    logKugouLoginFailure("账号密码登录", info);
+    return { ok: false, message: info.message };
   }
 };
 
@@ -311,7 +341,9 @@ export const checkKugouQrLogin = async (
     body = await kugouLoginQrCheck(key);
   } catch (error) {
     // 轮询期间的上游异常不应打断扫码流程：转成提示由弹窗展示
-    return { status: -1, ok: false, message: extractKugouError(error, "扫码状态查询失败").message };
+    const info = extractKugouError(error, "扫码状态查询失败");
+    logKugouLoginFailure("扫码状态查询", info);
+    return { status: -1, ok: false, message: info.message };
   }
   const status = kugouQrStatus(body);
   if (status !== 4) return { status, ok: false, message: kugouQrStatusText(status) };
@@ -339,7 +371,9 @@ export const refreshKugouLogin = async (): Promise<{ ok: boolean; message: strin
     const result = await saveKugouSession(session);
     return result.ok ? { ok: true, message: "酷狗登录已刷新" } : result;
   } catch (error) {
-    return { ok: false, message: extractKugouError(error, "刷新酷狗登录失败").message };
+    const info = extractKugouError(error, "刷新酷狗登录失败");
+    logKugouLoginFailure("刷新登录", info);
+    return { ok: false, message: info.message };
   }
 };
 

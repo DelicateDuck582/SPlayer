@@ -189,7 +189,9 @@ export const checkQqQrLogin = async (
     body = await qqCheckLoginQr(qrsig);
   } catch (error) {
     // 轮询期间的上游异常（5xx / 限流）不应打断扫码流程：转成提示由弹窗展示
-    return { status: -1, ok: false, message: extractQqError(error, "扫码状态查询失败").message };
+    const info = extractQqError(error, "扫码状态查询失败");
+    console.warn("[QQ 登录] 扫码状态查询失败", { http: info.status, message: info.message });
+    return { status: -1, ok: false, message: info.message };
   }
   const status = qqQrStatus(body);
   const session = qqLoginToSession(body, useSettingStore().qqCookie);

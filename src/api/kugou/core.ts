@@ -85,6 +85,8 @@ export const kugouErrorText = (body: KugouResponse | null | undefined): string =
 export interface KugouErrorInfo {
   /** HTTP 状态码（网络层失败时为 0） */
   status: number;
+  /** 酷狗业务错误码（无则 0） */
+  code: number;
   /** 可读提示 */
   message: string;
 }
@@ -104,10 +106,19 @@ export const extractKugouError = (
 ): KugouErrorInfo => {
   const response = (error as any)?.response;
   if (response) {
-    const text = kugouErrorText(response.data as KugouResponse);
-    return { status: Number(response.status ?? 0), message: text || fallback };
+    const body = response.data as KugouResponse;
+    const text = kugouErrorText(body);
+    return {
+      status: Number(response.status ?? 0),
+      code: Number(body?.error_code ?? body?.errcode ?? 0) || 0,
+      message: text || fallback,
+    };
   }
-  return { status: 0, message: `${fallback}：${(error as Error)?.message || "网络错误"}` };
+  return {
+    status: 0,
+    code: 0,
+    message: `${fallback}：${(error as Error)?.message || "网络错误"}`,
+  };
 };
 
 /** 展开酷狗图片地址中的 `{size}` 占位符 */
