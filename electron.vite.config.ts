@@ -130,6 +130,7 @@ export default defineConfig(({ mode }) => {
                   return "vendor-ui";
                 }
                 if (id.includes("@applemusic-like-lyrics")) return "vendor-amll";
+                if (id.includes("@pixi")) return "vendor-amll";
                 if (id.includes("@vueuse")) return "vendor-vueuse";
                 if (id.includes("lodash-es") || id.includes("axios") || id.includes("dayjs")) {
                   return "vendor-utils";

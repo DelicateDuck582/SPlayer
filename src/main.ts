@@ -15,7 +15,6 @@ import { sendRegisterProtocol } from "@/utils/protocol";
 // 全局样式
 import "@/style/main.scss";
 import "@/style/animate.scss";
-import "github-markdown-css/github-markdown.css";
 import { isElectron } from "./utils/env";
 import { recoverFromChunkError } from "@/utils/chunkRecovery";
 

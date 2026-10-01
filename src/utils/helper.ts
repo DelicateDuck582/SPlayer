@@ -7,7 +7,6 @@ import { updateLog } from "@/api/other";
 import { isEmpty } from "lodash-es";
 import { convertToLocalTime } from "./time";
 import { useSettingStore } from "@/stores";
-import { marked } from "marked";
 import { isElectron } from "./env";
 import SvgIcon from "@/components/Global/SvgIcon.vue";
 import Fuse from "fuse.js";
@@ -251,6 +250,8 @@ export const formatForGlobalShortcut = (shortcut: string): string => {
  * @returns 更新日志数组
  */
 export const getUpdateLog = async (): Promise<UpdateLogType[]> => {
+  // marked 仅在渲染更新日志时使用，按需加载
+  const { marked } = await import("marked");
   const result = await getCacheData(updateLog, { key: "updateLog", time: 10 });
   if (!result || isEmpty(result)) return [];
   const updateLogs = await Promise.all(

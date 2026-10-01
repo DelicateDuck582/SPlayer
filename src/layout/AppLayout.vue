@@ -131,12 +131,16 @@
 </template>
 
 <script setup lang="ts">
+import { defineAsyncComponent } from "vue";
 import { useMusicStore, useStatusStore, useSettingStore, useDataStore } from "@/stores";
 import { useBlobURLManager } from "@/core/resource/BlobURLManager";
 import { isChunkRecovering } from "@/utils/chunkRecovery";
 import { isElectron } from "@/utils/env";
 import { useMobile } from "@/composables/useMobile";
 import { useInit } from "@/composables/useInit";
+
+// 全屏播放器按需加载（AMLL 与 pixi 移出首屏）
+const FullPlayer = defineAsyncComponent(() => import("@/components/Player/FullPlayer.vue"));
 
 const musicStore = useMusicStore();
 const statusStore = useStatusStore();
