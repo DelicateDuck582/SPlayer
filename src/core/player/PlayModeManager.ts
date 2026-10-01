@@ -1,6 +1,5 @@
 import { heartRateList } from "@/api/playlist";
 import { useDataStore, useMusicStore, useStatusStore } from "@/stores";
-import type { SongType } from "@/types/main";
 import type { RepeatModeType, ShuffleModeType } from "@/types/shared/play-mode";
 import { isLogin } from "@/utils/auth";
 import { isElectron } from "@/utils/env";
@@ -308,36 +307,3 @@ export class PlayModeManager {
     }
   }
 }
-
-/**
- * 混合列表算法 (用于心动模式)
- *
- * 保持 sourceList 顺序不变，每隔 interval 首插入一个 recommendation
- * @param sourceList 原始用户列表
- * @param recommendationList 推荐歌曲列表
- * @param interval 插入间隔 (例如 2 表示：用户, 用户, 推荐, 用户, 用户, 推荐...)
- */
-export const interleaveLists = (
-  sourceList: SongType[],
-  recommendationList: SongType[],
-  interval: number = 2,
-): SongType[] => {
-  const result: SongType[] = [];
-  let recIndex = 0;
-
-  // 标记推荐歌曲
-  const taggedRecs = recommendationList.map((song) => ({
-    ...song,
-  }));
-
-  sourceList.forEach((song, index) => {
-    result.push(song);
-    // 每隔 interval 首，且还有推荐歌时，插入一首
-    if ((index + 1) % interval === 0 && recIndex < taggedRecs.length) {
-      result.push(taggedRecs[recIndex]);
-      recIndex++;
-    }
-  });
-
-  return result;
-};

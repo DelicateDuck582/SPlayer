@@ -13,6 +13,3 @@ export const getDisplayVersion = () => {
   }
   return `v${packageJson.version}`;
 };
-
-/** 获取完整版本号 */
-export const getFullVersion = () => packageJson.version;

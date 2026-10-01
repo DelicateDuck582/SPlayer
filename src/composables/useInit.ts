@@ -4,7 +4,7 @@ import { useDownloadManager } from "@/core/resource/DownloadManager";
 import { useDataStore, useSettingStore, useShortcutStore, useStatusStore } from "@/stores";
 import { TASKBAR_IPC_CHANNELS } from "@/types/shared";
 import { isElectron, isMac } from "@/utils/env";
-import { printVersion } from "@/utils/log";
+import { info, printVersion } from "@/utils/log";
 import { openUserAgreement } from "@/utils/modal";
 import { useEventListener } from "@vueuse/core";
 import { debounce } from "lodash-es";
@@ -151,7 +151,7 @@ const keyDownEvent = debounce((event: KeyboardEvent) => {
     );
     if (mainKey !== key) match = false;
     if (match && shortcutKey) {
-      console.log(shortcutKey, `快捷键触发: ${shortcut.name}`);
+      info(shortcutKey, `快捷键触发: ${shortcut.name}`);
       switch (shortcutKey) {
         case "playOrPause":
           player.playOrPause();

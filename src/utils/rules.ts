@@ -15,24 +15,6 @@ export const numberRule: FormItemRule = {
   trigger: ["input", "blur"],
 };
 
-// 邮箱验证
-export const emailRule: FormItemRule = {
-  required: true,
-  message: "请输入正确的邮箱",
-  trigger: ["input", "blur"],
-  validator: (_: FormItemRule, value: any) => {
-    if (!value) return new Error("请输入电子邮箱");
-    else if (
-      !/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(
-        value,
-      )
-    ) {
-      return new Error("请输入正确的电子邮箱");
-    }
-    return true;
-  },
-};
-
 // 手机号验证
 export const phoneRule: FormItemRule = {
   required: true,

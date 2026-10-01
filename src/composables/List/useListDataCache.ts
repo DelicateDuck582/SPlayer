@@ -1,6 +1,7 @@
 import type { CoverType, SongType } from "@/types/main";
 import { useCacheManager } from "@/core/resource/CacheManager";
 import { isElectron } from "@/utils/env";
+import { info, success, warning } from "@/utils/log";
 
 /**
  * 列表类型
@@ -73,7 +74,7 @@ export const useListDataCache = () => {
 
     try {
       await cacheManager.set("list-data", key, jsonStr);
-      console.log(`✅ List cache saved: ${key}`);
+      success(`List cache saved: ${key}`);
     } catch (error) {
       console.error(`❌ Failed to save list cache: ${key}`, error);
     }
@@ -102,12 +103,12 @@ export const useListDataCache = () => {
 
       // 检查版本
       if (cacheData.version !== CACHE_VERSION) {
-        console.log(`⚠️ Cache version mismatch: ${key}, removing old cache`);
+        warning(`Cache version mismatch: ${key}, removing old cache`);
         await removeCache(type, id);
         return null;
       }
 
-      console.log(`✅ List cache loaded: ${key}`);
+      success(`List cache loaded: ${key}`);
       return cacheData;
     } catch (error) {
       console.error(`❌ Failed to load list cache: ${key}`, error);
@@ -127,25 +128,26 @@ export const useListDataCache = () => {
     if (cached.detail.updateTime && latestDetail.updateTime) {
       const needsUpdate = cached.detail.updateTime !== latestDetail.updateTime;
       if (needsUpdate) {
-        console.log(`🔄 Cache needs update: timestamp changed`);
-        console.log(`   Old: ${cached.detail.updateTime}`);
-        console.log(`   New: ${latestDetail.updateTime}`);
+        info(
+          "Cache needs update: timestamp changed",
+          `${cached.detail.updateTime} -> ${latestDetail.updateTime}`,
+        );
       } else {
-        console.log(`✅ Cache is up to date (timestamp match)`);
+        success("Cache is up to date (timestamp match)");
       }
       return needsUpdate;
     }
 
     // 如果没有 updateTime，比较 count
     if (cached.detail.count !== latestDetail.count) {
-      console.log(`🔄 Cache needs update: count changed`);
+      info("Cache needs update: count changed");
       return true;
     }
 
     if (cached.type === "album") {
-      console.log(`✅ Album cache is up to date (count match)`);
+      success("Album cache is up to date (count match)");
     } else {
-      console.log(`⚠️ No timestamp found, assuming up to date based on count`);
+      warning("No timestamp found, assuming up to date based on count");
     }
 
     return false;
@@ -163,7 +165,7 @@ export const useListDataCache = () => {
 
     try {
       await cacheManager.remove("list-data", key);
-      console.log(`🗑️ List cache removed: ${key}`);
+      success(`List cache removed: ${key}`);
     } catch (error) {
       console.error(`❌ Failed to remove list cache: ${key}`, error);
     }
@@ -177,7 +179,7 @@ export const useListDataCache = () => {
 
     try {
       await cacheManager.clear("list-data");
-      console.log(`🗑️ All list cache cleared`);
+      success(`All list cache cleared`);
     } catch (error) {
       console.error(`❌ Failed to clear list cache`, error);
     }

@@ -80,6 +80,27 @@ const backgroundDB = localforage.createInstance({
   storeName: "background",
 });
 
+/** 正在下载的歌曲项类型 */
+type DownloadingSong = ListState["downloadingSongs"][number];
+
+/**
+ * 按歌曲 ID 给下载项覆盖状态字段
+ * @param list 正在下载的歌曲列表
+ * @param songId 歌曲 ID
+ * @param patch 需要覆盖的字段
+ * @returns 是否命中
+ */
+const patchDownloadingSong = (
+  list: DownloadingSong[],
+  songId: number,
+  patch: Partial<DownloadingSong>,
+): boolean => {
+  const index = list.findIndex((item) => item?.song?.id === songId);
+  if (index === -1) return false;
+  Object.assign(list[index], patch);
+  return true;
+};
+
 export const useDataStore = defineStore("data", {
   state: (): ListState => ({
     // 播放列表
@@ -449,9 +470,7 @@ export const useDataStore = defineStore("data", {
      * @param status 下载状态
      */
     updateDownloadStatus(songId: number, status: "downloading" | "waiting" | "failed") {
-      const index = this.downloadingSongs.findIndex((item) => item?.song?.id === songId);
-      if (index !== -1) {
-        this.downloadingSongs[index].status = status;
+      if (patchDownloadingSong(this.downloadingSongs, songId, { status })) {
         // 强制触发响应式更新 (Fix: 下一首歌曲状态更新UI不变化的问题)
         this.downloadingSongs = [...this.downloadingSongs];
       }
@@ -481,24 +500,26 @@ export const useDataStore = defineStore("data", {
     },
     // 标记下载失败（保留在列表中）
     markDownloadFailed(songId: number) {
-      const index = this.downloadingSongs.findIndex((item) => item?.song?.id === songId);
-      if (index !== -1) {
-        this.downloadingSongs[index].status = "failed";
-        this.downloadingSongs[index].progress = 0;
-        this.downloadingSongs[index].transferred = "0MB";
-        this.downloadingSongs[index].totalSize = "0MB";
+      const patch = {
+        status: "failed" as const,
+        progress: 0,
+        transferred: "0MB",
+        totalSize: "0MB",
+      };
+      if (patchDownloadingSong(this.downloadingSongs, songId, patch)) {
         this.downloadingSongs = [...this.downloadingSongs];
         musicDB.setItem("downloadingSongs", cloneDeep(this.downloadingSongs));
       }
     },
     // 重置下载任务状态（用于重试）
     resetDownloadingSong(songId: number) {
-      const index = this.downloadingSongs.findIndex((item) => item?.song?.id === songId);
-      if (index !== -1) {
-        this.downloadingSongs[index].status = "waiting";
-        this.downloadingSongs[index].progress = 0;
-        this.downloadingSongs[index].transferred = "0MB";
-        this.downloadingSongs[index].totalSize = "0MB";
+      const patch = {
+        status: "waiting" as const,
+        progress: 0,
+        transferred: "0MB",
+        totalSize: "0MB",
+      };
+      if (patchDownloadingSong(this.downloadingSongs, songId, patch)) {
         this.downloadingSongs = [...this.downloadingSongs];
       }
     },

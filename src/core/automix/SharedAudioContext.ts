@@ -50,11 +50,3 @@ export const getSharedMasterInput = (): GainNode => {
   }
   return masterInput;
 };
-
-/**
- * 获取主限制器节点
- * @returns 主限制器节点
- */
-export const getSharedMasterLimiter = (): DynamicsCompressorNode | null => {
-  return masterLimiter;
-};

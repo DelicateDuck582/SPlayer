@@ -7,12 +7,6 @@ dayjs.extend(duration);
 dayjs.extend(relativeTime);
 dayjs.extend(localizedFormat);
 
-/** 秒转为时间字符串 (m:ss 或 H:mm:ss) */
-export const secondsToTime = (seconds: number): string => {
-  const format = seconds < 3600 ? "m:ss" : "H:mm:ss";
-  return dayjs.duration(seconds, "seconds").format(format);
-};
-
 /** 毫秒转为时间字符串 (mm:ss 或 H:mm:ss) */
 export const msToTime = (milliseconds: number): string => {
   const format = milliseconds < 3600000 ? "mm:ss" : "H:mm:ss";

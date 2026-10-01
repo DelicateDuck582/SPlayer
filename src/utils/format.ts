@@ -376,18 +376,6 @@ export const getPlayerInfoObj = (
 };
 
 /**
- * 获取播放信息
- * @param song 歌曲
- * @param sep 分隔符
- * @returns 播放信息
- */
-export const getPlayerInfo = (song?: SongType, sep: string = "/"): string | null => {
-  const info = getPlayerInfoObj(song, sep);
-  if (!info) return null;
-  return `${info.name} - ${info.artist}`;
-};
-
-/**
  * 检测所有输入行的共同最小缩进，将其从每一行中删除，如果第一行和最后一行是空白行，也将其删除
  * @param string 字符串
  * @param lineSplit 分割时的换行符

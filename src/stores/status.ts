@@ -434,18 +434,6 @@ export const useStatusStore = defineStore("status", {
       }
     },
     /**
-     * 切换随机模式
-     * 顺序: Off -> On -> Off
-     * @deprecated 心跳模式只能通过菜单开启，不再通过此方法切换
-     */
-    toggleShuffle() {
-      if (this.shuffleMode === "off") {
-        this.shuffleMode = "on";
-      } else {
-        this.shuffleMode = "off";
-      }
-    },
-    /**
      * 设置 EQ 开关
      * @param enabled 是否开启
      */
