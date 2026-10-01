@@ -186,6 +186,7 @@ import {
   yunbeiTasks as fetchYunbeiTasks,
 } from "@/api/netease";
 import { formatTimestamp } from "@/utils/time";
+import { toHttpsUrl } from "@/utils/format";
 import { isLogin } from "@/utils/auth";
 import { openUserLogin } from "@/utils/modal";
 
@@ -292,7 +293,9 @@ const getVipData = async () => {
       if (account?.code !== undefined && account.code !== 200) {
         vipError.value = `账号信息加载失败：${account?.message ?? account?.msg ?? `code ${account?.code}`}`;
       }
-      account.value = account?.profile ?? null;
+      const profile = account?.profile ?? null;
+      // 头像统一 https，避免 https 页面加载 http 图片被拦
+      account.value = profile ? { ...profile, avatarUrl: toHttpsUrl(profile?.avatarUrl) } : null;
     }
     if (vipResult.status === "fulfilled") {
       const result: any = vipResult.value;

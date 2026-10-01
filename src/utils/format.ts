@@ -234,7 +234,7 @@ export const formatCommentList = (data: any[]): CommentType[] => {
       avatarUrl: toHttpsUrl(item.user.avatarUrl),
       vipType: item.user.vipType,
       vipLevel: item.user.vipRights?.redVipLevel,
-      vipIconUrl: item.user.vipRights?.associator?.iconUrl,
+      vipIconUrl: toHttpsUrl(item.user.vipRights?.associator?.iconUrl),
       isAnnualCount: item.user.vipRights?.redVipAnnualCount > 0,
     },
     ip: item?.ip

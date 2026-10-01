@@ -118,7 +118,7 @@ import {
   userPlaylist,
   userRecord,
 } from "@/api/netease";
-import { formatCoverList, formatSongsList } from "@/utils/format";
+import { formatCoverList, formatSongsList, toHttpsUrl } from "@/utils/format";
 import { isLogin } from "@/utils/auth";
 import { openUserLogin } from "@/utils/modal";
 import { useDataStore, useSettingStore } from "@/stores";
@@ -166,7 +166,11 @@ const getUserData = async () => {
     );
 
     if (detailResult.status === "fulfilled") {
-      profile.value = detailResult.value?.profile ?? null;
+      const detailProfile = detailResult.value?.profile;
+      // 头像统一 https，避免 https 页面加载 http 图片被拦
+      profile.value = detailProfile
+        ? { ...detailProfile, avatarUrl: toHttpsUrl(detailProfile.avatarUrl) }
+        : null;
       level.value = Number(detailResult.value?.level ?? 0);
       listenSongs.value = Number(detailResult.value?.listenSongs ?? 0);
     }
@@ -176,10 +180,16 @@ const getUserData = async () => {
       );
     }
     if (followsResult.status === "fulfilled") {
-      follows.value = followsResult.value?.follow ?? [];
+      follows.value = (followsResult.value?.follow ?? []).map((item: any) => ({
+        ...item,
+        avatarUrl: toHttpsUrl(item?.avatarUrl),
+      }));
     }
     if (followedsResult.status === "fulfilled") {
-      followeds.value = followedsResult.value?.followeds ?? [];
+      followeds.value = (followedsResult.value?.followeds ?? []).map((item: any) => ({
+        ...item,
+        avatarUrl: toHttpsUrl(item?.avatarUrl),
+      }));
     }
     await getUserRecord();
   } finally {

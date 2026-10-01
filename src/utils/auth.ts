@@ -13,7 +13,7 @@ import {
   userPlaylist,
 } from "@/api/user";
 import { likeSong } from "@/api/song";
-import { formatCoverList, formatArtistsList, formatSongsList } from "@/utils/format";
+import { formatCoverList, formatArtistsList, formatSongsList, toHttpsUrl } from "@/utils/format";
 import { useDataStore, useMusicStore, useLocalStore } from "@/stores";
 import { logout, refreshLogin } from "@/api/login";
 import { debounce, isFunction, type DebouncedFunc } from "lodash-es";
@@ -160,7 +160,8 @@ export const saveCurrentAccount = () => {
   const newAccount = {
     userId,
     name,
-    avatarUrl: avatarUrl || "",
+    // 头像统一 https，避免 https 页面加载 http 图片被拦
+    avatarUrl: toHttpsUrl(avatarUrl) || "",
     cookies,
     loginType,
     lastLoginTime: Date.now(),
@@ -204,7 +205,9 @@ export const switchAccount = async (userId: number) => {
     const date = new Date();
     date.setFullYear(date.getFullYear() + 50);
     const expires = `expires=${date.toUTCString()}`;
-    document.cookie = `${key}=${value}; ${expires}; path=/`;
+    // Secure 仅在 HTTPS 页面附加；SameSite=Lax 限制跨站携带凭据
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${key}=${value}; ${expires}; path=/; SameSite=Lax${secure}`;
     // 同步到 localStorage
     localStorage.setItem(`cookie-${key}`, value as string);
   });
@@ -214,7 +217,7 @@ export const switchAccount = async (userId: number) => {
   // 预先填充部分用户信息，避免刷新后因数据空被重定向回首页
   dataStore.userData.userId = account.userId;
   dataStore.userData.name = account.name;
-  dataStore.userData.avatarUrl = account.avatarUrl;
+  dataStore.userData.avatarUrl = toHttpsUrl(account.avatarUrl) || "";
 
   // 刷新页面
   // window.location.reload();
@@ -276,8 +279,8 @@ export const updateUserData = async () => {
 
       name: userData.nickname,
       level: userData.level,
-      avatarUrl: userData.avatarUrl,
-      backgroundUrl: userData.backgroundUrl,
+      avatarUrl: toHttpsUrl(userData.avatarUrl),
+      backgroundUrl: toHttpsUrl(userData.backgroundUrl),
       createTime: userData.createTime,
       createDays: userData.createDays,
       artistCount: subcountData.artistCount,
@@ -321,8 +324,8 @@ export const updateSpecialUserData = async (userData?: any) => {
       vipType: userData.vipType,
       name: userData.nickname,
       level: userData.level,
-      avatarUrl: userData.avatarUrl,
-      backgroundUrl: userData.backgroundUrl,
+      avatarUrl: toHttpsUrl(userData.avatarUrl),
+      backgroundUrl: toHttpsUrl(userData.backgroundUrl),
       createTime: userData.createTime,
       createDays: userData.createDays,
     };

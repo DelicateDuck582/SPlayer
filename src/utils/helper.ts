@@ -21,7 +21,8 @@ type AnyObject = { [key: string]: any };
  * @param target 打开方式（_self 或 _blank）
  */
 export const openLink = (url: string, target: "_self" | "_blank" = "_blank") => {
-  window.open(url, target);
+  // noopener/noreferrer：新窗口无法通过 window.opener 反向操作当前页面
+  window.open(url, target, "noopener,noreferrer");
 };
 
 /**

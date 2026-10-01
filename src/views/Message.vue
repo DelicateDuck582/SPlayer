@@ -234,7 +234,7 @@ import {
 import { formatTimestamp } from "@/utils/time";
 import { useDataStore } from "@/stores";
 import { songDetail } from "@/api/song";
-import { formatSongsList } from "@/utils/format";
+import { formatSongsList, toHttpsUrl } from "@/utils/format";
 import { usePlayerController } from "@/core/player/PlayerController";
 import {
   isEmojiImage,
@@ -315,7 +315,7 @@ const canSend = computed<boolean>(
   () => !!sendContent.value.trim() && !sending.value && !!currentSession.value?.id,
 );
 /** 我的头像与 uid（用于消息左右对齐） */
-const myAvatar = computed<string>(() => String(dataStore.userData?.avatarUrl ?? ""));
+const myAvatar = computed<string>(() => toHttpsUrl(dataStore.userData?.avatarUrl) ?? "");
 const myUid = computed<number>(() => Number(dataStore.userData?.userId ?? 0));
 /** 抽屉宽度：窄屏占满视口 */
 const drawerWidth = computed<string>(() =>
@@ -424,7 +424,8 @@ const getSessions = async () => {
       return {
         id: Number(item?.id ?? item?.userId ?? peer?.userId ?? 0),
         nickname: item?.nickname ?? peer?.nickname,
-        avatarUrl: item?.avatarUrl ?? peer?.avatarUrl,
+        // 头像统一 https，避免 https 页面加载 http 图片被拦
+        avatarUrl: toHttpsUrl(item?.avatarUrl ?? peer?.avatarUrl),
         lastMessage: toPreviewText(
           parseMessageContent(item?.lastMsg ?? item?.lastMessage ?? item?.msg).text,
           60,
@@ -457,8 +458,9 @@ const getNotices = async () => {
       const ts = Number(item?.time ?? item?.createTime ?? 0);
       const nickname =
         item?.user?.nickname ?? item?.fromUser?.nickname ?? item?.comment?.user?.nickname;
-      const avatarUrl =
-        item?.user?.avatarUrl ?? item?.fromUser?.avatarUrl ?? item?.comment?.user?.avatarUrl;
+      const avatarUrl = toHttpsUrl(
+        item?.user?.avatarUrl ?? item?.fromUser?.avatarUrl ?? item?.comment?.user?.avatarUrl,
+      );
       // 统一解析：JSON 串 / HTML / 对象 → 纯文本 + 可选资源卡片
       const parsed = parseMessageContent(item);
       return {
@@ -509,7 +511,8 @@ const openSession = async (item: NeteaseMessageItem) => {
           text: parsed.text,
           resource: parsed.resource,
           images: parsed.images,
-          avatarUrl: fromUser?.avatarUrl ?? msg?.avatarUrl,
+          // 头像统一 https，避免 https 页面加载 http 图片被拦
+          avatarUrl: toHttpsUrl(fromUser?.avatarUrl ?? msg?.avatarUrl),
           nickname: fromUser?.nickname,
           time: formatTime(msg?.time ?? msg?.createTime ?? msg?.sendTime),
           ts: Number(msg?.time ?? msg?.createTime ?? msg?.sendTime ?? 0),

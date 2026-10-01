@@ -44,6 +44,8 @@ const props = withDefaults(
     objectFit?: "cover" | "contain" | "fill" | "none" | "scale-down";
     /** 是否进行可视状态变化 */
     observeVisibility?: boolean;
+    /** 首次进入可视区并完成加载后停止观察（适合不再变化的列表图片） */
+    once?: boolean;
     /** 在不可视时是否释放图片以回收内存 */
     releaseOnHide?: boolean;
     /** 是否使用浏览器异步解码 */
@@ -58,6 +60,7 @@ const props = withDefaults(
   {
     defaultSrc: "/images/song.jpg?asset",
     observeVisibility: true,
+    once: false,
     releaseOnHide: false,
     decodeAsync: true,
     nativeLazy: true,
@@ -87,8 +90,9 @@ const lastShowState = ref<boolean | null>(null);
 const loadToken = ref<number>(0);
 const currentToken = ref<number>(0);
 
-// 是否可视
-const isCanLook = useElementVisibility(imgContainer);
+// 是否可视（once 模式在加载完成后手动停止观察）
+const visibility = useElementVisibility(imgContainer, { controls: true });
+const isCanLook = visibility.isVisible;
 
 // 图片加载完成
 const imageLoaded = (e: Event) => {
@@ -96,6 +100,8 @@ const imageLoaded = (e: Event) => {
   if (currentToken.value !== loadToken.value) return;
   if (isLoaded.value) return;
   isLoaded.value = true;
+  // 一次性观察：加载完成后不再跟踪可视状态
+  if (props.once) visibility.stop();
   emit("load", e);
 };
 

@@ -75,7 +75,7 @@
           class="account-item"
           @click="handleSwitchAccount(account.userId)"
         >
-          <n-avatar :src="account.avatarUrl" round size="small" />
+          <n-avatar :src="toHttpsUrl(account.avatarUrl)" round size="small" />
           <div class="account-name text-hidden">{{ account.name }}</div>
           <div class="delete-btn" @click.stop="handleRemoveAccount(account.userId)">
             <SvgIcon name="Close" />
@@ -103,6 +103,7 @@
 <script setup lang="ts">
 import { useDataStore, useSettingStore } from "@/stores";
 import { openKugouLogin, openQqLogin, openUserLogin } from "@/utils/modal";
+import { toHttpsUrl } from "@/utils/format";
 import { getLoginState } from "@/api/login";
 import {
   updateUserData,
@@ -170,11 +171,11 @@ const loggedIn = computed<boolean>(() =>
   isThirdPartyMode.value ? thirdPartyLoggedIn.value : dataStore.userLoginStatus,
 );
 
-/** 展示用头像 */
+/** 展示用头像（统一 https，兼容历史残留的 http 地址） */
 const displayAvatar = computed<string>(() => {
-  if (isKugouMode.value) return settingStore.kugouUser?.avatar || "";
-  if (isQqMode.value) return settingStore.qqUser?.avatar || "";
-  return dataStore.userData?.avatarUrl || "";
+  if (isKugouMode.value) return toHttpsUrl(settingStore.kugouUser?.avatar) || "";
+  if (isQqMode.value) return toHttpsUrl(settingStore.qqUser?.avatar) || "";
+  return toHttpsUrl(dataStore.userData?.avatarUrl) || "";
 });
 
 /** 展示用昵称 */
