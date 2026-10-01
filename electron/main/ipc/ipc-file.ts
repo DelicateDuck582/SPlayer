@@ -55,7 +55,10 @@ const PROTECTED_PATH_PREFIXES = [
 const isProtectedPath = (filePath: string): boolean => {
   const normalized = resolve(filePath).toLowerCase();
   return PROTECTED_PATH_PREFIXES.some(
-    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`) || normalized.startsWith(`${prefix}\\`),
+    (prefix) =>
+      normalized === prefix ||
+      normalized.startsWith(`${prefix}/`) ||
+      normalized.startsWith(`${prefix}\\`),
   );
 };
 

@@ -92,10 +92,7 @@ check("空主机名 = true", isPrivateHost("") === true);
 
 console.log("\n[4/4] 文件名与扩展名净化");
 const dangerousName = sanitizeFileName('a/b\\c:d*e?f"g<h>i|j');
-check(
-  "文件名不含路径分隔符",
-  !dangerousName.includes("/") && !dangerousName.includes("\\"),
-);
+check("文件名不含路径分隔符", !dangerousName.includes("/") && !dangerousName.includes("\\"));
 check("文件名不含非法字符", !/[\\/:*?"<>|]/.test(dangerousName));
 check("文件名结尾无点/空格", !/[.\s]+$/.test(dangerousName));
 check("超长文件名被截断", sanitizeFileName("x".repeat(300)).length <= 120);
