@@ -91,10 +91,12 @@ const countryListData = ref<SelectOption[]>([]);
 // 获取国家列表
 const getCountryListData = async () => {
   try {
+    // 国家列表为设备级数据（不随账户变化）
     const result = await getCacheData(countryList, {
       storage: "localStorage",
       key: "countryListData",
       time: 0,
+      device: true,
     });
     // 转换数据格式
     const transformedData = result.data.map((group: any) => ({

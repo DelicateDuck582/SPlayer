@@ -338,7 +338,10 @@ export const updateSpecialUserData = async (userData?: any) => {
 export const updateUserLikeSongs = async () => {
   const dataStore = useDataStore();
   if (!isLogin() || !dataStore.userData.userId) return;
+  // 记录账户代际：响应返回时账户已变化则丢弃
+  const gen = dataStore.accountGeneration;
   const result = await userLike(dataStore.userData.userId);
+  if (gen !== dataStore.accountGeneration) return;
   dataStore.setUserLikeData("songs", result.ids);
 };
 
@@ -347,8 +350,11 @@ export const updateUserLikePlaylist = async () => {
   const dataStore = useDataStore();
   const userId = dataStore.userData.userId;
   if (!isLogin() || !userId) return;
+  // 记录账户代际：响应返回时账户已变化则丢弃
+  const gen = dataStore.accountGeneration;
   if (dataStore.loginType === "uid") {
     const result = await userPlaylist(30, 0, userId);
+    if (gen !== dataStore.accountGeneration) return;
     await dataStore.setUserLikeData("playlists", formatCoverList(result.playlist));
     return;
   }
@@ -356,6 +362,7 @@ export const updateUserLikePlaylist = async () => {
   const { createdPlaylistCount, subPlaylistCount } = dataStore.userData;
   const number = (createdPlaylistCount || 0) + (subPlaylistCount || 0) || 50;
   const result = await userPlaylist(number, 0, userId);
+  if (gen !== dataStore.accountGeneration) return;
   await dataStore.setUserLikeData("playlists", formatCoverList(result.playlist));
 };
 
@@ -486,6 +493,8 @@ const setUserLikeDataLoop = async <T>(
   const dataStore = useDataStore();
   const userId = dataStore.userData.userId;
   if (!isLogin() || !userId) return;
+  // 记录账户代际：账户变化后分页结果一律丢弃
+  const gen = dataStore.accountGeneration;
 
   let offset = 0;
   const allData: T[] = [];
@@ -494,6 +503,8 @@ const setUserLikeDataLoop = async <T>(
   while (true) {
     try {
       const result = await apiFunction(limit, offset);
+      // 账户已切换 / 登出：停止拉取
+      if (gen !== dataStore.accountGeneration) return;
       // 根据不同 API 提取数据字段
       let data: any[] = [];
       if (key === "djs") {
@@ -523,7 +534,8 @@ const setUserLikeDataLoop = async <T>(
       break;
     }
   }
-  // 保存数据
+  // 保存数据（账户未变化时才写回）
+  if (gen !== dataStore.accountGeneration) return;
   if (key === "artists") {
     await dataStore.setUserLikeData(key, allData as ArtistType[]);
   } else if (key === "playlists" || key === "albums" || key === "mvs" || key === "djs") {
@@ -545,11 +557,15 @@ export const updateDailySongsData = async (refresh = false) => {
       musicStore.dailySongsData = { timestamp: null, list: [] };
       return;
     }
+    const dataStore = useDataStore();
+    // 记录账户代际：响应返回时账户已变化则丢弃
+    const gen = dataStore.accountGeneration;
     const { timestamp, list } = musicStore.dailySongsData;
     // 是否需要刷新
     if (!refresh && list.length > 0 && timestamp && !isBeforeSixAM(timestamp)) return;
     // 获取每日推荐
     const result = await dailyRecommend("songs");
+    if (gen !== dataStore.accountGeneration) return;
     const songsData = formatSongsList(result.data.dailySongs);
     // 更新数据
     musicStore.dailySongsData = { timestamp: Date.now(), list: songsData };

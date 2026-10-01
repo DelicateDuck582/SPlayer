@@ -95,10 +95,12 @@ const radioCatRecData = ref<RadioType[]>([]);
 // 获取播客分类
 const getRadioType = async () => {
   try {
+    // 播客分类为设备级数据（不随账户变化）
     const result = await getCacheData(radioCatList, {
       key: "radioTypeData",
       time: 0,
       storage: "localStorage",
+      device: true,
     });
     radioTypeData.value = result.categories.map(({ name, id }) => ({ name, id }));
   } catch (error) {

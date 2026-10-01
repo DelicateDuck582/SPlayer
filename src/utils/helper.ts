@@ -251,7 +251,8 @@ export const formatForGlobalShortcut = (shortcut: string): string => {
  * @returns 更新日志数组
  */
 export const getUpdateLog = async (): Promise<UpdateLogType[]> => {
-  const result = await getCacheData(updateLog, { key: "updateLog", time: 10 });
+  // 更新日志为设备级数据（不随账户变化）
+  const result = await getCacheData(updateLog, { key: "updateLog", time: 10, device: true });
   if (!result || isEmpty(result)) return [];
   const updateLogs = await Promise.all(
     result.map(async (v: any) => ({

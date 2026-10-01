@@ -56,6 +56,8 @@ interface ListState {
   }>;
   /** 已完成下载的歌曲列表（网页版浏览器下载） */
   downloadedSongs: DownloadedSongType[];
+  /** 账户代际计数（登出 / 切换账户时自增，用于丢弃旧账户的异步写回，不持久化） */
+  accountGeneration: number;
 }
 
 type UserDataKeys = keyof ListState["userLikeData"];
@@ -136,6 +138,8 @@ export const useDataStore = defineStore("data", {
     downloadingSongs: [],
     // 已完成下载的歌曲列表
     downloadedSongs: [],
+    // 账户代际计数
+    accountGeneration: 0,
   }),
   getters: {
     // 是否为喜欢歌曲
@@ -364,6 +368,8 @@ export const useDataStore = defineStore("data", {
      */
     async clearUserData() {
       try {
+        // 账户代际自增：作废旧账户仍在途的响应写回
+        this.accountGeneration += 1;
         this.userLoginStatus = false;
         this.loginType = "qr";
         this.userData = {
@@ -390,6 +396,8 @@ export const useDataStore = defineStore("data", {
      */
     async clearAccountData() {
       try {
+        // 账户代际自增：作废切号前在途的响应写回
+        this.accountGeneration += 1;
         // 重置"我喜欢的音乐"为初始结构并写回 musicDB
         this.likeSongsList = {
           detail: { id: 0, name: "我喜欢的音乐", cover: "/images/album.jpg?asset" },

@@ -218,7 +218,20 @@ const sortedRecData = computed(() => {
 });
 
 // 获取全部推荐（按当前音乐源与登录态取数；缓存键带源作用域）
-const getAllRecData = async () => {
+const getAllRecData = async (): Promise<void> => {
+  // in-flight 复用：onMounted 与 onActivated 首次挂载会同时触发，避免重复请求
+  if (recDataPromise) return recDataPromise;
+  recDataPromise = runGetAllRecData().finally(() => {
+    recDataPromise = null;
+  });
+  return recDataPromise;
+};
+
+/** 进行中的推荐请求（并发调用复用同一 Promise） */
+let recDataPromise: Promise<void> | null = null;
+
+/** 实际取数：各区块相互独立，并行请求、独立兜错 */
+const runGetAllRecData = async (): Promise<void> => {
   try {
     // 延时
     await sleep(300);
@@ -228,116 +241,136 @@ const getAllRecData = async () => {
     // 缓存作用域：音乐源 + 登录态（避免切源 / 登录后仍命中旧缓存，看起来像「默认推荐」）
     const scope = source + ":" + (logged ? "in" : "anon");
 
-    // 每日推荐（歌曲）：网易云读 store，其它源走各自平台
-    try {
-      if (source === "netease") {
-        sourceDailySongs.value = [];
-      } else {
-        sourceDailySongs.value = await getCacheData(homeDailySongs, {
-          key: "dailySongs:" + scope,
-          time: 10,
-        });
-      }
-    } catch (error) {
-      console.error("Error getting daily songs:", error);
-    }
-
-    // 歌单（专属 / 推荐）
-    try {
-      if (source === "netease") {
-        const playlistRes = await getCacheData(
-          personalized,
-          { key: "playlistRec:" + scope, time: 10 },
-          "playlist",
-          logged ? 21 : 20,
-        );
-        recData.value.playlist.list = formatCoverList(
-          (playlistRes.result ?? []).filter(
-            (pl: any) => !String(pl?.name ?? "").includes("私人雷达"),
-          ),
-        );
-      } else {
-        recData.value.playlist.list = await getCacheData(
-          homePersonalPlaylists,
-          { key: "playlistRec:" + scope, time: 10 },
-          logged ? 21 : 20,
-        );
-      }
-    } catch (error) {
-      console.error("Error getting playlist:", error);
-    }
-
-    // 雷达歌单（仅网易云：私人雷达，登录后为个性化内容）
-    try {
-      if (source === "netease") {
-        const radarRes = await getCacheData(radarPlaylist, { key: "radarRec:" + scope, time: 30 });
-        recData.value.radar.list = formatCoverList(radarRes);
-      } else {
-        recData.value.radar.list = [];
-      }
-    } catch (error) {
-      console.error("Error getting radar:", error);
-    }
-
-    // 歌手
-    try {
-      if (source === "netease") {
-        const artistRes = await getCacheData(
-          topArtists,
-          { key: "artistRec:" + scope, time: 10 },
-          6,
-        );
-        recData.value.artist.list = formatArtistsList(artistRes.artists);
-      } else {
-        recData.value.artist.list = await getCacheData(
-          homeArtists,
-          { key: "artistRec:" + scope, time: 30 },
-          6,
-        );
-      }
-    } catch (error) {
-      console.error("Error getting artist:", error);
-    }
-
-    // MV（仅网易云）
-    try {
-      if (source === "netease") {
-        const videoRes = await getCacheData(allMv, { key: "videoRec:" + scope, time: 10 });
-        recData.value.video.list = formatCoverList(videoRes.data);
-      } else {
-        recData.value.video.list = [];
-      }
-    } catch (error) {
-      console.error("Error getting video:", error);
-    }
-
-    // 播客（仅网易云）
-    try {
-      if (source === "netease") {
-        const radioRes = await getCacheData(radioRecommend, { key: "radioRec:" + scope, time: 10 });
-        recData.value.radio.list = formatCoverList(radioRes.djRadios);
-      } else {
-        recData.value.radio.list = [];
-      }
-    } catch (error) {
-      console.error("Error getting radio:", error);
-    }
-
-    // 新碟
-    try {
-      if (source === "netease") {
-        const albumRes = await getCacheData(newAlbumsAll, { key: "albumRec:" + scope, time: 10 });
-        recData.value.album.list = formatCoverList(albumRes.albums);
-      } else {
-        recData.value.album.list = await getCacheData(
-          homeAlbums,
-          { key: "albumRec:" + scope, time: 30 },
-          20,
-        );
-      }
-    } catch (error) {
-      console.error("Error getting album:", error);
-    }
+    // 各区块并行取数：单块失败不影响其它区块（块内独立 try/catch 兜底）
+    await Promise.allSettled([
+      // 每日推荐（歌曲）：网易云读 store，其它源走各自平台
+      (async () => {
+        try {
+          if (source === "netease") {
+            sourceDailySongs.value = [];
+          } else {
+            sourceDailySongs.value = await getCacheData(homeDailySongs, {
+              key: "dailySongs:" + scope,
+              time: 10,
+            });
+          }
+        } catch (error) {
+          console.error("Error getting daily songs:", error);
+        }
+      })(),
+      // 歌单（专属 / 推荐）
+      (async () => {
+        try {
+          if (source === "netease") {
+            const playlistRes = await getCacheData(
+              personalized,
+              { key: "playlistRec:" + scope, time: 10 },
+              "playlist",
+              logged ? 21 : 20,
+            );
+            recData.value.playlist.list = formatCoverList(
+              (playlistRes.result ?? []).filter(
+                (pl: any) => !String(pl?.name ?? "").includes("私人雷达"),
+              ),
+            );
+          } else {
+            recData.value.playlist.list = await getCacheData(
+              homePersonalPlaylists,
+              { key: "playlistRec:" + scope, time: 10 },
+              logged ? 21 : 20,
+            );
+          }
+        } catch (error) {
+          console.error("Error getting playlist:", error);
+        }
+      })(),
+      // 雷达歌单（仅网易云：私人雷达，登录后为个性化内容）
+      (async () => {
+        try {
+          if (source === "netease") {
+            const radarRes = await getCacheData(radarPlaylist, {
+              key: "radarRec:" + scope,
+              time: 30,
+            });
+            recData.value.radar.list = formatCoverList(radarRes);
+          } else {
+            recData.value.radar.list = [];
+          }
+        } catch (error) {
+          console.error("Error getting radar:", error);
+        }
+      })(),
+      // 歌手
+      (async () => {
+        try {
+          if (source === "netease") {
+            const artistRes = await getCacheData(
+              topArtists,
+              { key: "artistRec:" + scope, time: 10 },
+              6,
+            );
+            recData.value.artist.list = formatArtistsList(artistRes.artists);
+          } else {
+            recData.value.artist.list = await getCacheData(
+              homeArtists,
+              { key: "artistRec:" + scope, time: 30 },
+              6,
+            );
+          }
+        } catch (error) {
+          console.error("Error getting artist:", error);
+        }
+      })(),
+      // MV（仅网易云）
+      (async () => {
+        try {
+          if (source === "netease") {
+            const videoRes = await getCacheData(allMv, { key: "videoRec:" + scope, time: 10 });
+            recData.value.video.list = formatCoverList(videoRes.data);
+          } else {
+            recData.value.video.list = [];
+          }
+        } catch (error) {
+          console.error("Error getting video:", error);
+        }
+      })(),
+      // 播客（仅网易云）
+      (async () => {
+        try {
+          if (source === "netease") {
+            const radioRes = await getCacheData(radioRecommend, {
+              key: "radioRec:" + scope,
+              time: 10,
+            });
+            recData.value.radio.list = formatCoverList(radioRes.djRadios);
+          } else {
+            recData.value.radio.list = [];
+          }
+        } catch (error) {
+          console.error("Error getting radio:", error);
+        }
+      })(),
+      // 新碟
+      (async () => {
+        try {
+          if (source === "netease") {
+            const albumRes = await getCacheData(newAlbumsAll, {
+              key: "albumRec:" + scope,
+              time: 10,
+            });
+            recData.value.album.list = formatCoverList(albumRes.albums);
+          } else {
+            recData.value.album.list = await getCacheData(
+              homeAlbums,
+              { key: "albumRec:" + scope, time: 30 },
+              20,
+            );
+          }
+        } catch (error) {
+          console.error("Error getting album:", error);
+        }
+      })(),
+    ]);
   } catch (error) {
     window.$message.error("个性化推荐获取出错");
     console.error("Error getting personalized data:", error);
@@ -366,6 +399,8 @@ watch(accountScopeKey, () => {
   reloadRecData();
 });
 
+// 激活时重取；KeepAlive 由设置项控制（关闭时 onActivated 不触发，固保留 onMounted）
+// 首次挂载两个钩子同时触发，重复调用由 getAllRecData 的 in-flight 复用合并
 onActivated(getAllRecData);
 
 onMounted(() => {

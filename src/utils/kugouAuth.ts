@@ -7,7 +7,7 @@
  * - 未登录时所有酷狗接口按匿名调用（部分接口会返回 152 / 20028，见 doc/KUGOU-API.md）。
  */
 import { useSettingStore } from "@/stores";
-import { clearCacheData } from "@/utils/cache";
+import { clearCacheDataBySource } from "@/utils/cache";
 import {
   extractKugouError,
   kugouCaptchaSent,
@@ -187,8 +187,8 @@ export const loginKugouByCookie = async (
 /** 退出酷狗登录（清理 Cookie 与用户信息，不影响网易云登录态） */
 export const kugouLogout = (): void => {
   const settingStore = useSettingStore();
-  // 丢弃该账户的接口缓存（登出后不再复用，避免换号看到上一账号内容）
-  clearCacheData(`kugou:${settingStore.kugouUser?.userid || "anon"}`);
+  // 按源清理接口缓存（用户信息未拉取时也不会退化为只清 anon 桶）
+  clearCacheDataBySource("kugou");
   settingStore.kugouCookie = "";
   settingStore.kugouUser = null;
   try {

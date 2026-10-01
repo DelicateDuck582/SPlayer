@@ -213,8 +213,8 @@ const loadPlaylistData = async (id: number, forceRefresh: boolean = false) => {
       await syncSongList(serverIds, id);
     }
 
-    // 更新缓存
-    if (currentRequestId.value === id && detailData.value) {
+    // 更新缓存（仅当详情确为本次请求的歌单时写入，避免串号写缓存）
+    if (currentRequestId.value === id && detailData.value?.id === id) {
       dataStore.setLikeSongsList(detailData.value, listData.value);
     }
   } catch (error) {
@@ -403,12 +403,16 @@ onDeactivated(() => {
 // 账户作用域（音乐源 + 账户 id）：变化即代表切换账号 / 登录态变化
 const accountScopeKey = computed<string>(() => accountScope());
 
-// 账户变化时丢弃上一账户的展示内容（页面可见时立即重取）
-watch(accountScopeKey, () => {
+// 账户或歌单变化：作废在途请求并丢弃上一账户的展示内容（页面可见时立即重取）
+watch([accountScopeKey, playlistId], () => {
+  // 切号前在途请求的写回资格作废（响应返回时 requestId 已不匹配）
+  currentRequestId.value = 0;
   setDetailData(null);
   setListData([]);
-  // 不可见时由 onActivated 的检查逻辑重取
-  if (isVisible.value) loadPlaylistData(playlistId.value);
+  // 歌单未就绪（为 0）或已展示同一歌单时不重复取；不可见时由 onActivated 的检查逻辑重取
+  if (playlistId.value && detailData.value?.id !== playlistId.value && isVisible.value) {
+    loadPlaylistData(playlistId.value);
+  }
 });
 
 onMounted(async () => {
