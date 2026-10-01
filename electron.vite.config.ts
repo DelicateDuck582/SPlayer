@@ -129,6 +129,13 @@ export default defineConfig(({ mode }) => {
                 ) {
                   return "vendor-ui";
                 }
+                // 歌词解析包体积小且首屏需要，单独拆出避免拖拽 core+pixi 进入首屏预载
+                if (
+                  id.includes("@applemusic-like-lyrics/lyric") ||
+                  id.includes("@applemusic-like-lyrics/ttml")
+                ) {
+                  return "vendor-amll-lyric";
+                }
                 if (id.includes("@applemusic-like-lyrics")) return "vendor-amll";
                 if (id.includes("@pixi")) return "vendor-amll";
                 if (id.includes("@vueuse")) return "vendor-vueuse";
