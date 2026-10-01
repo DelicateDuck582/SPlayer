@@ -171,6 +171,58 @@ interface StatusState {
   songCommentCount: number;
 }
 
+// 播放进度高频更新，持久化写盘按 5 秒节流合并，退出/隐藏时立即落盘
+const PERSIST_KEY = "status-store";
+const PERSIST_THROTTLE = 5000;
+let pendingPersist: string | null = null;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+// 立即把待写数据落盘
+const flushPersist = () => {
+  if (pendingPersist === null) return;
+  try {
+    localStorage.setItem(PERSIST_KEY, pendingPersist);
+  } catch {
+    // 存储不可用（隐私模式等）时忽略
+  }
+  pendingPersist = null;
+  if (persistTimer !== null) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+};
+const throttledStorage: Storage = {
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (_key, value) => {
+    pendingPersist = value;
+    if (persistTimer === null) {
+      persistTimer = setTimeout(() => {
+        persistTimer = null;
+        flushPersist();
+      }, PERSIST_THROTTLE);
+    }
+  },
+  removeItem: (key) => {
+    pendingPersist = null;
+    if (persistTimer !== null) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
+    localStorage.removeItem(key);
+  },
+  clear: () => localStorage.clear(),
+  // 仅补齐 Storage 类型，持久化实际只用 getItem/setItem
+  get length() {
+    return localStorage.length;
+  },
+  key: (index) => localStorage.key(index),
+};
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", flushPersist);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushPersist();
+  });
+}
+
 export const useStatusStore = defineStore("status", {
   state: (): StatusState => ({
     menuCollapsed: false,
@@ -440,8 +492,8 @@ export const useStatusStore = defineStore("status", {
   },
   // 持久化
   persist: {
-    key: "status-store",
-    storage: localStorage,
+    key: PERSIST_KEY,
+    storage: throttledStorage,
     pick: [
       "menuCollapsed",
       "currentTime",
