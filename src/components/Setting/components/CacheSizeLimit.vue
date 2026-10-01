@@ -2,8 +2,11 @@
   <n-card class="set-item">
     <div class="label">
       <n-text class="name">{{ item?.label || "缓存大小上限" }}</n-text>
-      <n-text class="tip" :depth="3" v-if="item?.description" v-html="item.description" />
-      <n-text class="tip" :depth="3" v-else>
+      <!-- v-html 放在子元素上，避免破坏 n-text 组件自身内容 -->
+      <n-text v-if="item?.description" class="tip" :depth="3">
+        <span v-html="item.description" />
+      </n-text>
+      <n-text v-else class="tip" :depth="3">
         达到上限后将清理最旧的缓存，可以是小数，最低 2GB
       </n-text>
     </div>

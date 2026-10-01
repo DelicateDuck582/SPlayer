@@ -43,7 +43,8 @@ const checkTextWidth = () => {
   // 触发一次重绘，解决某些情况下宽度计算不准确的问题
   if (scrollWrapperRef.value) {
     scrollWrapperRef.value.style.display = "none";
-    scrollWrapperRef.value.offsetHeight;
+    // 读取 offsetHeight 强制回流
+    void scrollWrapperRef.value.offsetHeight;
     scrollWrapperRef.value.style.display = "";
   }
 };

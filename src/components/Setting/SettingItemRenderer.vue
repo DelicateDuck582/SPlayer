@@ -16,14 +16,8 @@
       <div class="label">
         <n-text class="name">
           {{ resolve(item.label) }}
-          <n-tag
-            v-if="item.tags"
-            v-for="tag in item.tags"
-            :key="tag.text"
-            :type="tag.type"
-            size="small"
-            round
-          >
+          <!-- item.tags 为空时 v-for 渲染为空，无需 v-if -->
+          <n-tag v-for="tag in item.tags" :key="tag.text" :type="tag.type" size="small" round>
             {{ tag.text }}
           </n-tag>
         </n-text>

@@ -29,6 +29,11 @@ export default [
     ],
   },
   ...compat.extends("eslint:recommended", "plugin:@typescript-eslint/recommended"),
+  // Vue 单文件组件基础规则集（含 vue-eslint-parser，<script lang="ts"> 由下方 parserOptions 指定 TS 解析）
+  // 规则仅作用于 .vue，避免 vue 插件规则误伤 .ts 文件
+  ...vue.configs["flat/essential"].map((config) =>
+    config.rules ? { ...config, files: ["**/*.vue"] } : config,
+  ),
   {
     plugins: {
       "@typescript-eslint": typescriptEslint,
@@ -60,6 +65,13 @@ export default [
           argsIgnorePattern: "^_",
         },
       ],
+    },
+  },
+  {
+    // .vue 内的 TS 类型引用由 vue-tsc 校验；no-undef 无法识别类型名（与 .ts 的处理保持一致，统一关闭）
+    files: ["**/*.vue"],
+    rules: {
+      "no-undef": "off",
     },
   },
   {

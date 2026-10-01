@@ -148,7 +148,7 @@ const filterComments = (comments: CommentType[] | null) => {
       try {
         const regex = new RegExp(regexStr);
         return regex.test(item.content);
-      } catch (e) {
+      } catch {
         return false;
       }
     });

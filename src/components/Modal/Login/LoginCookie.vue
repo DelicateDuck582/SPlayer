@@ -60,7 +60,9 @@ const login = async () => {
     if (cookie.value.includes("%")) {
       decodedCookie = decodeURIComponent(cookie.value);
     }
-  } catch {}
+  } catch {
+    // 解码失败时沿用原值
+  }
   // 检查是否包含 MUSIC_U
   const hasMusicU = cookie.value.includes("MUSIC_U") || decodedCookie.includes("MUSIC_U");
   if (!hasMusicU) {

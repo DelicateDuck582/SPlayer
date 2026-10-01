@@ -79,7 +79,12 @@ watch(
   ],
   ([enabled, bgType, playing]) => {
     if (enabled && bgType === "animation") {
-      playing ? resumeRaf() : pauseRaf();
+      // 播放中开启动画，否则暂停
+      if (playing) {
+        resumeRaf();
+      } else {
+        pauseRaf();
+      }
     } else {
       pauseRaf();
       lowFreqVolume.value = 1.0;

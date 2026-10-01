@@ -267,7 +267,7 @@ const jumpToRadio = debounce(
         radioId = res.program?.radio?.id;
         // 回写避免重复请求
         if (radioId && song.dj) song.dj.radioId = radioId;
-      } catch (_e) {
+      } catch {
         // ignore
       }
     }

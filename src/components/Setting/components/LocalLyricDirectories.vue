@@ -3,8 +3,11 @@
     <n-flex justify="space-between" align="center" style="width: 100%">
       <div class="label">
         <n-text class="name">{{ item?.label || "本地歌词覆盖在线歌词" }}</n-text>
-        <n-text class="tip" :depth="3" v-if="item?.description" v-html="item.description" />
-        <n-text class="tip" :depth="3" v-else>
+        <!-- v-html 放在子元素上，避免破坏 n-text 组件自身内容 -->
+        <n-text v-if="item?.description" class="tip" :depth="3">
+          <span v-html="item.description" />
+        </n-text>
+        <n-text v-else class="tip" :depth="3">
           可在这些文件夹及其子文件夹内覆盖在线歌曲的歌词 <br />
           将歌词文件命名为 `歌曲ID.后缀名` 或者 `任意前缀.歌曲ID.后缀名` 即可 <br />
           支持 .lrc 和 .ttml 格式 <br />

@@ -187,11 +187,6 @@ const treeData = computed<TreeOption[]>(() => {
 
   const finalTree = mergeAndConvert(rootNodes);
 
-  // 默认选中第一个节点
-  if (!chooseFolder.value && finalTree.length > 0) {
-    chooseFolder.value = finalTree[0].key as string;
-  }
-
   return finalTree;
 });
 
@@ -267,6 +262,10 @@ watch(
 watch(
   treeData,
   (val) => {
+    // 默认选中第一个节点（副作用从计算属性移出）
+    if (!chooseFolder.value && val.length > 0) {
+      chooseFolder.value = val[0].key as string;
+    }
     if (isActive.value) {
       displayTreeData.value = val;
     }

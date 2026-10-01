@@ -3,8 +3,11 @@
     <n-flex justify="space-between">
       <div class="label">
         <n-text class="name">{{ item?.label || "服务器列表" }}</n-text>
-        <n-text class="tip" :depth="3" v-if="item?.description" v-html="item.description" />
-        <n-text class="tip" :depth="3" v-else>在此添加和管理您的流媒体服务器</n-text>
+        <!-- v-html 放在子元素上，避免破坏 n-text 组件自身内容 -->
+        <n-text v-if="item?.description" class="tip" :depth="3">
+          <span v-html="item.description" />
+        </n-text>
+        <n-text v-else class="tip" :depth="3">在此添加和管理您的流媒体服务器</n-text>
       </div>
       <n-button strong secondary @click="handleAdd">
         <template #icon>

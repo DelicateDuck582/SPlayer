@@ -486,7 +486,7 @@ const handleSheetExpand = async ({ name, expanded }: { name: number; expanded: b
     sheet.images = rawList
       .map((item: any) => (typeof item === "string" ? item : item.pageImageUrl || item.url))
       .filter(Boolean);
-  } catch (e) {
+  } catch {
     window.$message.error("加载乐谱失败");
   } finally {
     sheetLoading.value[sheet.id] = false;

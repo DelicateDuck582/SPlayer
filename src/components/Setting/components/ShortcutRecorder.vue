@@ -153,10 +153,8 @@ const onBlur = async () => {
       if (failedShortcuts) {
         // 更新所有快捷键的注册状态
         for (const key in shortcutStore.shortcutList) {
-          // @ts-ignore
           const item = shortcutStore.shortcutList[key];
           // 如果该快捷键在失败列表中，标记为已注册（即冲突），否则为未注册（成功）
-          // @ts-ignore
           shortcutStore.shortcutList[key].isRegistered =
             item.globalShortcut && failedShortcuts.includes(item.globalShortcut);
         }

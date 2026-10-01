@@ -175,7 +175,7 @@ const addToLocalPlaylist = debounce(
       } else {
         window.$message.error("添加失败，歌单不存在");
       }
-    } catch (error) {
+    } catch {
       if (loadingMsg.value) loadingMsg.value.destroy();
       window.$message.error("添加失败，请重试");
     }

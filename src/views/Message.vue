@@ -556,7 +556,7 @@ const sendMessage = async () => {
       sendContent.value = content;
       window.$message?.warning(result?.message ?? result?.msg ?? "发送失败，请稍后再试");
     }
-  } catch (error) {
+  } catch {
     draft.pending = false;
     draft.failed = true;
     sendContent.value = content;

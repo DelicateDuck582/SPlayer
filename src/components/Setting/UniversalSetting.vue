@@ -10,8 +10,8 @@
       >
         <n-h3 prefix="bar">
           {{ node.data.title }}
+          <!-- tags 为空时 v-for 渲染为空，无需 v-if -->
           <n-tag
-            v-if="node.data.tags"
             v-for="tag in node.data.tags"
             :key="tag.text"
             :type="tag.type || 'default'"
