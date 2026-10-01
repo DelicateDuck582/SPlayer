@@ -233,7 +233,7 @@ function findHeaderCutoff(
 ): number {
   let lastValidMetadataIndex = startIndex - 1;
 
-  console.groupCollapsed(`[LyricStripper] ⬇️ 开始头部扫描 (Start: ${startIndex}, Limit: ${limit})`);
+  debugLog(`[LyricStripper] ⬇️ 开始头部扫描 (Start: ${startIndex}, Limit: ${limit})`);
 
   for (let i = startIndex; i < limit; i++) {
     if (i >= lines.length) break;
@@ -261,7 +261,6 @@ function findHeaderCutoff(
       lastValidMetadataIndex = i;
     }
   }
-  console.groupEnd();
 
   return lastValidMetadataIndex + 1;
 }
@@ -282,7 +281,7 @@ function findFooterCutoff(
   const scanEnd = Math.max(startIndex, lines.length - limit);
   let firstValidFooterIndex = lines.length;
 
-  console.groupCollapsed(`[LyricStripper] ⬆️ 开始尾部扫描 (Limit: ${limit})`);
+  debugLog(`[LyricStripper] ⬆️ 开始尾部扫描 (Limit: ${limit})`);
 
   for (let i = lines.length - 1; i >= scanEnd; i--) {
     const text = getLineText(lines[i]);
@@ -308,7 +307,6 @@ function findFooterCutoff(
       firstValidFooterIndex = i;
     }
   }
-  console.groupEnd();
 
   return firstValidFooterIndex;
 }

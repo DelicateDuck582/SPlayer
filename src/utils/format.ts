@@ -5,6 +5,18 @@ import { handleSongQuality } from "./helper";
 import { msToTime } from "./time";
 
 /**
+ * 图片地址统一为 https
+ *
+ * 上游（网易云 / 酷狗 / QQ）部分封面、头像字段仍是 `http://`，
+ * 在 https 页面加载会触发 Mixed Content（浏览器控制台大量告警）。
+ * 相关 CDN（p1/p3/p4.music.126.net、imge.kugou.com、y.gtimg.cn 等）均支持 https。
+ * @param url 原始图片地址
+ * @returns https 地址（非字符串时原样返回）
+ */
+export const toHttpsUrl = (url?: string): string | undefined =>
+  typeof url === "string" ? url.replace(/^http:\/\//, "https://") : url;
+
+/**
  * 格式化评论数量
  * @param count 评论数量
  * @returns 格式化后的评论数量
@@ -62,7 +74,7 @@ export const formatSongsList = (data: any[]): SongType[] => {
       return artistArr.map((ar) => ({
         id: ar?.id,
         name: typeof ar === "string" ? ar : ar.name,
-        cover: ar?.img1v1Url || ar?.picUrl,
+        cover: toHttpsUrl(ar?.img1v1Url || ar?.picUrl),
         alias: ar?.alias,
       }));
     };
@@ -76,7 +88,7 @@ export const formatSongsList = (data: any[]): SongType[] => {
           : {
               id: (item.album || item.al)?.id,
               name: (item.album || item.al)?.name,
-              cover: (item.album || item.al)?.picUrl,
+              cover: toHttpsUrl((item.album || item.al)?.picUrl),
             },
       alia: isArray(item.alia || item.alias || item.transNames || item.tns)
         ? item.alia?.[0] || item.alias?.[0] || item.transNames?.[0] || item.tns?.[0]
@@ -130,7 +142,7 @@ export const formatCoverList = (data: any[]): CoverType[] => {
       return artistData.map((artist) => ({
         id: artist?.id,
         name: artist?.name,
-        cover: artist?.img1v1Url || artist?.picUrl,
+        cover: toHttpsUrl(artist?.img1v1Url || artist?.picUrl),
         alias: artist?.alias,
       }));
     };
@@ -143,7 +155,7 @@ export const formatCoverList = (data: any[]): CoverType[] => {
       creator: {
         id: creator?.userId || item.dj?.userId || 0,
         name: creator?.nickname || creator?.name || creator?.userName || item.dj?.nickname || "",
-        avatarUrl: creator?.avatarUrl || item.dj?.avatarUrl || "",
+        avatarUrl: toHttpsUrl(creator?.avatarUrl || item.dj?.avatarUrl || ""),
       },
       artists: artists(),
       count: item.trackCount ?? item.size ?? item.programCount ?? 0,
@@ -209,7 +221,7 @@ export const formatCommentList = (data: any[]): CommentType[] => {
             user: {
               id: item.beReplied[0]?.user.userId,
               name: item.beReplied[0]?.user.nickname,
-              avatarUrl: item.beReplied[0]?.user.avatarUrl,
+              avatarUrl: toHttpsUrl(item.beReplied[0]?.user.avatarUrl),
             },
           }
         : undefined,
@@ -219,7 +231,7 @@ export const formatCommentList = (data: any[]): CommentType[] => {
     user: {
       id: item.user.userId,
       name: item.user.nickname,
-      avatarUrl: item.user.avatarUrl,
+      avatarUrl: toHttpsUrl(item.user.avatarUrl),
       vipType: item.user.vipType,
       vipLevel: item.user.vipRights?.redVipLevel,
       vipIconUrl: item.user.vipRights?.associator?.iconUrl,
@@ -257,14 +269,16 @@ export const formatCategoryList = (data: any[]): CatType[] => {
  */
 const getCoverUrl = (item: any): CoverDataType => {
   const cover =
-    item.cover ||
-    item.picUrl ||
-    item.coverUrl ||
-    item.coverImgUrl ||
-    item.imgurl ||
-    item.img1v1Url ||
-    (item.album || item.al)?.picUrl ||
-    item.al?.xInfo?.picUrl;
+    toHttpsUrl(
+      item.cover ||
+        item.picUrl ||
+        item.coverUrl ||
+        item.coverImgUrl ||
+        item.imgurl ||
+        item.img1v1Url ||
+        (item.album || item.al)?.picUrl ||
+        item.al?.xInfo?.picUrl,
+    ) || "";
   const coverSize = {
     s: getCoverSizeUrl(cover, 100),
     m: getCoverSizeUrl(cover, 300),
@@ -288,7 +302,7 @@ const getCoverSizeUrl = (url: string, size: number | null = null) => {
         ? `?param=${size}y${size}`
         : `?param=${size}`
       : "";
-    const imageUrl = url?.replace(/^http:/, "https:");
+    const imageUrl = toHttpsUrl(url) ?? "";
     if (imageUrl.endsWith(".jpg")) {
       return imageUrl + sizeUrl;
     }
