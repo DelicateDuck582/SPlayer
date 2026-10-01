@@ -38,6 +38,27 @@ export const isLogin = (): 0 | 1 | 2 => {
   return getCookie("MUSIC_U") ? 1 : 0;
 };
 
+/**
+ * 清理账户级个性化缓存（切换账号 / 退出登录 / 重新登录时调用）
+ */
+export const clearAccountCache = async (): Promise<void> => {
+  const dataStore = useDataStore();
+  const musicStore = useMusicStore();
+  // 每日推荐与私人FM置空（相关页面/更新函数检测到空数据后会自动重新拉取）
+  musicStore.dailySongsData = { timestamp: null, list: [] };
+  musicStore.personalFM = { playIndex: 0, list: [] };
+  // 我喜欢的音乐、云盘歌单
+  await dataStore.clearAccountData();
+  // 清理网络缓存，避免不同账号命中相同接口的旧缓存响应
+  if (isElectron) {
+    try {
+      await window.electron.ipcRenderer.invoke("clear-session-cache");
+    } catch (error) {
+      console.error("❌ 清理网络缓存失败:", error);
+    }
+  }
+};
+
 // 退出登录
 export const toLogout = async (clearUserList = false): Promise<void> => {
   const dataStore = useDataStore();
@@ -60,6 +81,8 @@ export const toLogout = async (clearUserList = false): Promise<void> => {
   // 清除用户数据
   // 注意：如果是切换账号，不应该清除 userList
   await dataStore.clearUserData();
+  // 清理账户级个性化缓存与网络缓存
+  await clearAccountCache();
   if (clearUserList) {
     dataStore.userList = [];
   }
@@ -162,6 +185,8 @@ export const switchAccount = async (userId: number) => {
   removeCookie("MUSIC_U");
   removeCookie("__csrf");
   await dataStore.clearUserData();
+  // 清理账户级个性化缓存与网络缓存
+  await clearAccountCache();
   // 设置新 Cookies
   Object.entries(account.cookies).forEach(([key, value]) => {
     // 直接写入 document.cookie 以保持原始值 (类似 cookie.ts 的 setCookies)

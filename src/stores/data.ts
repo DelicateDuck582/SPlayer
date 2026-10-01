@@ -385,6 +385,25 @@ export const useDataStore = defineStore("data", {
       }
     },
     /**
+     * 清除账户级收藏数据（切换账号 / 退出登录时调用）
+     * 仅清理账号绑定数据，保留播放历史、搜索历史等设备级数据
+     */
+    async clearAccountData() {
+      try {
+        // 重置"我喜欢的音乐"为初始结构并写回 musicDB
+        this.likeSongsList = {
+          detail: { id: 0, name: "我喜欢的音乐", cover: "/images/album.jpg?asset" },
+          data: [],
+        };
+        await musicDB.setItem("likeSongsList", cloneDeep(toRaw(this.likeSongsList)));
+        // 清空云盘歌单（setCloudPlayList 会同步写回 musicDB）
+        await this.setCloudPlayList([]);
+      } catch (error) {
+        console.error("Error clearing account data:", error);
+        throw error;
+      }
+    },
+    /**
      * 删除数据库
      * @param name 数据库名称
      */

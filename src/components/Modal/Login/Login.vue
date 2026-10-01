@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 import { setCookies } from "@/utils/cookie";
-import { updateSpecialUserData, updateUserData } from "@/utils/auth";
+import { clearAccountCache, updateSpecialUserData, updateUserData } from "@/utils/auth";
 import { useDataStore } from "@/stores";
 import { LoginType } from "@/types/main";
 import LoginUID from "./LoginUID.vue";
@@ -75,6 +75,8 @@ const saveLogin = async (loginData: any, type: LoginType = "qr") => {
     if (type !== "uid") setCookies(loginData.cookie);
     // 保存登录时间
     localStorage.setItem("lastLoginTime", Date.now().toString());
+    // 清理上一账号的个性化缓存（覆盖"添加新账号"场景）
+    await clearAccountCache();
     // 获取用户信息
     if (type !== "uid") {
       await updateUserData();

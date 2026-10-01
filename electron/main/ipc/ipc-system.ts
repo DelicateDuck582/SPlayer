@@ -101,6 +101,18 @@ const initSystemIpc = (): void => {
     }
   });
 
+  // 清理网络缓存（切换账号后刷新个性化数据）
+  ipcMain.handle("clear-session-cache", async () => {
+    try {
+      await session.defaultSession.clearCache();
+      ipcLog.info("✅ Session cache cleared");
+      return true;
+    } catch (error) {
+      ipcLog.error(`❌ Failed to clear session cache: ${error}`);
+      return false;
+    }
+  });
+
   // 重置全部设置
   ipcMain.on("reset-setting", () => {
     store.reset();
