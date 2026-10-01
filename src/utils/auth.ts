@@ -1,4 +1,5 @@
 import { getCookie, removeCookie, setCookies } from "./cookie";
+import { clearCacheData } from "./cache";
 import type { CoverType, ArtistType, SongType } from "@/types/main";
 import {
   userAccount,
@@ -47,6 +48,11 @@ export const clearAccountCache = async (): Promise<void> => {
   // 每日推荐与私人FM置空（相关页面/更新函数检测到空数据后会自动重新拉取）
   musicStore.dailySongsData = { timestamp: null, list: [] };
   musicStore.personalFM = { playIndex: 0, list: [] };
+  // 账户级接口缓存全部失效
+  // 说明：缓存键已带账户作用域（见 utils/cache.ts），此处再整体清理是为了
+  // 「登出 / 切换账号后不残留任何账户的个性化响应」——清理时机上 userData 可能已被
+  // clearUserData 重置，无法可靠推断「上一账户」，因此统一清理全部账户键。
+  clearCacheData();
   // 我喜欢的音乐、云盘歌单
   await dataStore.clearAccountData();
   // 清理网络缓存，避免不同账号命中相同接口的旧缓存响应
@@ -62,7 +68,12 @@ export const clearAccountCache = async (): Promise<void> => {
 // 退出登录
 export const toLogout = async (clearUserList = false): Promise<void> => {
   const dataStore = useDataStore();
-  await logout();
+  // 登出接口失败不应阻断本地清理（否则退出登录只做了一半，账号数据继续残留）
+  try {
+    await logout();
+  } catch (error) {
+    console.warn("退出登录接口失败，继续本地清理：", error);
+  }
   // 去除 cookie（含 localStorage 中的副本，见 utils/cookie.ts）
   removeCookie("MUSIC_U");
   removeCookie("__csrf");

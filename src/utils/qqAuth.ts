@@ -8,6 +8,7 @@
  * - 未登录时接口按匿名调用：搜索 / 歌词 / 榜单可用，**播放直链与用户数据需要登录态**。
  */
 import { useSettingStore } from "@/stores";
+import { clearCacheData } from "@/utils/cache";
 import {
   extractQqError,
   qqCheckLoginQr,
@@ -203,6 +204,8 @@ export const checkQqQrLogin = async (
 /** 退出 QQ 音乐登录（清理 Cookie、用户信息与登录时间） */
 export const qqLogout = (): void => {
   const settingStore = useSettingStore();
+  // 丢弃该账户的接口缓存（登出后不再复用，避免换号看到上一账号内容）
+  clearCacheData(`qq:${settingStore.qqUser?.uin || "anon"}`);
   settingStore.qqCookie = "";
   settingStore.qqUser = null;
   try {

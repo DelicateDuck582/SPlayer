@@ -57,6 +57,7 @@ import { useListDetail } from "@/composables/List/useListDetail";
 import { useListSearch } from "@/composables/List/useListSearch";
 import { useListScroll } from "@/composables/List/useListScroll";
 import { useListActions } from "@/composables/List/useListActions";
+import { accountScope } from "@/utils/cache";
 import { debugLog } from "@/utils/log";
 
 const dataStore = useDataStore();
@@ -64,6 +65,8 @@ const statusStore = useStatusStore();
 
 // 是否激活
 const isActivated = ref<boolean>(false);
+// 页面是否可见（KeepAlive 缓存时用于判断是否需要立即重取）
+const isVisible = ref<boolean>(false);
 
 const {
   detailData,
@@ -317,6 +320,11 @@ const syncSongList = async (serverIds: number[], requestId: number) => {
  * 通过比较 userLikeData.songs 的数量与缓存数量来判断
  */
 const checkNeedsUpdate = (): boolean => {
+  // 展示中的歌单与当前账户的歌单不一致（切换账号后残留）→ 需要重新加载
+  if (playlistId.value && detailData.value?.id !== playlistId.value) {
+    debugLog("🔄 我喜欢的音乐缓存需要更新: playlist changed");
+    return true;
+  }
   const likedCount = dataStore.userLikeData.songs.length;
   const cachedCount = dataStore.likeSongsList.data.length;
   if (likedCount !== cachedCount) {
@@ -377,6 +385,7 @@ const handleReorder = async (fromIndex: number, toIndex: number) => {
 };
 
 onActivated(async () => {
+  isVisible.value = true;
   if (!isActivated.value) {
     isActivated.value = true;
   } else {
@@ -385,6 +394,21 @@ onActivated(async () => {
       await loadPlaylistData(playlistId.value, false);
     }
   }
+});
+
+onDeactivated(() => {
+  isVisible.value = false;
+});
+
+// 账户作用域（音乐源 + 账户 id）：变化即代表切换账号 / 登录态变化
+const accountScopeKey = computed<string>(() => accountScope());
+
+// 账户变化时丢弃上一账户的展示内容（页面可见时立即重取）
+watch(accountScopeKey, () => {
+  setDetailData(null);
+  setListData([]);
+  // 不可见时由 onActivated 的检查逻辑重取
+  if (isVisible.value) loadPlaylistData(playlistId.value);
 });
 
 onMounted(async () => {

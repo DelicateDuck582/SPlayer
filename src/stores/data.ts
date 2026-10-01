@@ -398,6 +398,13 @@ export const useDataStore = defineStore("data", {
         await musicDB.setItem("likeSongsList", cloneDeep(toRaw(this.likeSongsList)));
         // 清空云盘歌单（setCloudPlayList 会同步写回 musicDB）
         await this.setCloudPlayList([]);
+        // 清空账户收藏数据（歌单 / 歌手 / 专辑 / MV / 播客 / 歌曲）
+        // 避免新账号数据取回前仍展示上一账号内容（updateUserData 会重新填充）
+        await Promise.all(
+          Object.keys(this.userLikeData).map((key) =>
+            this.setUserLikeData(key as UserDataKeys, []),
+          ),
+        );
       } catch (error) {
         console.error("Error clearing account data:", error);
         throw error;

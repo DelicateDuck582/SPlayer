@@ -89,7 +89,7 @@ import {
   sourceLabel,
   type HomeSectionKey,
 } from "@/api/recommend";
-import { getCacheData } from "@/utils/cache";
+import { accountScope, getCacheData } from "@/utils/cache";
 import { formatArtistsList, formatCoverList } from "@/utils/format";
 import { sleep } from "@/utils/helper";
 import { isLogin } from "@/utils/auth";
@@ -343,6 +343,28 @@ const getAllRecData = async () => {
     console.error("Error getting personalized data:", error);
   }
 };
+
+/** 账户作用域（音乐源 + 账户 id）：变化即代表切换账号 / 登录态变化 */
+const accountScopeKey = computed<string>(() => accountScope());
+
+/** 清空推荐列表，避免切换账号后残留上一账户内容（组件被 KeepAlive 缓存） */
+const resetRecData = () => {
+  recData.value.playlist.list = [];
+  recData.value.radar.list = [];
+  recData.value.artist.list = [];
+  recData.value.video.list = [];
+  recData.value.radio.list = [];
+  recData.value.album.list = [];
+  sourceDailySongs.value = [];
+};
+
+// 账户变化后重取（合并「登出 → 登录」等连续变化，避免重复请求）
+const reloadRecData = useDebounceFn(getAllRecData, 400);
+
+watch(accountScopeKey, () => {
+  resetRecData();
+  reloadRecData();
+});
 
 onActivated(getAllRecData);
 
