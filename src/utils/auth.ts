@@ -17,6 +17,7 @@ import { formatCoverList, formatArtistsList, formatSongsList, toHttpsUrl } from 
 import { useDataStore, useMusicStore, useLocalStore } from "@/stores";
 import { logout, refreshLogin } from "@/api/login";
 import { debounce, isFunction, type DebouncedFunc } from "lodash-es";
+import type { AxiosError } from "axios";
 import { isBeforeSixAM } from "./time";
 import { dailyRecommend } from "@/api/rec";
 import { isElectron } from "./env";
@@ -389,6 +390,12 @@ export const updateUserLikeMvs = async () => {
   await setUserLikeDataLoop(userMv, formatCoverList, "mvs");
 };
 
+/** 提取上游可读错误信息（如「操作过于频繁，请稍后再试」），无则返回空串 */
+const getUpstreamErrorMessage = (error: unknown): string => {
+  const message = (error as AxiosError<{ message?: string }> | undefined)?.response?.data?.message;
+  return typeof message === "string" ? message : "";
+};
+
 // 喜欢歌曲
 export const toLikeSong: DebouncedFunc<(song: SongType, like: boolean) => Promise<void>> = debounce(
   async (song: SongType, like: boolean): Promise<void> => {
@@ -424,7 +431,9 @@ export const toLikeSong: DebouncedFunc<(song: SongType, like: boolean) => Promis
       // ipc
       if (isElectron) window.electron.ipcRenderer.send("like-status-change", like);
     } catch (error) {
-      window.$message.error(`${like ? "喜欢" : "取消"}音乐时发生错误`);
+      window.$message.error(
+        getUpstreamErrorMessage(error) || `${like ? "喜欢" : "取消"}音乐时发生错误`,
+      );
       console.error("❌ 更新喜欢歌曲时失败:", error);
     }
   },
@@ -451,14 +460,22 @@ const toLikeSomething = (
         return;
       }
       // 请求
-      const { code } = await request()(id, like ? 1 : 2);
-      if (code === 200) {
-        window.$message.success((like ? "" : "取消") + actionName + thingName + "成功");
-        // 更新
-        await update();
-      } else {
-        window.$message.success((like ? "" : "取消") + actionName + thingName + "失败，请重试");
-        return;
+      try {
+        const { code } = await request()(id, like ? 1 : 2);
+        if (code === 200) {
+          window.$message.success((like ? "" : "取消") + actionName + thingName + "成功");
+          // 更新
+          await update();
+        } else {
+          window.$message.error((like ? "" : "取消") + actionName + thingName + "失败，请重试");
+        }
+      } catch (error) {
+        // 405 等错误由响应拦截器以 reject 抛出，优先展示上游可读原因
+        window.$message.error(
+          getUpstreamErrorMessage(error) ||
+            (like ? "" : "取消") + actionName + thingName + "失败，请重试",
+        );
+        console.error(`❌ ${actionName}${thingName}失败:`, error);
       }
     },
     300,
