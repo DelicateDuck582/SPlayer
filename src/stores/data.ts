@@ -146,45 +146,47 @@ export const useDataStore = defineStore("data", {
      */
     async loadData() {
       try {
-        // 获取 music-data
-        const musicDataKeys = await musicDB.keys();
-        console.log(musicDataKeys);
-        await Promise.all(
-          musicDataKeys.map(async (key) => {
-            const data = await musicDB.getItem(key);
-            if (
-              [
-                "playList",
-                "originalPlayList",
-                "historyList",
-                "cloudPlayList",
-                "localPlayList",
-                "downloadingSongs",
-                "downloadedSongs",
-              ].includes(key)
-            ) {
-              this[key] = data ? markRaw(data) : [];
-            } else if (key === "likeSongsList" && data) {
-              // 特殊处理嵌套对象中的 data
-              const listData = data as ListState["likeSongsList"];
-              this.likeSongsList = {
-                detail: listData.detail,
-                data: markRaw(listData.data || []),
-              };
-            } else {
-              this[key] = data || [];
-            }
-          }),
-        );
-
-        // 获取 user-data
-        const userDataKeys = await userDB.keys();
-        await Promise.all(
-          userDataKeys.map(async (key) => {
-            const data = await userDB.getItem(key);
-            this.userLikeData[key] = data;
-          }),
-        );
+        // music-data 与 user-data 相互独立，并行加载
+        const loadMusicData = async () => {
+          const musicDataKeys = await musicDB.keys();
+          await Promise.all(
+            musicDataKeys.map(async (key) => {
+              const data = await musicDB.getItem(key);
+              if (
+                [
+                  "playList",
+                  "originalPlayList",
+                  "historyList",
+                  "cloudPlayList",
+                  "localPlayList",
+                  "downloadingSongs",
+                  "downloadedSongs",
+                ].includes(key)
+              ) {
+                this[key] = data ? markRaw(data) : [];
+              } else if (key === "likeSongsList" && data) {
+                // 特殊处理嵌套对象中的 data
+                const listData = data as ListState["likeSongsList"];
+                this.likeSongsList = {
+                  detail: listData.detail,
+                  data: markRaw(listData.data || []),
+                };
+              } else {
+                this[key] = data || [];
+              }
+            }),
+          );
+        };
+        const loadUserData = async () => {
+          const userDataKeys = await userDB.keys();
+          await Promise.all(
+            userDataKeys.map(async (key) => {
+              const data = await userDB.getItem(key);
+              this.userLikeData[key] = data;
+            }),
+          );
+        };
+        await Promise.all([loadMusicData(), loadUserData()]);
       } catch (error) {
         console.error("Error loading data from localforage:", error);
       }
@@ -411,7 +413,6 @@ export const useDataStore = defineStore("data", {
       // 获取歌单分类
       try {
         const [catsRes, hqCatsRes] = await Promise.all([playlistCatlist(), playlistCatlist(true)]);
-        console.log(catsRes, hqCatsRes);
         this.catData = {
           type: catsRes.categories,
           cats: formatCategoryList(catsRes.sub),

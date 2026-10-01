@@ -211,12 +211,10 @@ export const updateUserData = async () => {
     // userId
     const { profile } = await userAccount();
     const userId = profile.userId;
-    // 获取用户信息
-    const userDetailData = await userDetail(userId);
+    // 用户信息与订阅信息并行获取
+    const [userDetailData, subcountData] = await Promise.all([userDetail(userId), userSubcount()]);
     const userData = Object.assign(profile, userDetailData);
 
-    // 获取用户订阅信息
-    const subcountData = await userSubcount();
     // 获取用户 VIP 信息
 
     // 更改用户信息

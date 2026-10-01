@@ -165,70 +165,92 @@ const sortedRecData = computed(() => {
   return sections;
 });
 
+// 进行中的推荐请求（避免 onMounted 与 onActivated 重复触发）
+let recDataTask: Promise<void> | null = null;
+
 // 获取全部推荐
-const getAllRecData = async () => {
-  try {
-    // 延时
-    await sleep(300);
-
-    // 歌单
+const getAllRecData = () => {
+  if (recDataTask) return recDataTask;
+  recDataTask = (async () => {
     try {
-      const playlistRes = await getCacheData(
-        personalized,
-        { key: "playlistRec", time: 10 },
-        "playlist",
-        isLogin() ? 21 : 20,
-      );
-      recData.value.playlist.list = formatCoverList(
-        playlistRes.result?.filter((pl: any) => !pl.name.includes("私人雷达")),
-      );
-    } catch (error) {
-      console.error("Error getting playlist:", error);
-    }
+      // 延时
+      await sleep(300);
 
-    // 雷达
-    try {
-      const radarRes = await getCacheData(radarPlaylist, { key: "radarRec", time: 30 });
-      recData.value.radar.list = formatCoverList(radarRes);
+      // 六个区块并行获取，互不阻塞
+      const results = await Promise.allSettled([
+        // 歌单
+        (async () => {
+          try {
+            const playlistRes = await getCacheData(
+              personalized,
+              { key: "playlistRec", time: 10 },
+              "playlist",
+              isLogin() ? 21 : 20,
+            );
+            recData.value.playlist.list = formatCoverList(
+              playlistRes.result?.filter((pl: any) => !pl.name.includes("私人雷达")),
+            );
+          } catch (error) {
+            console.error("Error getting playlist:", error);
+          }
+        })(),
+        // 雷达
+        (async () => {
+          try {
+            const radarRes = await getCacheData(radarPlaylist, { key: "radarRec", time: 30 });
+            recData.value.radar.list = formatCoverList(radarRes);
+          } catch (error) {
+            console.error("Error getting radar:", error);
+          }
+        })(),
+        // 歌手
+        (async () => {
+          try {
+            const artistRes = await getCacheData(topArtists, { key: "artistRec", time: 10 }, 6);
+            recData.value.artist.list = formatArtistsList(artistRes.artists);
+          } catch (error) {
+            console.error("Error getting artist:", error);
+          }
+        })(),
+        // MV
+        (async () => {
+          try {
+            const videoRes = await getCacheData(allMv, { key: "videoRec", time: 10 });
+            recData.value.video.list = formatCoverList(videoRes.data);
+          } catch (error) {
+            console.error("Error getting video:", error);
+          }
+        })(),
+        // 播客
+        (async () => {
+          try {
+            const radioRes = await getCacheData(radioRecommend, { key: "radioRec", time: 10 });
+            recData.value.radio.list = formatCoverList(radioRes.djRadios);
+          } catch (error) {
+            console.error("Error getting radio:", error);
+          }
+        })(),
+        // 新碟
+        (async () => {
+          try {
+            const albumRes = await getCacheData(newAlbumsAll, { key: "albumRec", time: 10 });
+            recData.value.album.list = formatCoverList(albumRes.albums);
+          } catch (error) {
+            console.error("Error getting album:", error);
+          }
+        })(),
+      ]);
+      // 兜底：区块出现未捕获错误时，仍按原逻辑统一提示
+      const rejected = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+      if (rejected) throw rejected.reason;
     } catch (error) {
-      console.error("Error getting radar:", error);
+      window.$message.error("个性化推荐获取出错");
+      console.error("Error getting personalized data:", error);
     }
-
-    // 歌手
-    try {
-      const artistRes = await getCacheData(topArtists, { key: "artistRec", time: 10 }, 6);
-      recData.value.artist.list = formatArtistsList(artistRes.artists);
-    } catch (error) {
-      console.error("Error getting artist:", error);
-    }
-
-    // MV
-    try {
-      const videoRes = await getCacheData(allMv, { key: "videoRec", time: 10 });
-      recData.value.video.list = formatCoverList(videoRes.data);
-    } catch (error) {
-      console.error("Error getting video:", error);
-    }
-
-    // 播客
-    try {
-      const radioRes = await getCacheData(radioRecommend, { key: "radioRec", time: 10 });
-      recData.value.radio.list = formatCoverList(radioRes.djRadios);
-    } catch (error) {
-      console.error("Error getting radio:", error);
-    }
-
-    // 新碟
-    try {
-      const albumRes = await getCacheData(newAlbumsAll, { key: "albumRec", time: 10 });
-      recData.value.album.list = formatCoverList(albumRes.albums);
-    } catch (error) {
-      console.error("Error getting album:", error);
-    }
-  } catch (error) {
-    window.$message.error("个性化推荐获取出错");
-    console.error("Error getting personalized data:", error);
-  }
+  })().finally(() => {
+    recDataTask = null;
+  });
+  return recDataTask;
 };
 
 onActivated(getAllRecData);
