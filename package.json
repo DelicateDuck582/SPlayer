@@ -109,7 +109,7 @@
     "eslint": "^9.39.4",
     "eslint-plugin-vue": "^9.33.0",
     "fast-glob": "^3.3.3",
-    "fastify": "^5.8.5",
+    "fastify": "^5.12.5",
     "naive-ui": "2.43.2",
     "prettier": "^3.8.3",
     "rimraf": "^6.1.3",
