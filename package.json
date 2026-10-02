@@ -102,7 +102,7 @@
     "@typescript-eslint/eslint-plugin": "^8.60.1",
     "@typescript-eslint/parser": "^8.60.1",
     "@vitejs/plugin-vue": "^6.0.7",
-    "electron": "^41.7.1",
+    "electron": "^41.10.6",
     "electron-builder": "^26.15.3",
     "electron-log": "^5.4.4",
     "electron-vite": "^5.0.0",
