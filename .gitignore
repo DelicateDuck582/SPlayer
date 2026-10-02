@@ -43,5 +43,8 @@ docs/.vitepress/dist
 .trae/*
 .cursor/*
 .claude/*
+.mimosa/*
+.zcode/*
+.zcodeignore
 .vercel
 .env*
