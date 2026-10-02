@@ -58,7 +58,7 @@
     "@pixi/sprite": "^7.4.3",
     "@vueuse/core": "^14.3.0",
     "@vueuse/integrations": "^14.3.0",
-    "axios": "^1.17.0",
+    "axios": "^1.20.0",
     "axios-retry": "^4.5.0",
     "better-sqlite3": "^12.10.0",
     "change-case": "^5.4.4",
