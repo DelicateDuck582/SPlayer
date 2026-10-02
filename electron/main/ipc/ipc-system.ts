@@ -4,6 +4,44 @@ import { getFonts } from "font-list";
 import { useStore } from "../store";
 import mainWindow from "../windows/main-window";
 
+/** 渲染层「网络代理」下拉支持的协议（大小写不敏感，兼容旧版小写配置） */
+const ALLOWED_PROXY_PROTOCOLS = new Set(["http", "https"]);
+
+/** 代理主机名禁止的字符：空白字符、控制字符与 URL 分隔符（允许下划线、中文域名等） */
+const PROXY_HOST_FORBIDDEN_PATTERN = /[\s\p{Cc}/\\@]/u;
+
+/** 渲染层传入的代理配置 */
+interface ProxyConfig {
+  protocol: string;
+  server: string;
+  port: number;
+}
+
+/**
+ * 校验渲染层传入的代理配置
+ * @param config 渲染层传入的配置
+ * @returns 合法返回 null，否则返回失败原因
+ */
+const validateProxyConfig = (config: unknown): string | null => {
+  if (typeof config !== "object" || config === null || Array.isArray(config))
+    return "参数必须是对象";
+  const { protocol, server, port } = config as Record<string, unknown>;
+  if (typeof protocol !== "string" || !ALLOWED_PROXY_PROTOCOLS.has(protocol.toLowerCase()))
+    return "代理协议不在允许范围内";
+  // 主机名按域名上限限长，并禁止空白、控制字符、/、\、@ 等
+  if (
+    typeof server !== "string" ||
+    server.length === 0 ||
+    server.length > 255 ||
+    PROXY_HOST_FORBIDDEN_PATTERN.test(server)
+  )
+    return "代理服务器地址不合法";
+  // 代理端口可为 80 等特权端口，不能复用仅接受 1024-65535 的 isValidPort
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535)
+    return "代理端口必须是 1-65535 的整数";
+  return null;
+};
+
 /**
  * 初始化系统 IPC 通信
  * @returns void
@@ -60,19 +98,31 @@ const initSystemIpc = (): void => {
     ipcLog.info("✅ Remove proxy successfully");
   });
 
-  // 配置网络代理
-  ipcMain.on("set-proxy", (_, config) => {
+  // 配置网络代理（写入前校验，防止渲染层被 XSS 后指向任意代理）
+  ipcMain.on("set-proxy", (_, config: unknown) => {
+    const reason = validateProxyConfig(config);
+    if (reason) {
+      ipcLog.warn(`🚫 Blocked set-proxy: reason=${reason}`);
+      return;
+    }
     const mainWin = mainWindow.getWin();
     if (!mainWin) return;
-    const proxyRules = `${config.protocol}://${config.server}:${config.port}`;
+    const { protocol, server, port } = config as ProxyConfig;
+    const proxyRules = `${protocol}://${server}:${port}`;
     store.set("proxy", proxyRules);
     mainWin?.webContents.session.setProxy({ proxyRules });
     ipcLog.info("✅ Set proxy successfully:", proxyRules);
   });
 
-  // 代理测试
-  ipcMain.handle("test-proxy", async (_, config) => {
-    const proxyRules = `${config.protocol}://${config.server}:${config.port}`;
+  // 代理测试（与 set-proxy 同源校验，防止 XSS 借测试通道指向任意代理）
+  ipcMain.handle("test-proxy", async (_, config: unknown) => {
+    const reason = validateProxyConfig(config);
+    if (reason) {
+      ipcLog.warn(`🚫 Blocked test-proxy: reason=${reason}`);
+      return false;
+    }
+    const { protocol, server, port } = config as ProxyConfig;
+    const proxyRules = `${protocol}://${server}:${port}`;
     try {
       // 设置代理
       const ses = session.defaultSession;

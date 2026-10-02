@@ -4,6 +4,8 @@ import { createHash } from "crypto";
 import { cacheLog } from "../logger";
 import { useStore } from "../store";
 import { loadNativeModule } from "../utils/native-loader";
+import { isSafeRemoteUrl } from "../utils/net-security";
+import { isManagedPath } from "../utils/path-security";
 import { CacheService } from "./CacheService";
 
 type toolModule = typeof import("@native/tools");
@@ -183,8 +185,19 @@ export class MusicCacheService {
       return this.downloadingTasks.get(key)!;
     }
     const downloadPromise = (async () => {
+      // 远程地址校验：协议白名单 + 主机名与 DNS 解析结果拦截
+      const unsafeReason = await isSafeRemoteUrl(url);
+      if (unsafeReason) {
+        cacheLog.warn(`🚫 拒绝缓存下载: ${unsafeReason}`);
+        throw new Error(unsafeReason);
+      }
       const filePath = this.cacheService.getFilePath("music", key);
       const tempPath = `${filePath}.tmp`;
+      // 落盘目录必须在受管根内（缓存根由 CacheService 统一约束）
+      if (!isManagedPath(filePath)) {
+        cacheLog.warn(`🚫 缓存目录未授权: ${filePath}`);
+        throw new Error("缓存目录未授权");
+      }
 
       // 确保目录存在
       await this.cacheService.init();

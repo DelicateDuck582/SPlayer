@@ -1,6 +1,5 @@
 import Database from "better-sqlite3";
-import { existsSync } from "node:fs";
-import { readFile, rename } from "node:fs/promises";
+import { existsSync, readFileSync, renameSync } from "node:fs";
 
 /** 列定义接口 */
 interface ColumnDef {
@@ -192,8 +191,8 @@ export class LocalMusicDB {
     }
   }
 
-  /** 从 JSON 迁移数据 (如果存在) */
-  public async migrateFromJsonIfNeeded(jsonPath: string) {
+  /** 从 JSON 迁移数据 (如果存在，同步版供启动早期复用) */
+  public migrateFromJsonIfNeededSync(jsonPath: string) {
     if (!this.db) return;
 
     // 检查是否已经有数据 (如果有数据则不迁移)
@@ -204,7 +203,7 @@ export class LocalMusicDB {
     if (existsSync(jsonPath)) {
       try {
         console.log("Migrating local music library from JSON to SQLite...");
-        const data = await readFile(jsonPath, "utf-8");
+        const data = readFileSync(jsonPath, "utf-8");
         const parsed = JSON.parse(data) as LegacyMusicLibraryDB;
 
         if (parsed.tracks) {
@@ -213,11 +212,16 @@ export class LocalMusicDB {
         }
 
         // 迁移完成后重命名 JSON 文件备份
-        await rename(jsonPath, `${jsonPath}.bak`);
+        renameSync(jsonPath, `${jsonPath}.bak`);
       } catch (e) {
         console.error("Failed to migrate from JSON:", e);
       }
     }
+  }
+
+  /** 从 JSON 迁移数据 (如果存在) */
+  public async migrateFromJsonIfNeeded(jsonPath: string) {
+    this.migrateFromJsonIfNeededSync(jsonPath);
   }
 
   /** 获取单曲 */

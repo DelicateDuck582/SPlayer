@@ -1,11 +1,13 @@
 import type { SongMetadata } from "@native/tools";
 import { app, BrowserWindow } from "electron";
 import { mkdir, access, writeFile, rename, unlink } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { ipcLog } from "../logger";
 import { useStore } from "../store";
 import { loadNativeModule } from "../utils/native-loader";
 import { getArtistNames } from "../utils/format";
+import { isSafeRemoteUrl } from "../utils/net-security";
+import { isManagedPath } from "../utils/path-security";
 
 type toolModule = typeof import("@native/tools");
 const tools: toolModule = loadNativeModule("tools.node", "tools");
@@ -113,14 +115,11 @@ export class DownloadService {
       } = options;
 
       // 纵深防御：主进程不信任渲染进程传入的参数
-      // 1) 协议白名单：禁止 file:/data:/blob: 等异常协议
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          return { status: "error", message: `不支持的下载协议：${parsed.protocol}` };
-        }
-      } catch {
-        return { status: "error", message: "下载地址无效" };
+      // 1) 协议白名单 + 主机名与 DNS 解析结果校验（拒绝回环/内网/保留地址）
+      const unsafeReason = await isSafeRemoteUrl(url);
+      if (unsafeReason) {
+        ipcLog.warn(`🚫 Blocked unsafe download url: ${url} (${unsafeReason})`);
+        return { status: "error", message: unsafeReason };
       }
       // 2) 文件名/扩展名净化：去掉路径分隔符、控制字符与首部点号，防止路径穿越
       const fileName = sanitizeDownloadName(rawFileName);
@@ -128,12 +127,23 @@ export class DownloadService {
       const fileType = sanitizeDownloadType(rawFileType);
       // 规范化路径
       const downloadPath = resolve(path);
+      // 目录白名单：落盘目录必须已受管（缓存目录或系统对话框授权目录）
+      if (!isManagedPath(downloadPath, true)) {
+        ipcLog.warn(`🚫 Blocked download outside managed roots: ${downloadPath}`);
+        return { status: "error", message: "下载目录未授权，请在设置中重新选择下载目录" };
+      }
       // 3) 目标文件必须落在下载目录内（防止 ../ 逃逸）
       const finalFilePath = fileType
         ? join(downloadPath, `${fileName}.${fileType}`)
         : join(downloadPath, fileName);
       const relativePath = relative(downloadPath, finalFilePath);
-      if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+      // 仅排除真正的上级目录，避免误伤「..foo」这类文件名
+      if (
+        !relativePath ||
+        relativePath === ".." ||
+        relativePath.startsWith(`..${sep}`) ||
+        isAbsolute(relativePath)
+      ) {
         return { status: "error", message: "目标路径越界，已取消下载" };
       }
       // 检查文件夹是否存在，不存在则自动递归创建

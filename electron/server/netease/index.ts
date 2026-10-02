@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { pathCase } from "change-case";
 import { serverLog } from "../../main/logger";
 import { useStore } from "../../main/store";
+import { isSafeRemoteUrl } from "../../main/utils/net-security";
 import { defaultAMLLDbServer } from "../../main/utils/config";
 import { ensureNcmConfig, NON_API_EXPORTS } from "./ncm-config";
 import NeteaseCloudMusicApi from "@neteasecloudmusicapienhanced/api";
@@ -98,6 +99,12 @@ export const initNcmAPI = async (fastify: FastifyInstance) => {
       const store = useStore();
       const server = store.get("amllDbServer") ?? defaultAMLLDbServer;
       const url = server.replace("%s", String(id));
+      // 主进程侧兜底：协议与 DNS 解析结果校验，拒绝指向内网的地址（防 SSRF）
+      const unsafeReason = await isSafeRemoteUrl(url);
+      if (unsafeReason) {
+        serverLog.warn(`🚫 拒绝不安全的 TTML 歌词服务地址: ${unsafeReason}`);
+        return reply.send(null);
+      }
       try {
         const response = await fetch(url);
         if (response.status !== 200) {

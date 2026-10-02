@@ -75,7 +75,8 @@ export class SocketService {
 
     return new Promise<{ port: number }>((resolve, reject) => {
       try {
-        const wss = new WebSocketServer({ port });
+        // 仅绑定回环地址，避免服务暴露到局域网（与 docs/socket.md 的 localhost 说明一致）
+        const wss = new WebSocketServer({ port, host: "127.0.0.1" });
         this.wss = wss;
         this.currentPort = port;
 

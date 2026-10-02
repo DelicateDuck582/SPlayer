@@ -75,6 +75,8 @@ export interface StoreType {
       enabled: boolean;
     };
   };
+  /** 旧版渲染层路径是否已完成一次性迁移 */
+  legacyRootsMigrated?: boolean;
 }
 
 /**

@@ -3,6 +3,7 @@ import { existsSync } from "fs";
 import { readdir, readFile, rm, stat, writeFile, mkdir, utimes } from "fs/promises";
 import { useStore } from "../store";
 import { cacheLog } from "../logger";
+import { isManagedPath, isPathWithin } from "../utils/path-security";
 import { CacheDB } from "../database/CacheDB";
 
 /**
@@ -70,6 +71,11 @@ export class CacheService {
     if (!base) {
       throw new Error("cachePath 未配置");
     }
+    // 缓存根必须位于受管目录内，避免被篡改的配置导致向任意目录写入或递归清空
+    if (!isManagedPath(base, true)) {
+      cacheLog.warn(`🚫 缓存目录未授权: ${base}`);
+      throw new Error("cachePath 未授权");
+    }
     return base;
   }
 
@@ -80,7 +86,8 @@ export class CacheService {
     const basePath = this.getCacheBasePath();
     const dir = join(basePath, this.CACHE_SUB_DIR[type]);
     const target = resolve(dir, key);
-    if (!target.startsWith(resolve(dir))) {
+    // path.relative 判定越界，避免 ../musicX 兄弟目录的前缀绕过
+    if (!isPathWithin(target, dir)) {
       throw new Error("非法的缓存 key");
     }
     return { dir, target };

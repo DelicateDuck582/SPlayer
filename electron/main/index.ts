@@ -11,6 +11,7 @@ import { SocketService } from "./services/SocketService";
 import { unregisterShortcuts } from "./shortcut";
 import { initTray, MainTray } from "./tray";
 import { isMac } from "./utils/config";
+import { initManagedRoots } from "./utils/path-security";
 import { trySendCustomProtocol } from "./utils/protocol";
 import { initSingleLock } from "./utils/single-lock";
 import loadWindow from "./windows/load-window";
@@ -73,12 +74,15 @@ class MainProcess {
     app.whenReady().then(async () => {
       processLog.info("🚀 Application Process Startup");
 
-      // 内容安全策略（低回归基线）：阻断插件注入、base 标签劫持与点击劫持
-      // 说明：应用需加载远程音频/图片/字体，且主窗口关闭了同源策略（见 windows/index.ts），
-      // 因此 script/style/connect 仍需保持宽松，先落地不受这些需求影响的部分
+      // 初始化受管根目录（需在创建窗口前完成，避免渲染层抢先写入授权）
+      initManagedRoots();
+
+      // 内容安全策略（与 index.html 的 meta 策略同级，另补 meta 无法下发的 frame-ancestors）
+      // 说明：应用需加载远程音频/图片/字体，且 emscripten 版 ffmpeg 与「自定义 JS」依赖 eval，
+      // 因此 script/style/connect 仍需保持宽松，但不再放宽到裸 http: 脚本源
       const contentSecurityPolicy = [
         "default-src 'self' data: blob: file: http: https:",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' data: blob: https:",
         "style-src 'self' 'unsafe-inline' data: blob: http: https:",
         "img-src 'self' data: blob: http: https:",
         "media-src 'self' data: blob: http: https:",
@@ -89,6 +93,7 @@ class MainProcess {
         "object-src 'none'",
         "base-uri 'self'",
         "frame-ancestors 'none'",
+        "form-action 'self'",
       ].join("; ");
 
       // 配置 COOP/COEP/CORP 头，FFmpeg 需要
