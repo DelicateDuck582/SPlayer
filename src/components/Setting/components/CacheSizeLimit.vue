@@ -47,7 +47,14 @@ const cacheLimit = ref<number>(10);
 const cacheLimited = ref<number>(1);
 
 const changeCacheLimit = async (value: number) => {
-  await window.api.store.set("cacheLimit", value);
+  try {
+    const saved = await window.api.store.set("cacheLimit", value);
+    // 主进程校验失败时返回 false
+    if (saved === false) window.$message.error("保存失败");
+  } catch (error) {
+    console.error("保存缓存上限失败:", error);
+    window.$message.error("保存失败");
+  }
 };
 
 const onUpdateLimit = (value: number | null) => {

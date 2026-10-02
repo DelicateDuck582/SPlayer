@@ -6,7 +6,9 @@
         <SvgIcon name="Help" />
       </template>
       登录
-      <n-a href="https://www.kugou.com/" target="_blank">酷狗音乐网页端</n-a>
+      <n-a href="https://www.kugou.com/" target="_blank" rel="noopener noreferrer"
+        >酷狗音乐网页端</n-a
+      >
       后按 <code>F12</code> → <code>Application</code>（应用）→ <code>Cookies</code>，复制
       <code>token</code> 与 <code>userid</code> 两项即可，也可以整段粘贴 Cookie。<br />
       凭据只保存在本机，且仅在请求体里发送给酷狗 API 服务（不进 URL / 日志）。

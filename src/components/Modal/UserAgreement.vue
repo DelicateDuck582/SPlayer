@@ -30,7 +30,11 @@
         <n-li>用户在使用、修改和分发 SPlayer 时，必须遵守 AGPL-3.0 许可的条款和条件。</n-li>
         <n-li>
           AGPL-3.0 许可的详细信息可以在以下链接找到：
-          <n-a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank">
+          <n-a
+            href="https://www.gnu.org/licenses/agpl-3.0.html"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             GNU Affero General Public License v3.0
           </n-a>
         </n-li>

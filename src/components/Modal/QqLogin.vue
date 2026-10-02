@@ -34,7 +34,9 @@
               <SvgIcon name="Help" />
             </template>
             登录
-            <n-a href="https://y.qq.com/" target="_blank">QQ 音乐网页端</n-a>
+            <n-a href="https://y.qq.com/" target="_blank" rel="noopener noreferrer"
+              >QQ 音乐网页端</n-a
+            >
             后按 <code>F12</code> → <code>Application</code> → <code>Cookies</code>，复制
             <code>uin</code> 与 <code>qqmusic_key</code>（旧版为
             <code>qm_keyst</code>）。凭据只存本机，仅经

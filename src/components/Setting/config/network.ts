@@ -739,6 +739,7 @@ export const useNetworkSettings = (): SettingConfig => {
                         {
                           href: "https://www.last.fm/zh/api/account/create",
                           target: "_blank",
+                          rel: "noopener noreferrer",
                         },
                         { default: () => "Last.fm 创建应用" },
                       ),
@@ -751,6 +752,7 @@ export const useNetworkSettings = (): SettingConfig => {
                         {
                           href: "https://www.last.fm/zh/api/accounts",
                           target: "_blank",
+                          rel: "noopener noreferrer",
                         },
                         { default: () => "Last.fm API 应用程序" },
                       ),
@@ -893,7 +895,13 @@ export const useNetworkSettings = (): SettingConfig => {
             label: "WebSocket 端口",
             type: "input-number",
             description: "更改后需要测试并保存才能生效",
-            componentProps: { min: 1, max: 65535, showButton: false, placeholder: "请输入端口号" },
+            // 端口下限与主进程校验保持一致（1024-65535）
+            componentProps: {
+              min: 1024,
+              max: 65535,
+              showButton: false,
+              placeholder: "请输入端口号",
+            },
             disabled: computed(() => socketEnabled.value),
             value: computed({
               get: () => socketPort.value,

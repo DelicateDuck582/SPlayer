@@ -70,7 +70,12 @@ const handleConfirm = async () => {
   const url = serverUrl.value;
   // 验证 URL 格式和 %s
   if (isValidServer(url)) {
-    await window.api.store.set("amllDbServer", url);
+    const saved = await window.api.store.set("amllDbServer", url);
+    // 主进程会拒绝内网地址等非法配置，失败时不再提示成功
+    if (saved === false) {
+      window.$message.error("保存失败：仅支持公网的 http/https 地址");
+      return;
+    }
     settingStore.amllDbServer = url;
     window.$message.success("AMLL TTML DB 地址已更新");
     props.onClose();

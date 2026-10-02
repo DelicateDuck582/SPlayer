@@ -176,6 +176,7 @@
 
 <script setup lang="ts">
 import { SettingItem, SettingAction } from "@/types/settings";
+import { sanitizeHtml } from "@/utils/sanitizeHtml";
 
 defineOptions({
   name: "SettingItemRenderer",
@@ -238,13 +239,18 @@ const isDisabled = computed(() => {
   return toValue(props.item.disabled);
 });
 
-// 描述内容
+// 仅净化字符串描述，组件或 VNode 描述原样返回
+const sanitizeDescription = (desc: any): any =>
+  typeof desc === "string" ? sanitizeHtml(desc) : desc;
+
+// 描述内容（净化后再渲染，防止配置注入的 HTML 被解析执行）
 const descriptionContent = computed(() => {
   if (isForcedConditionMet.value) {
     const forcedDescriptionRef = props.item.forceIf!.forcedDescription;
-    if (forcedDescriptionRef !== undefined) return toValue(forcedDescriptionRef);
+    if (forcedDescriptionRef !== undefined)
+      return sanitizeDescription(toValue(forcedDescriptionRef));
   }
-  return toValue(props.item.description);
+  return sanitizeDescription(toValue(props.item.description));
 });
 
 // 鼠标悬停提示

@@ -79,8 +79,26 @@ app.mount("#app");
 // 初始化 ipc
 if (!location.hash.includes("desktop-lyric")) initIpc();
 
+/** 升级迁移：把旧版仅存于渲染层的目录补录为主进程受管根（仅首次生效，失败静默） */
+const migrateLegacyRoots = (): void => {
+  try {
+    const settings = useSettingStore();
+    window.electron.ipcRenderer
+      .invoke("approve-legacy-paths", {
+        downloadPath: settings.downloadPath,
+        localLyricPath: settings.localLyricPath,
+        localFilesPath: settings.localFilesPath,
+      })
+      .catch(() => {});
+  } catch {
+    // 主进程不可用时忽略，不影响启动
+  }
+};
+
 // 根据设置判断是否要注册协议
 if (isElectron && !location.hash.includes("desktop-lyric")) {
   const settings = useSettingStore();
   sendRegisterProtocol("orpheus", settings.registryProtocol.orpheus);
+  // 无论是否存在旧路径都要调用一次，以消费一次性迁移额度
+  migrateLegacyRoots();
 }
