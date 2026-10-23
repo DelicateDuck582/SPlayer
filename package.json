@@ -119,7 +119,7 @@
     "typescript": "^6.0.3",
     "unplugin-auto-import": "^21.0.0",
     "unplugin-vue-components": "^32.1.0",
-    "vite": "^7.3.5",
+    "vite": "^7.3.7",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-vue-devtools": "^8.1.2",
     "vite-plugin-wasm": "^3.6.0",
